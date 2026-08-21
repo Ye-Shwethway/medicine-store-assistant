@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Project Roadmap
 
-Status: **Phase 2 foundation active; F0/F1/F2/F3 verified complete; F4 synthetic ledger slice authorized**
+Status: **Phase 2 foundation active; F0/F1/F2/F3 verified complete; F4 authored and VPS verification pending**
 
 This roadmap tracks the full Medicine Store Assistant project and must stay synchronized with `NEW_CHAT_BOOTSTRAP.md`.
 
@@ -84,26 +84,40 @@ Verified runtime:
 
 ### F4 — Ledger primitives in isolated synthetic/test mode
 
-Status: **authorized / current implementation slice**
+Status: **authorized and authored; VPS verification pending**
 
 Purpose: prove deterministic inventory-movement semantics before importing or writing real store inventory.
 
-Authorized F4 scope:
+Repository implementation includes:
 
-- add ledger transaction schema for `OPENING_BALANCE`, `RECEIPT`, `USAGE`, `ADJUSTMENT_POSITIVE`, `ADJUSTMENT_NEGATIVE`;
-- fixed-point quantities and explicit transaction type semantics;
-- operation/idempotency key uniqueness so retries cannot duplicate movement;
-- correction/reversal linkage without destructive history deletion;
-- deterministic lot balance calculation from movements;
-- explicit negative-balance protection for normal synthetic test operations;
-- synthetic/test fixture workflow only;
-- automated tests/verification proving idempotency, balance math, reversal semantics, and negative-stock policy;
-- no live Google Sheet import;
-- no real medicine-store stock writes;
-- no Sheet mirror mutation;
-- no database canonical promotion.
+- migration `0002_ledger` adding `inventory_transactions`;
+- transaction types `OPENING_BALANCE`, `RECEIPT`, `USAGE`, `ADJUSTMENT_POSITIVE`, `ADJUSTMENT_NEGATIVE`;
+- fixed-point positive quantity constraint;
+- unique `operation_id` idempotency protection;
+- correction/reversal linkage without destructive deletion;
+- stable user/service-principal actor linkage;
+- deterministic lot-balance calculation;
+- normal negative-stock blocking;
+- synthetic verifier covering balance math, duplicate-operation rejection, negative-stock rejection, and linked reversal semantics;
+- verifier transaction rollback so synthetic fixture data does not remain in PostgreSQL;
+- `deploy/apply_f4_ledger_foundation.sh` to apply migration, run synthetic verification, and confirm `/health` + `/ready`;
+- `/ready` expects migration `0002_ledger` once F4 is applied.
 
-F4 is not production stock authority. Any write endpoints introduced for verification must be clearly test-only/internal or disabled from the public production API surface.
+F4 does **not** expose production inventory write endpoints, import live Sheet data, mutate Google Sheets, enable Custom GPT writes, or promote PostgreSQL to canonical authority.
+
+Current VPS verification command:
+
+```bash
+cd /opt/medicine-store-assistant/app/repo && git pull --ff-only && bash deploy/apply_f4_ledger_foundation.sh
+```
+
+Expected success evidence includes:
+
+- repository validator PASS;
+- Alembic upgrade to `0002_ledger`;
+- synthetic ledger verifier PASS for balance math, idempotency, negative-stock guard, and reversal linkage;
+- `/health` HTTP 200 with `database_canonical: false`;
+- `/ready` HTTP 200 with migration and expected migration both `0002_ledger`.
 
 ## Phase 3 — Shadow migration/reconciliation
 
@@ -147,9 +161,9 @@ Status: **future**
 
 ## Current next work
 
-1. Implement and verify F4 synthetic/test-only ledger primitives.
-2. Keep public/domain production surface read-only.
-3. Do not import current Sheet inventory or grant production stock-write authority during F4.
+1. Run the F4 VPS verification command above and inspect its exact output.
+2. If verification passes, record F4 canonical runtime evidence and mark F4 verified complete.
+3. Do not begin live shadow import or production stock-write authority without a later explicit slice.
 
 ## Continuity rule
 
