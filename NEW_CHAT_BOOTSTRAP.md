@@ -96,7 +96,7 @@ Configured route:
 
 `inventory.drthorne.uk -> existing managed Cloudflare Tunnel -> http://localhost:8088`
 
-Cloudflare-side route/DNS read-back succeeded and VPS port 8088 remains non-public. Independent external fetch has still not produced a confirmed public HTTP 200 response, so keep this slice open until verified.
+Cloudflare-side route/DNS read-back succeeded and VPS port 8088 remains non-public. User may verify externally with a browser or `curl -i https://inventory.drthorne.uk/health`. Close the Cloudflare slice only after HTTP 200 + expected public-safe health JSON are observed.
 
 ### F2 — PostgreSQL schema/migration foundation
 
@@ -113,24 +113,41 @@ Final verified runtime:
 - `/health` returned HTTP 200 with build SHA `a9cd98e4af6fd20aee07a783f82daf46d557ac7a` and `database_canonical: false`;
 - `/ready` returned HTTP 200 with `database: reachable`, migration `0001_foundation`, expected migration `0001_foundation`, and `database_canonical: false`;
 - deploy helper retries through transient container-recreate connection resets until stable readiness;
-- runtime PostgreSQL URLs are normalized to the intended `postgresql+psycopg://` driver.
+- runtime PostgreSQL URLs use the intended psycopg v3 dialect.
 
-F2 did not enable stock ledger writes, import live inventory, mutate the Sheet, connect Custom GPT Actions, deploy Telegram/Flutter, or promote PostgreSQL to canonical authority.
+### F3 — Authenticated read-only domain/API
+
+**Authorized and authored; VPS verification pending.**
+
+Repository implementation now includes authenticated read-only endpoints for:
+
+- products;
+- lots;
+- operating months;
+- CMS catalogue versions/items;
+- safe access-control counts/summary.
+
+Security model:
+
+- domain reads require a bearer credential with `inventory:read` (or `*`) scope;
+- token is SHA-256 hashed before lookup against active `service_credentials` joined to active `service_principals`;
+- anonymous domain reads return 401;
+- no password hashes, service-key hashes, Telegram IDs, or credential material are returned by the safe access summary;
+- `/health` remains intentionally public-safe;
+- no inventory write endpoints exist in F3.
+
+Operational tooling:
+
+- `python -m app.service_key_cli` creates a high-entropy service token, stores only its hash/scopes in PostgreSQL, and can print raw token only for controlled bootstrap use;
+- `deploy/apply_f3_read_api.sh` updates runtime build SHA, validates/builds/starts the API, waits for `/health` and `/ready`, verifies anonymous `/v1/products` is 401, generates a scoped verification credential, stores its plaintext token only in `/opt/medicine-store-assistant/secrets/f3_read_api.token` with mode 0600, verifies authenticated `/v1/products` HTTP 200, and does not print the token.
+
+Current DB contains no live inventory import, so authenticated product reads are expected to return an empty list until the later shadow-migration slice.
 
 ## Immediate next work
 
-F3 — Core read-only domain/API — is the next implementation slice but is **not yet started**.
-
-Target F3 scope:
-
-- read-only product and lot lookup/listing;
-- operating-month read diagnostics;
-- CMS catalogue/version read diagnostics;
-- safe user/account diagnostics with no credential exposure;
-- typed response models and stable API conventions;
-- no inventory mutations and no live Sheet import.
-
-Separately, continue independent external checks of `https://inventory.drthorne.uk/health` until public HTTP 200 + expected JSON are observed.
+1. Deploy/verify F3 on the VPS with `deploy/apply_f3_read_api.sh`.
+2. Accept user-side public `/health` evidence and close the Cloudflare slice if it returns HTTP 200 + expected JSON.
+3. After F3 verification, decide the next minimum slice; do not jump directly to live stock writes or database promotion.
 
 ## Safety boundary
 
