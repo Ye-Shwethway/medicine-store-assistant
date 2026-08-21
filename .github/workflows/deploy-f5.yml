@@ -2,6 +2,9 @@ name: Deploy F5 to VPS
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - .github/f5-deploy-trigger
 
 permissions:
   contents: read
