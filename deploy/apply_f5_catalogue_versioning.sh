@@ -5,8 +5,8 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_FILE="${MSA_RUNTIME_ENV:-/opt/medicine-store-assistant/secrets/runtime.env}"
 COMPOSE_FILE="$REPO_DIR/deploy/docker-compose.yml"
 
-if [[ ! -f "$ENV_FILE" ]]; then
-  echo "error: runtime env not found: $ENV_FILE" >&2
+if [[ ! -r "$ENV_FILE" ]]; then
+  echo "error: runtime env is not readable: $ENV_FILE" >&2
   exit 1
 fi
 
@@ -14,12 +14,8 @@ cd "$REPO_DIR"
 python3 scripts/validate_repository.py
 
 CURRENT_SHA="$(git rev-parse HEAD)"
-if grep -q '^MSA_BUILD_SHA=' "$ENV_FILE"; then
-  sed -i "s/^MSA_BUILD_SHA=.*/MSA_BUILD_SHA=${CURRENT_SHA}/" "$ENV_FILE"
-else
-  printf '\nMSA_BUILD_SHA=%s\n' "$CURRENT_SHA" >> "$ENV_FILE"
-fi
-chmod 600 "$ENV_FILE"
+export MSA_BUILD_SHA="$CURRENT_SHA"
+export COMPOSE_PROJECT_NAME="${MSA_COMPOSE_PROJECT_NAME:-deploy}"
 
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" config --quiet
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" build api
