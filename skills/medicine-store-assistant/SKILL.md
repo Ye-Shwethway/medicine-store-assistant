@@ -69,6 +69,16 @@ Normalize only harmless variation in abbreviations, punctuation, spacing, word o
 
 When reconciling `Main Stock`, do not limit review to blank CMS codes. Also detect rows where a verified Serial Code exists but dependent identity fields such as `CS Name` are blank. Recover those fields only when the code plus normalized local item, form/unit, price plausibility, sibling-lot history, or catalogue evidence make the identity SAFE. Code presence alone is never enough.
 
+### Historical intake reconciliation
+
+A source transfer can be valuable even when its quantities were already applied historically.
+
+- Before adding any received quantity, check idempotency using multiple receipt signals such as code, normalized item identity, expiry, quantity, source price, transfer/batch history, preserved batch sheets, or backups.
+- If the transfer is already represented in `Main Stock`, do **not** add the quantity again. Switch to reconciliation-only mode and use the source to detect stale mappings, missing dependent fields, unit gaps, expiry-lot problems, or source transcription errors.
+- An existing batch tab alone is evidence, not proof of Main Stock application; corroborate with live receipt/history evidence.
+- When the original source document and the verified current CMS catalogue independently agree on the same code, product identity, and catalogue price, and that combined evidence directly contradicts the live local CMS mapping, treat the stale local `Serial Code`, `CS Name`, and current `CMS Price` mapping as SAFE to correct when no stronger contradictory evidence exists.
+- Such a correction does not authorize rewriting derived or historical transaction fields. In particular, leave derived `Price` untouched unless its own workbook contract explicitly authorizes a write.
+
 ## New expiry-lot row insertion
 
 When a confirmed source shows the same local item as a distinct expiry lot, keep it adjacent to its sibling item rows and create a real row insertion rather than overwriting an existing lot.
@@ -89,7 +99,7 @@ Before editing:
 
 1. Inspect the relevant live rows and formulas.
 2. Identify the source evidence and exact target cells.
-3. Detect identity, lot, recycled-code, and expiry-suffix/`Expiry Date` conflicts.
+3. Detect identity, lot, recycled-code, idempotency, and expiry-suffix/`Expiry Date` conflicts.
 4. Limit the mutation to the smallest necessary range.
 
 Do not ask for confirmation for every obvious routine entry unless the app permission layer requires it. Stop for material ambiguity affecting identity, lot allocation, or a recycled CMS code. For an expiry-suffix mismatch, preserve both values and mark the Item Name cell for later review instead of silently correcting either field.
@@ -100,7 +110,7 @@ After editing:
 2. Verify the intended values were written.
 3. Verify unrelated values were not changed.
 4. Verify any visual marks according to [references/visual-marking.md](references/visual-marking.md).
-5. Use `Audit_Log` for significant multi-row reconciliation, price synchronization, code reassignment/recycling, new expiry-lot insertion, or ambiguity resolution.
+5. Use `Audit_Log` for significant multi-row reconciliation, historical-intake reconciliation, price synchronization, code reassignment/recycling, new expiry-lot insertion, or ambiguity resolution.
 
 Never claim success before read-back verification.
 
@@ -114,6 +124,7 @@ Use concise Burmese with English technical terms where helpful. For ingestion wo
 - conflicts or uncertainties,
 - FIFO/FEFO or expiry warnings,
 - visual marks applied,
+- idempotency decision,
 - verification status.
 
 Process reliable parts of a document even if one small field is unreadable; isolate the uncertain field rather than inventing it or rejecting the whole document.
@@ -124,11 +135,12 @@ Do not redesign or replace the existing workbook, macros, archives, reports, reo
 
 Never:
 
+- double-intake a transfer already represented in Main Stock,
 - rewrite actual usage to make FIFO/FEFO appear compliant,
 - overwrite an older expiry lot merely because the code matches,
 - silently change an item-name expiry suffix or `Expiry Date` merely to make them agree,
 - populate a derived/helper field from a neighboring row without a verified contract,
-- write the `Price` column during new-lot intake,
+- write the `Price` column during new-lot intake or mapping reconciliation,
 - propagate a price from code match alone,
 - replace historical transaction prices with today's catalogue price,
 - force local generic names to CMS brand names,
