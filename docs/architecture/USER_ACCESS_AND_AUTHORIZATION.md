@@ -1,162 +1,129 @@
 # User Access and Authorization Architecture
 
-Status: **design contract — implementation pending**
+Status: **approved v1 foundation — implementation staged by slice**
 
 ## Purpose
 
-Medicine Store Assistant is expected to be used not only by the owner but also by authorized store staff through future Telegram and Flutter clients. User identity, authentication, authorization, and audit attribution therefore belong in the v1 backend architecture rather than being added later as an unrelated patch.
+Medicine Store Assistant will be used by the owner and authorized staff through future Telegram and Flutter clients. User identity, authentication, authorization, service identities, and audit attribution therefore belong in the backend foundation rather than being retrofitted after operational history exists.
 
-This domain must remain separate from inventory identity. Products, lots, receipts, usage, catalogue records, and monthly snapshots must not carry Telegram-specific or Flutter-specific login fields directly.
+This domain remains separate from inventory identity. Products, lots, receipts, usage, catalogue records, and monthly snapshots must not contain Telegram- or Flutter-specific login fields as their identity source.
 
-## Canonical identity model
+## Canonical human identity
 
-Use one stable internal user identity for a human staff member regardless of client.
+Use one stable internal `user_id` for each human staff member regardless of client.
 
-Candidate `users` fields:
-
-- `user_id` — immutable internal identifier
-- `display_name`
-- optional staff/reference identifier if the store uses one
-- `status` — active, disabled, invited/pending, or another deliberately small approved set
-- `created_at`
-- `updated_at`
-- optional `disabled_at`
-
-Do not hard-delete a user who has operational history. Disable access while retaining audit attribution.
+Foundation user fields include stable ID, display name, optional login name, status, timestamps, and credential metadata only when required. Users with historical operational records are disabled/revoked rather than hard-deleted.
 
 ## External identities
 
-A user may authenticate through one or more client-specific identities. Keep these in a separate mapping such as `user_identities` rather than adding every provider to `users`.
+Provider-specific identities live separately from `users`.
 
-Candidate fields:
+For Telegram:
 
-- `identity_id`
-- `user_id`
-- `provider` — e.g. `telegram`, `local`, future approved provider
-- `provider_subject` — provider-stable identifier such as Telegram numeric user ID
-- optional provider-facing username/display metadata
-- `verified_at`
-- `created_at`
-- `revoked_at`
+- numeric Telegram user ID is the stable external subject;
+- Telegram username/display name is mutable metadata only;
+- unknown/unlinked Telegram identities receive no operational access by default.
 
-Provider usernames are not canonical identity because they can change. For Telegram, the numeric Telegram user ID is the stable external subject.
+A user may later link multiple approved identity providers without changing canonical `user_id`.
 
 ## Authentication vs authorization
 
-Authentication proves who the caller is. Authorization determines what that identity may do.
+Authentication proves caller identity. Authorization determines allowed operations. The backend API is always the enforcement boundary; client buttons, hidden screens, GPT instructions, or UI state are not authorization controls.
 
-The backend API owns authorization. Telegram buttons, Flutter screens, GPT instructions, or hidden UI controls must never be treated as the enforcement boundary.
+## Approved minimal v1 roles
 
-## Minimal v1 roles
+- `OWNER` — full system authority, user/admin management, high-risk approvals, month-close/canonical-promotion authority.
+- `ADMIN` — operational administration and approved inventory management; cannot implicitly become Owner.
+- `STAFF` — routine reads and approved day-to-day operational entry; no privileged historical correction, role management, or system configuration.
+- `READ_ONLY` — inventory/history/report reads only.
 
-Start with a deliberately small role model unless a concrete workflow requires more:
+Use a small static permission matrix initially. Do not build an arbitrary enterprise permission editor in v1.
 
-- `OWNER` — system ownership, user/role management, high-impact approvals
-- `ADMIN` — normal administrative inventory operations, subject to explicitly reserved owner-only actions
-- `STAFF` — routine authorized store operations
-- `READ_ONLY` — query/report access without inventory mutation
+## Flutter authentication baseline
 
-Avoid a complex enterprise RBAC matrix in v1. Store role assignments separately so they can evolve without changing inventory records.
+Flutter uses a native MSA account independent of Telegram:
 
-Candidate structures:
+- user-chosen login name;
+- password stored only as a modern secure hash, with Argon2id preferred when credential implementation begins;
+- short-lived access token plus revocable refresh/session token;
+- server-side account status and role checks on protected operations.
 
-- `roles`
-- `user_roles`
+Email/phone are optional profile/recovery metadata rather than mandatory v1 identity.
 
-A single-role-per-user implementation is acceptable initially if the schema can evolve cleanly, but authorization checks must be server-side.
+## Service principals
 
-## Service/client identities
+Non-human clients use separate service principals rather than human accounts.
 
-Not every caller is a human user.
+Examples:
 
-Custom GPT, Sheet synchronization, scheduled jobs, and future internal integrations may use service credentials. Represent them as service principals or an equivalent actor type rather than pretending they are staff accounts.
+- private MSA Custom GPT;
+- Google Sheets synchronization service;
+- future internal adapters/jobs.
 
-Audit should be able to distinguish:
+Service credentials are revocable and scoped. Store verifier-safe/hash material where feasible; never plaintext API keys in Git, audit logs, or canonical operational exports.
 
-- the authenticated service/client that submitted an operation,
-- the human user on whose behalf the operation was requested when known.
-
-Example: a Telegram bot service receives a command from staff user U. The canonical audit event should retain both the Telegram service/client context and U as the initiating human actor.
+The private Custom GPT begins with narrow read-only scopes when that integration is implemented; it is not automatically equivalent to `OWNER`.
 
 ## Audit attribution
 
-Operational records and audit events should reference stable actor identifiers.
+Every protected domain operation resolves actor context containing at least:
 
-At minimum, committed receipt/usage/adjustment/correction/month-close operations should preserve:
+- human `user_id` or service-principal ID;
+- client/channel such as Flutter, Telegram, Custom GPT, Sheet sync, or internal/admin;
+- operation/idempotency ID;
+- timestamp;
+- authorization role/scope context where useful;
+- reason/approval information for privileged actions.
 
-- initiating user/service identity
-- authenticated client/channel
-- operation ID / idempotency key
-- timestamp
-- authorization result or relevant approval identity for high-impact actions
+When a service acts on behalf of a known human, later audit design should retain both authenticated service/client context and initiating/approving human context where applicable.
 
-Disabling or renaming a user must not break historical attribution.
+Disabling or renaming an account never breaks historical attribution.
 
 ## Access lifecycle
 
-The backend should support a controlled lifecycle:
+1. Owner/Admin creates or approves a staff account according to policy.
+2. Required login/external identities are linked and verified.
+3. Role is assigned.
+4. Backend authenticates and authorizes every protected request.
+5. Access can be disabled/revoked without deleting history.
 
-1. owner/admin creates or approves a staff account
-2. one or more external identities are linked/verified
-3. role is assigned
-4. authenticated requests are authorized server-side
-5. access can be disabled/revoked immediately without deleting history
+Self-registration never automatically grants store access in v1.
 
-Self-registration should not automatically grant store access unless explicitly designed later.
+## High-impact operations
 
-## Telegram direction
+Elevated permission and/or explicit approval is expected for operations such as:
 
-Telegram should use the sender's numeric Telegram user ID as the external identity key.
+- user/role administration;
+- stock adjustments or negative-stock override;
+- historical correction/amendment;
+- ambiguous identity/mapping approval;
+- month close/reopen;
+- canonical migration/promotion controls.
 
-A username is useful metadata but must not be trusted as the stable account key.
-
-Unknown Telegram users should default to no operational access. A future onboarding flow may allow an owner/admin to approve and link them to a canonical MSA user.
-
-## Flutter direction
-
-Flutter should authenticate against the backend, not against PostgreSQL directly.
-
-The exact login mechanism remains an implementation decision. Possible v1 approaches include owner-created credentials or a later external identity provider. Password storage, if used, must use a standard secure password-hashing library and never plaintext/reversible storage.
-
-The choice of Flutter login method must not change the canonical `user_id` model.
-
-## Custom GPT direction
-
-The private MSA Custom GPT should initially use a revocable service credential with narrowly scoped API access.
-
-It is not automatically equivalent to the OWNER role. Backend permissions determine what its credential can call.
-
-When a GPT-mediated action represents a human user's instruction, retain an explicit human approval/actor context where the API workflow supports it, especially for high-impact writes.
-
-## High-impact authorization
-
-Actions likely to require elevated permissions and/or explicit approval include:
-
-- user/role management
-- stock adjustments
-- historical corrections
-- ambiguous identity/mapping approval
-- month close/reopen/amendment
-- canonical promotion/migration controls
-
-Exact role/action mapping is a schema/API implementation gate and should remain small in v1.
+Exact route-level permission mapping is implemented only when those operations are introduced.
 
 ## Security boundaries
 
-- never expose database credentials to Telegram, Flutter, GPT, or Sheets
-- never authorize from client UI state alone
-- use revocable credentials/tokens
-- support credential rotation
-- rate-limit/authenticate public API paths as appropriate
-- preserve audit history after account disablement
-- do not commit user credential material or production identity exports to the public repository
+- no database credential is exposed to Telegram, Flutter, GPT, or Sheets;
+- no client-side UI state is trusted as authorization;
+- credentials/tokens are revocable and rotatable;
+- public API authentication/rate limiting is added as protected endpoints are exposed;
+- credential material and production identity exports never enter the public repository;
+- historical audit remains after account/credential revocation.
 
-## Schema relationship
+## F2 schema relationship
 
-The inventory schema should reference an actor/user identity where attribution matters, for example `created_by_user_id`, `approved_by_user_id`, or a generalized actor reference.
+The approved F2 foundation may create:
 
-Do not duplicate staff name, Telegram ID, or role strings into every inventory table as the source of truth. Historical display snapshots may preserve names for reporting, but authorization is based on current canonical identity/role state.
+- `users`;
+- `roles` and `user_roles`;
+- `external_identities`;
+- `service_principals`;
+- service credential metadata;
+- audit-event actor references.
 
-## v1 principle
+This does not require enabling staff login yet. Credential/session endpoints, Telegram onboarding, and Flutter login UI remain later implementation slices.
 
-Design user identity into the schema now; implement only the minimum authentication/role machinery needed by the first real multi-user client. This avoids both extremes: retrofitting identity after operational history exists, and over-engineering a large enterprise IAM system before it is needed.
+## Deferred beyond F2
+
+OAuth/social login, MFA, password-reset email, SSO, custom role editors, complex departments/teams, biometrics, multi-organization tenancy, and offline-auth synchronization are explicitly deferred until a concrete requirement justifies them.
