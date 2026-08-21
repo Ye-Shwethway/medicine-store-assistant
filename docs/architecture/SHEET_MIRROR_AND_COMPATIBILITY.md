@@ -22,16 +22,18 @@ Google Sheets becomes a synchronized operational mirror and controlled human int
 
 Excel becomes a generated export/archive/report compatibility surface.
 
-## Four primary operational views
+## Primary human-facing views
 
 The mirror should preserve the established human workflow around:
 
 1. Main Stock
 2. Daily Usage
 3. This Month Received
-4. Final Reorder
+4. Reorder / Final Reorder
 
-These should be generated or synchronized from canonical domain data rather than maintained as unrelated independent datasets.
+These are not independent canonical datasets. They are views, projections, or approved outputs derived from the same canonical product/lot, receipt, usage, adjustment, configuration, and monthly-state records.
+
+`Main Stock` and `Daily Usage` are the primary operational data views. `This Month Received` and the reorder sheets are primarily display/workflow views.
 
 ## Main Stock mirror
 
@@ -66,19 +68,42 @@ The current pre-promotion Daily Usage contract remains in force until that integ
 
 ## This Month Received mirror
 
-Generate from receipt batches/lines whose effective operational dates belong to the active month.
+`This Month Received` is a **display-only filtered view**, not a second receipt ledger.
 
-Preserve transfer number, source line traceability, quantity, price, expiry, and mapping state needed for human inspection.
+The legacy Excel behavior is simple: when a Main Stock row has current-month received quantity, the display sheet shows the relevant row and value for convenient review.
 
-Do not use this sheet as a second independent receipt ledger after database promotion.
+The familiar fields are approximately:
 
-## Final Reorder mirror
+- No.
+- Items
+- Sub Store Qty
+- Received Qty
+- Unit
+- Expiry Date
+- Remark
 
-Generate from the backend implementation of the verified Excel reorder algorithm.
+After database promotion, generate this view from canonical receipt and inventory data for the active month. Preserve enough traceability to inspect the underlying receipt/batch when needed, but do not maintain independent mutable receipt truth in this sheet.
 
-The current Excel formula/macro behavior must be studied and documented before implementing the backend calculation.
+## Reorder and Final Reorder mirrors
 
-Until that parity is proven, Excel/Sheet reorder behavior must not be silently replaced by a newly invented backend formula.
+The legacy workbook separates reorder workflow into two human-facing surfaces:
+
+1. `Reorder` — a synchronized/working view of reorder quantities already calculated from Main Stock,
+2. `Final Reorder` — a copied final working document that the user may manually edit before sending to CMS and archiving in the monthly Master package.
+
+Therefore the backend should distinguish:
+
+- deterministic calculated reorder recommendation,
+- generated working Reorder projection,
+- final user-approved reorder submission.
+
+The calculated recommendation should derive from canonical inventory state and the verified Main Stock reorder formula/algorithm.
+
+The working `Reorder` sheet is display/workflow state and should not become a separate canonical inventory table.
+
+`Final Reorder` is different only when it becomes an approved/submitted business record: preserve that final result in the monthly historical snapshot, including authorized manual changes. Do not silently overwrite it later merely because the underlying calculated recommendation changes.
+
+The exact current reorder formula still must be documented from the established Main Stock/Excel behavior before backend calculation is implemented. Until parity is proven, do not replace the existing formula with a newly invented algorithm.
 
 ## Current CMS price list
 
@@ -99,6 +124,8 @@ For Sheet-originated edits, use one of these controlled paths:
 3. MSA/Custom GPT orchestration that submits API operations and then refreshes the mirror.
 
 Avoid unrestricted two-way synchronization where arbitrary cell edits overwrite canonical database state.
+
+Display-only sheets such as `This Month Received` and generated `Reorder` should normally be backend/Sheet-derived and not treated as independent input surfaces.
 
 ## Sync metadata
 
@@ -126,9 +153,11 @@ Classify differences such as:
 
 Do not silently resolve a material divergence by whichever side was modified most recently.
 
+For display-only derived views, prefer regeneration from canonical data rather than bidirectional conflict resolution.
+
 ## Excel compatibility
 
-The system should support generation of a monthly workbook containing the four core operational sheets.
+The system should support generation of a monthly workbook containing the familiar operational/report sheets.
 
 Long-term options include:
 
@@ -143,6 +172,8 @@ The canonical backend must not require Excel macros to maintain data integrity.
 Any closed month should be exportable again from PostgreSQL.
 
 An exported workbook is a representation of a historical snapshot. Editing that exported file must not mutate canonical history unless a separate historical-correction workflow explicitly imports an approved change.
+
+A historical `Final Reorder` export should reproduce the final approved/submitted result for that month rather than blindly recomputing a different recommendation from current configuration.
 
 ## Offline considerations
 
