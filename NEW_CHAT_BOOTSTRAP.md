@@ -18,42 +18,43 @@ At the start of a development chat, read and reconcile in this order:
 1. `AGENTS.md`
 2. `NEW_CHAT_BOOTSTRAP.md`
 3. `ROADMAP.md`
-4. `docs/architecture/README.md`
-5. the task-relevant architecture documents referenced there
-6. `skills/medicine-store-assistant/SKILL.md` and only the task-relevant skill references when spreadsheet operations are involved
-7. current repository code/config/runtime evidence once implementation exists
+4. `IMPLEMENTATION_PLAN.md`
+5. `docs/architecture/README.md`
+6. the task-relevant architecture/operations documents
+7. `skills/medicine-store-assistant/SKILL.md` and task-relevant references when spreadsheet operations are involved
+8. current repository code/config/runtime evidence once implementation exists
 
 Treat newer verified repository/runtime evidence as authoritative over remembered chat context.
 
-Do not modify production, the live workbook, backend state, deployment, schema, or integrations during reconciliation unless the user explicitly authorizes implementation.
+Do not modify production, the live workbook, backend state, deployment, schema, or integrations during reconciliation unless the user explicitly authorizes that slice.
 
-## Project identity
+## Project identity and repository boundary
 
-Medicine Store Assistant has evolved from a Git-backed Google-Sheets workflow skill into a broader medicine-store information system while preserving the published skill as a first-class component.
+Medicine Store Assistant is now a broader medicine-store information-system project while preserving its original Git-backed workflow skill.
 
-The same repository is intentionally used as a monorepo-style project:
+Same-repository monorepo direction:
 
-- `skills/medicine-store-assistant/` — canonical published Git-backed skill; invocation alias `$msa`
-- `docs/architecture/` — canonical database/API/system design contract
-- future `backend/` — deterministic inventory API and domain logic
-- future `integrations/` — Custom GPT, Google Sheets, Telegram, Flutter adapters
-- future `deploy/` — VPS deployment/runtime configuration templates
+- `skills/medicine-store-assistant/` — canonical published Git-backed skill; alias `$msa`
+- `docs/architecture/` — canonical domain/system design
+- `docs/operations/` — deployment/backup/runtime evidence
+- `backend/` — deterministic Inventory API/runtime when implemented
+- `integrations/` — Custom GPT, Google Sheets, Telegram, Flutter adapters
+- `deploy/` — VPS deployment assets
 
-The skill folder must remain independently installable and must not be moved, renamed, or buried by backend work.
+The published skill folder must remain independently installable and must not be moved, renamed, or buried by backend work.
 
-## Current authoritative operational state
+## Current operational authority
 
-The live Google workbook remains authoritative under the existing MSA skill until database promotion is explicitly completed after shadow validation.
+The live Google workbook remains authoritative under the existing MSA skill until PostgreSQL is explicitly promoted after shadow/dual validation.
 
-Current operational model:
+Human-facing operational model:
 
-- `Main Stock` — primary lot-level inventory operational view
-- `Daily Usage` — primary monthly usage operational view
-- `This Month Received` — display-only/filtered projection of received activity, not an independent source of truth
-- `Reorder` / `Final Reorder` — workflow/display projections; the working reorder result can be manually reviewed/edited before final submission
-- `Final Reorder` becomes a historical business record only when the approved final result is saved as part of the month archive/snapshot
+- `Main Stock` — primary lot-level inventory view
+- `Daily Usage` — primary monthly usage view
+- `This Month Received` — display-only/filtered projection, not an independent canonical store
+- `Reorder` / `Final Reorder` — workflow/display projections; final user-approved reorder may be preserved in monthly history
 
-Daily Usage synchronization contract already established in the live workbook:
+Daily Usage contract remains:
 
 - Main `A/B/F/G/C` → Daily `A/B/C/D/AM`
 - Daily `E:AI` = day 1–31 usage inputs
@@ -63,162 +64,120 @@ Daily Usage synchronization contract already established in the live workbook:
 - Daily `AK` → Main `H Stock Status Today`
 - never write calculated current balance back to Main `F Remaining Stock`
 
-The live Daily Usage parity repair and full calculation/reverse-sync pass were completed before the architecture phase. Future work must not assume remembered row numbers; inspect live state when spreadsheet work resumes.
-
-## Locked architecture direction
-
-Architecture is docs-first. Implementation has **not yet been authorized**.
-
-Planned target architecture:
+## Locked target architecture
 
 ```text
 MSA Custom GPT ─┐
 Telegram ───────┼──> Inventory API on VPS ───> PostgreSQL
 Flutter ────────┘              │
                                ├──> Google Sheets operational mirror
-                               └──> Excel monthly exports/archive representations
+                               └──> Excel monthly exports
 ```
 
 Infrastructure direction:
 
-- reuse existing VPS rather than requiring paid Cloudflare data services
-- PostgreSQL on VPS is the planned canonical database after successful migration
-- Cloudflare Free + custom subdomain may provide stable DNS/TLS/public entry routing
-- repository remains public; never commit secrets or operational/private data
-- GitHub is code/docs distribution, not canonical operational data storage
-
-AI-access direction:
-
-- primary experiment: dedicated private Custom GPT using **GPT Actions → VPS API**
-- expose only typed domain operations through an OpenAPI schema
-- never expose arbitrary SQL or database credentials to an LLM/client
-- if Custom GPT Actions prove unsuitable, Google Sheets can remain a controlled bridge/fallback while the backend stays API-first
+- reuse the existing VPS;
+- PostgreSQL on VPS becomes canonical only after migration validation and explicit promotion;
+- Cloudflare Free/custom domain may provide stable public HTTPS entry routing;
+- GitHub stores code/docs only, never live credentials/private operational data;
+- AI clients use typed API operations, never arbitrary SQL/database credentials.
 
 ## Canonical data principles
 
-The planned database must not copy spreadsheet row identity directly.
-
-- stable `product_id` identifies a local product
-- stable `lot_id` identifies an expiry/stock lot
-- spreadsheet row order is presentation metadata only
-- CMS code is external/versioned catalogue identity and is never a permanent local primary key by itself
-- stock movement is ledger/event based: opening, receipts, usage, approved adjustments
-- derived balances must be reproducible deterministically from canonical movements
-- historical operational records are not hard-deleted merely because a row disappears from a current sheet
-
-## Monthly-history direction
-
-The existing Excel Master concept remains important but is translated into database history rather than duplicated spreadsheet tables.
-
-The database should preserve enough canonical history and immutable closed-month snapshots to regenerate familiar monthly outputs:
-
-- Main Stock
-- Daily Usage
-- This Month Received
-- Final Reorder
-
-`This Month Received` and working reorder views remain projections. The final user-approved reorder output may be snapshotted at month close.
-
-Month close must preserve effective dates, receipts, usage, closing stock, relevant configuration, and approved reorder output without destructive reset of historical transactions.
-
-## CMS catalogue direction
-
-Full CMS catalogue versions should be retained in the database after migration rather than storing only currently matched store rows.
-
-Each catalogue import should be versioned with source metadata/hash where appropriate and support deterministic diffs for:
-
-- new/removed catalogue rows
-- price changes
-- description/identity changes
-- store-linked mapping changes
-
-The operational Google workbook may continue showing only the latest active catalogue.
-
-## Integrity model
-
-The backend, not the LLM, must own deterministic data integrity.
-
-Required design principles include:
-
-- typed domain operations
-- authentication and authorization
-- idempotency keys for replay/duplicate safety
-- database constraints and foreign keys
-- atomic transactions
-- append-only or correction-safe audit events
-- explicit adjustment/reversal patterns instead of silent history edits
-- read-back/verification
-- reconciliation invariants
-- backup and recovery
-- no canonical promotion merely because PostgreSQL is deployed
-
-## Migration direction
-
-Use staged migration; no big-bang cutover.
-
-1. architecture approval
-2. backend/database foundation
-3. import current Sheet state into a shadow database
-4. reconcile DB projections against the live workbook
-5. run dual/shadow validation for representative receipts, usage, month logic, catalogue history, and reorder outputs
-6. promote PostgreSQL to canonical only after explicit user approval and verified parity
-7. convert Google Sheets to synchronized operational mirror
-8. add/expand Custom GPT, Telegram, Flutter clients against the typed API
-
-Until step 6, current Sheet/source-document authority remains unchanged.
+- stable `product_id` identifies a local product;
+- stable `lot_id` identifies a stock/expiry lot;
+- spreadsheet row order is presentation metadata;
+- CMS code is versioned external identity, never sufficient local primary identity by itself;
+- stock movement is ledger/event based: opening, receipts, usage, approved adjustments;
+- deterministic backend code owns calculations, idempotency, constraints, transactions, and audit;
+- historical operational records are correction-safe and are not silently hard-deleted.
 
 ## Current documentation checkpoint
 
-Canonical architecture documents exist under `docs/architecture/` covering:
+Architecture/docs foundation exists for:
 
-- canonical inventory architecture
-- inventory data model
-- monthly lifecycle
-- CMS catalogue versioning
-- inventory integrity and audit
-- Sheet/Excel mirror compatibility
-- API/client architecture
-- migration and shadow validation
-- architecture decisions/open questions
+- canonical inventory architecture;
+- inventory data model;
+- monthly lifecycle;
+- CMS catalogue versioning;
+- integrity/audit;
+- Sheet/Excel compatibility;
+- API/client architecture;
+- migration/shadow validation;
+- decisions/open questions;
+- implementation slices;
+- VPS deployment baseline;
+- backup/recovery baseline.
 
-Recent clarification already incorporated:
+Schema-gating decisions remain open in `docs/architecture/DECISIONS_AND_OPEN_QUESTIONS.md`; therefore canonical inventory migrations/tables are not yet authorized.
 
-- `This Month Received` is display-only projection: No., Items, Sub Store Qty, Received Qty, Unit, Expiry Date, Remark
-- it simply presents relevant received rows from Main Stock/current receipt state
-- `Final Reorder` is also a workflow/display output
-- Main Stock already contains the estimated reorder calculation; a working Reorder sheet synchronizes it, then the user may copy/edit the final submission
-- do not create unnecessary independent canonical tables for these UI sheets
+## Implementation checkpoint
 
-## Current implementation status
+### F0 — VPS inspection and safe host preparation
 
-**Architecture/documentation phase only.**
+Status: **completed 2026-08-22**.
 
-Not yet implemented:
+Canonical evidence: `docs/operations/F0_VPS_INSPECTION_2026-08-22.md`.
 
-- PostgreSQL schema/migrations
-- inventory backend API
-- VPS deployment
-- production subdomain/API routing
-- Custom GPT Action schema/runtime connection
-- Google Sheets backend mirror service
-- Telegram inventory client
-- Flutter inventory client
-- database canonical promotion
+Verified F0 facts:
 
-Do not describe any of these as live.
+- Ubuntu 24.04.4 LTS x86_64;
+- 2 vCPU;
+- 3.3 GiB RAM with limited headroom and substantial swap already in use;
+- 63 GiB root disk with about 17 GiB free at inspection time;
+- Docker Engine 29.3.0 and Compose plugin 5.1.1 available;
+- managed-token `cloudflared` tunnel active; hostname routing is controlled in Cloudflare dashboard/Zero Trust;
+- no host nginx/Caddy/Traefik reverse proxy;
+- dedicated `/opt/medicine-store-assistant/` host area prepared with `medstore` non-login system user;
+- no MSA code cloned, credentials created, public app port opened, or database deployed;
+- unrelated host/Docker PostgreSQL services already exist and must not be reused;
+- no active host firewall was reported, so MSA host publishes must remain localhost-only by default;
+- preferred first API host port is `8088`, subject to a fresh conflict check;
+- PostgreSQL should normally stay private on the Docker network and does not need a host port.
 
-## Next planning gate
+Resource posture requires conservative API/PostgreSQL memory limits and no unnecessary Redis/broker/proxy sidecars.
 
-Before implementation, review the architecture bundle for remaining domain gaps and explicitly approve the first minimal implementation slice.
+### F1 — Repository Runtime Skeleton
 
-The expected first implementation slice should be small and reversible, likely a local/VPS-safe backend foundation with no production canonical write authority yet. Exact scope must come from `ROADMAP.md` plus explicit user approval.
+Status: **explicitly authorized / next slice**.
+
+Authorized scope:
+
+- create sibling runtime folders without altering `skills/medicine-store-assistant/`;
+- minimal API with deterministic `/health` and build/version metadata;
+- Dockerfile + Compose;
+- isolated PostgreSQL service definition with private Docker networking and secret-driven configuration;
+- no canonical inventory schema/migrations/tables yet;
+- localhost-only API bind, initially `127.0.0.1:8088` after conflict check;
+- no public DB port;
+- `.env.example` / `.gitignore`, no real secrets in Git;
+- build/start/health verification and repository validation.
+
+Explicitly out of F1:
+
+- Cloudflare hostname routing;
+- Custom GPT creation/action connection;
+- Google Sheet mutation/mirror service;
+- inventory schema/migrations;
+- live inventory import;
+- canonical DB promotion;
+- Telegram/Flutter implementation.
+
+## Next sequence after F1
+
+1. Resolve schema-gating decisions in `DECISIONS_AND_OPEN_QUESTIONS.md`.
+2. Authorize F2 PostgreSQL schema/migration foundation.
+3. Implement read-only domain/API foundation.
+4. When read-only API health/contract is stable, configure Cloudflare custom hostname.
+5. Then create the private MSA Custom GPT and test read-only Actions.
+6. Ledger writes/shadow migration come later under separate authorization.
 
 ## Continuity maintenance rule
 
-After every significant architecture decision, completed implementation slice, migration result, deployment change, or change to the next authorized work:
+After every significant architecture decision, implementation slice, migration result, deployment change, or next-work change:
 
-- update `ROADMAP.md`
-- update this `NEW_CHAT_BOOTSTRAP.md`
-- update task-specific canonical docs when the underlying contract changed
+- update `ROADMAP.md`;
+- update this `NEW_CHAT_BOOTSTRAP.md`;
+- update relevant architecture/operations docs.
 
-A fresh chat must be able to recover the current project checkpoint from repository documents without relying on remembered conversation history.
+A fresh chat must recover current truth from repository evidence without relying on remembered conversation history.
