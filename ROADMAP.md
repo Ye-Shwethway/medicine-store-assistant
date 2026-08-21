@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Project Roadmap
 
-Status: **Phase 2 foundation active; F0/F1/F2/F3 verified complete; F4 authored and VPS verification pending**
+Status: **Phase 2 foundation active; F0/F1/F2/F3/F4 verified complete**
 
 This roadmap tracks the full Medicine Store Assistant project and must stay synchronized with `NEW_CHAT_BOOTSTRAP.md`.
 
@@ -84,46 +84,35 @@ Verified runtime:
 
 ### F4 — Ledger primitives in isolated synthetic/test mode
 
-Status: **authorized and authored; VPS verification pending**
+Status: **verified complete 2026-08-22**
 
-Purpose: prove deterministic inventory-movement semantics before importing or writing real store inventory.
+Evidence: `docs/operations/F4_SYNTHETIC_LEDGER_VERIFICATION_2026-08-22.md`.
 
-Repository implementation includes:
+Verified deployed commit: `184f964a86cfb00696f4f2622e41289ab53f165a`.
 
-- migration `0002_ledger` adding `inventory_transactions`;
-- transaction types `OPENING_BALANCE`, `RECEIPT`, `USAGE`, `ADJUSTMENT_POSITIVE`, `ADJUSTMENT_NEGATIVE`;
-- fixed-point positive quantity constraint;
-- unique `operation_id` idempotency protection;
-- correction/reversal linkage without destructive deletion;
-- stable user/service-principal actor linkage;
-- deterministic lot-balance calculation;
-- normal negative-stock blocking;
-- synthetic verifier covering balance math, duplicate-operation rejection, negative-stock rejection, and linked reversal semantics;
-- verifier transaction rollback so synthetic fixture data does not remain in PostgreSQL;
-- `deploy/apply_f4_ledger_foundation.sh` to apply migration, run synthetic verification, and confirm `/health` + `/ready`;
-- `/ready` expects migration `0002_ledger` once F4 is applied.
+Verified runtime and invariants:
 
-F4 does **not** expose production inventory write endpoints, import live Sheet data, mutate Google Sheets, enable Custom GPT writes, or promote PostgreSQL to canonical authority.
+- repository validator passed;
+- Alembic upgraded `0001_foundation -> 0002_ledger`;
+- `inventory_transactions` ledger foundation is deployed;
+- movement types are `OPENING_BALANCE`, `RECEIPT`, `USAGE`, `ADJUSTMENT_POSITIVE`, and `ADJUSTMENT_NEGATIVE`;
+- fixed-point positive quantities and unique `operation_id` protection are enforced;
+- deterministic lot-balance calculation passed;
+- duplicate-operation/idempotency protection passed;
+- normal negative-stock guard passed;
+- linked reversal/correction semantics passed;
+- synthetic verifier fixture data is rolled back and not retained;
+- `/health` returned healthy metadata with `database_canonical: false` and build SHA `184f964a86cfb00696f4f2622e41289ab53f165a`;
+- `/ready` returned database reachable with migration and expected migration both `0002_ledger`;
+- transient connection resets during API recreation were tolerated by the deployment helper retry loop and were followed by successful health/readiness verification.
 
-Current VPS verification command:
-
-```bash
-cd /opt/medicine-store-assistant/app/repo && git pull --ff-only && bash deploy/apply_f4_ledger_foundation.sh
-```
-
-Expected success evidence includes:
-
-- repository validator PASS;
-- Alembic upgrade to `0002_ledger`;
-- synthetic ledger verifier PASS for balance math, idempotency, negative-stock guard, and reversal linkage;
-- `/health` HTTP 200 with `database_canonical: false`;
-- `/ready` HTTP 200 with migration and expected migration both `0002_ledger`.
+F4 exposes no production inventory write endpoint, imports no live Sheet inventory, mutates no Google Sheet, connects no Custom GPT write Action, and does not promote PostgreSQL.
 
 ## Phase 3 — Shadow migration/reconciliation
 
 Status: **not started**
 
-Import current Sheet state into shadow PostgreSQL only after the deterministic ledger foundation is verified. Preserve provenance, compare backend projections against the workbook, and report mismatches without silent repair.
+Import current Sheet state into shadow PostgreSQL only after an explicitly authorized migration slice. Preserve provenance, compare backend projections against the workbook, and report mismatches without silent repair.
 
 ## Phase 4 — Dual validation
 
@@ -159,11 +148,28 @@ Status: **future multi-user client**
 
 Status: **future**
 
-## Current next work
+## Recommended next minimum safe slice
 
-1. Run the F4 VPS verification command above and inspect its exact output.
-2. If verification passes, record F4 canonical runtime evidence and mark F4 verified complete.
-3. Do not begin live shadow import or production stock-write authority without a later explicit slice.
+**F5 — CMS catalogue versioning with synthetic/non-sensitive sample data only.**
+
+Why this is the preferred next slice:
+
+- it is already the next ordered slice in `IMPLEMENTATION_PLAN.md`;
+- it exercises deterministic import/version/diff/idempotency behavior without touching live stock quantities;
+- it preserves the critical rule that CMS code alone cannot remap local product identity;
+- it creates useful foundation for later reconciliation while staying below the risk boundary of live Sheet shadow import.
+
+Proposed F5 scope, if explicitly authorized:
+
+1. define/import a non-sensitive synthetic CMS catalogue fixture;
+2. store catalogue version/hash metadata;
+3. implement deterministic same-version idempotency;
+4. implement new/removed/changed-row diff output;
+5. expose current/historical catalogue reads only as needed for verification;
+6. prove that catalogue-code changes do not automatically mutate local product/lot identity;
+7. verify on VPS with synthetic/sample data and record canonical runtime evidence.
+
+Do **not** begin F5 implementation, live Sheet import, production inventory writes, database promotion, Telegram writes, Flutter rollout, or Custom GPT write Actions without explicit authorization.
 
 ## Continuity rule
 
