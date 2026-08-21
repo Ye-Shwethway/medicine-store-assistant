@@ -8,6 +8,8 @@ Represent medicine-store inventory in a way that remains correct when spreadshee
 
 The model must preserve source truth, lot-level history, monthly history, catalogue history, and auditability without making spreadsheet row numbers canonical identifiers.
 
+The database must also avoid turning convenient Excel/Google display sheets into unnecessary canonical tables. Human-facing worksheets may be generated projections over normalized canonical records.
+
 ## Identity layers
 
 MSA already distinguishes three operational concepts. The database keeps them explicit.
@@ -120,6 +122,24 @@ For a known transfer format, a uniqueness rule such as `(receipt_batch_id, sourc
 
 A committed receipt line produces or links to the corresponding canonical `RECEIPT` stock transaction.
 
+### This Month Received projection
+
+`This Month Received` does **not** require a separate canonical table simply because it exists as a worksheet.
+
+It is a filtered/display projection over current-month receipt activity and the relevant lot/product state.
+
+The legacy human-facing view may show fields such as:
+
+- No.
+- Items
+- Sub Store Qty
+- Received Qty
+- Unit
+- Expiry Date
+- Remark
+
+Those values should be generated from canonical receipt, lot, product, and monthly-state data. If a future requirement adds independent user-authored data to this view, model only that new information explicitly rather than duplicating the entire worksheet as a table.
+
 ## Usage
 
 Daily Usage is normalized in the database.
@@ -172,6 +192,22 @@ Exact period carry-forward semantics are defined in `MONTHLY_LIFECYCLE.md`.
 
 If a current-balance snapshot/materialized value is stored, the backend must be able to verify it against the ledger.
 
+## Reorder domain semantics
+
+Do not model the legacy `Reorder` and `Final Reorder` worksheets as independent inventory truth tables merely to reproduce the workbook layout.
+
+Distinguish three concepts:
+
+1. **calculated reorder recommendation** — derived from canonical inventory state and approved reorder configuration/formula,
+2. **working Reorder projection** — a display/workflow view of the calculated recommendation,
+3. **final reorder submission** — the user-approved result, potentially including authorized manual edits before submission to CMS.
+
+The working projection does not need canonical persistence beyond what is required for computation/audit.
+
+The final approved/submitted reorder is a historical business record and should be preserved with the monthly snapshot when applicable. It must remain distinguishable from the underlying deterministic recommendation so later review can see whether manual changes were made.
+
+The exact reorder formula is a compatibility contract to be documented from the current Main Stock/Excel workflow before backend implementation.
+
 ## Monthly snapshot entities
 
 Closed-month history should include immutable snapshots sufficient to reproduce the established operational reports even if later product names, catalogue mappings, or display order change.
@@ -187,7 +223,8 @@ Candidate snapshot data includes:
 - daily or monthly usage summary as required for export.
 - closing balance.
 - reorder configuration snapshot.
-- final reorder result snapshot.
+- calculated reorder recommendation where required for audit/reproduction.
+- final approved reorder result when one exists.
 - catalogue/current-price snapshot where required by the report contract.
 
 The snapshot supplements the ledger for convenient historical reporting; it does not replace canonical source transactions.
@@ -238,3 +275,4 @@ The existing skill's Fixed Assets boundary remains authoritative until a separat
 - Preserve actual historical movement even when it violates ideal FIFO/FEFO.
 - Preserve structured expiry truth and surface suffix/expiry mismatches for review.
 - Keep derived values derivable from canonical inputs.
+- Treat display-only/report worksheets as projections unless they introduce genuinely independent business data.
