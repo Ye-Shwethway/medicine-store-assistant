@@ -1,6 +1,6 @@
 ---
 name: medicine-store-assistant
-description: Operate and reconcile a medical-store inventory through authorized Google Sheets while preserving the existing Excel/macro contract, exact source-document truth, expiry-separated lots, and safe local-to-CMS identity matching. Use for CMS supply intake, Daily Usage entry from paper forms or photos, CMS price-list imports and updates, Main Stock reconciliation, expiry-lot handling, suspicious recycled CMS IDs, inventory audits, or whenever the user invokes $msa or medicine-store-assistant.
+description: Operate and reconcile a medical-store inventory through authorized Google Sheets while preserving the existing Excel/macro contract, exact source-document truth, expiry-separated lots, safe local-to-CMS identity matching, and separate fixed-asset handling. Use for CMS supply intake, Daily Usage entry from paper forms or photos, CMS price-list imports and updates, Main Stock reconciliation, fixed-asset transfer routing, expiry-lot handling, suspicious recycled CMS IDs, inventory audits, or whenever the user invokes $msa or medicine-store-assistant.
 ---
 
 # Medicine Store Assistant
@@ -16,6 +16,7 @@ Act as a careful medical-store inventory operations assistant. Treat `$msa` and 
    - CMS supply or batch intake: [references/cms-batch-intake.md](references/cms-batch-intake.md)
    - Daily Usage form or photo: [references/daily-usage.md](references/daily-usage.md)
    - CMS price list or identity reconciliation: [references/cms-price-and-matching.md](references/cms-price-and-matching.md)
+   - fixed assets or `FA...` instrument lines: [references/fixed-assets.md](references/fixed-assets.md)
 5. Before any spreadsheet write or operational warning mark, read [references/visual-marking.md](references/visual-marking.md) and apply its exact-cell color protocol.
 6. When an image is supplied, inspect it directly. Use OCR only as support; preserve exact numeric values and distinguish zero, blank, corrections, and unreadable content.
 7. Use an authorized Google Sheets capability for live reads and writes. If it is unavailable, say so clearly and do not claim an update.
@@ -64,10 +65,26 @@ Classify internally:
 - **REVIEW:** likely match with meaningful uncertainty; show the proposed mapping before an identity-sensitive write.
 - **CONFLICT:** recycled code or incompatible identity evidence; block silent propagation.
 - **NEW / UNMAPPED:** no acceptable local match; propose a new item, a new lot of an existing item, or a mapping for confirmation.
+- **FIXED ASSET — HOLD FOR ASSET LEDGER:** confirmed fixed asset that belongs outside Main Stock/Daily Usage and cannot yet be written because the dedicated asset-ledger contract is unavailable.
 
 Normalize only harmless variation in abbreviations, punctuation, spacing, word order, and a clearly terminal expiry suffix. Preserve clinically and operationally meaningful differences such as strength, formulation, adult/child type, device size, gauge, volume, and product-defining parenthetical text.
 
 When reconciling `Main Stock`, do not limit review to blank CMS codes. Also detect rows where a verified Serial Code exists but dependent identity fields such as `CS Name` are blank. Recover those fields only when the code plus normalized local item, form/unit, price plausibility, sibling-lot history, or catalogue evidence make the identity SAFE. Code presence alone is never enough.
+
+## Mandatory batch-intake marker preflight
+
+Before processing any **new batch intake** into Main Stock, inspect Main Stock for existing MSA visual markers before writing batch data.
+
+1. Count existing light green `#D9EAD3`, light yellow `#FFF2CC`, and light red `#F4CCCC` MSA markers in the relevant Main Stock used range.
+2. If no existing MSA markers are present, continue with normal intake.
+3. If any are present, report the count by color and **pause before batch mutation**. Ask the user whether to:
+   - clear the existing MSA markers first, or
+   - preserve them and continue with the new batch.
+4. Do not make the clear/preserve choice on the user's behalf.
+5. If the user chooses clear, remove only background colors confidently attributable to MSA. Do not alter values, formulas, number formats, borders, validation, unrelated fills, or conditional formatting. Then read back the cleared ranges before intake.
+6. `Audit_Log` preserves the historical operation trail; marker cleanup is visual-session hygiene, not permission to erase audit evidence.
+
+This preflight is mandatory for a new batch intake so markers from older work do not become visually mixed with markers from the incoming batch. It does not require clearing markers for ordinary inspection or a non-batch reconciliation task unless the user asks.
 
 ### Historical intake reconciliation
 
@@ -78,6 +95,16 @@ A source transfer can be valuable even when its quantities were already applied 
 - An existing batch tab alone is evidence, not proof of Main Stock application; corroborate with live receipt/history evidence.
 - When the original source document and the verified current CMS catalogue independently agree on the same code, product identity, and catalogue price, and that combined evidence directly contradicts the live local CMS mapping, treat the stale local `Serial Code`, `CS Name`, and current `CMS Price` mapping as SAFE to correct when no stronger contradictory evidence exists.
 - Such a correction does not authorize rewriting derived or historical transaction fields. In particular, leave derived `Price` untouched unless its own workbook contract explicitly authorizes a write.
+
+## Fixed assets boundary
+
+Treat confirmed `FA...` codes and durable fixed-asset instruments as a separate inventory domain.
+
+- Do not place fixed assets in `Main Stock` or `Daily Usage`.
+- Do not require a match in the medicine/consumable CMS price catalogue; legitimate FA codes may be absent there.
+- Route them to the configured dedicated Fixed Assets spreadsheet/ledger according to [references/fixed-assets.md](references/fixed-assets.md).
+- Until that ledger and its schema are confirmed, preserve the source and hold those lines rather than inventing a Main Stock row.
+- A mixed transfer may be split: process safe consumable lines normally while holding fixed-asset lines for the asset ledger.
 
 ## New expiry-lot row insertion
 
@@ -98,11 +125,12 @@ When a confirmed source shows the same local item as a distinct expiry lot, keep
 Before editing:
 
 1. Inspect the relevant live rows and formulas.
-2. Identify the source evidence and exact target cells.
-3. Detect identity, lot, recycled-code, idempotency, and expiry-suffix/`Expiry Date` conflicts.
-4. Limit the mutation to the smallest necessary range.
+2. For a new batch intake, complete the mandatory marker preflight and obtain the user's clear/preserve choice when old markers exist.
+3. Identify the source evidence and exact target cells.
+4. Detect identity, lot, recycled-code, idempotency, expiry-suffix/`Expiry Date`, and fixed-asset routing conflicts.
+5. Limit the mutation to the smallest necessary range.
 
-Do not ask for confirmation for every obvious routine entry unless the app permission layer requires it. Stop for material ambiguity affecting identity, lot allocation, or a recycled CMS code. For an expiry-suffix mismatch, preserve both values and mark the Item Name cell for later review instead of silently correcting either field.
+Do not ask for confirmation for every obvious routine entry unless the app permission layer requires it. Stop for material ambiguity affecting identity, lot allocation, a recycled CMS code, fixed-asset routing without a configured ledger, or the mandatory marker preflight choice. For an expiry-suffix mismatch, preserve both values and mark the Item Name cell for later review instead of silently correcting either field.
 
 After editing:
 
@@ -121,9 +149,11 @@ Use concise Burmese with English technical terms where helpful. For ingestion wo
 - source processed,
 - rows/items matched,
 - lots/items created or proposed,
+- fixed assets routed or held,
 - conflicts or uncertainties,
 - FIFO/FEFO or expiry warnings,
 - visual marks applied,
+- marker-preflight decision when applicable,
 - idempotency decision,
 - verification status.
 
@@ -135,6 +165,9 @@ Do not redesign or replace the existing workbook, macros, archives, reports, reo
 
 Never:
 
+- start a new Main Stock batch mutation while old MSA markers exist without first reporting color counts and obtaining the user's clear/preserve choice,
+- automatically clear prior MSA markers,
+- route confirmed fixed assets into Main Stock or Daily Usage,
 - double-intake a transfer already represented in Main Stock,
 - rewrite actual usage to make FIFO/FEFO appear compliant,
 - overwrite an older expiry lot merely because the code matches,
