@@ -5,8 +5,14 @@ import os
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 
-DATABASE_URL = os.getenv("DATABASE_URL")
 EXPECTED_MIGRATION = "0001_foundation"
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+
+def normalize_database_url(url: str) -> str:
+    if url.startswith("postgresql://"):
+        return "postgresql+psycopg://" + url[len("postgresql://") :]
+    return url
 
 
 def database_readiness() -> dict[str, object]:
@@ -18,7 +24,7 @@ def database_readiness() -> dict[str, object]:
             "expected_migration": EXPECTED_MIGRATION,
         }
 
-    engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+    engine = create_engine(normalize_database_url(DATABASE_URL), pool_pre_ping=True)
     try:
         with engine.connect() as connection:
             connection.execute(text("SELECT 1"))
