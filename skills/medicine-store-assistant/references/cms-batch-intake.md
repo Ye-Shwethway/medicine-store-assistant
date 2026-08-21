@@ -2,6 +2,19 @@
 
 Use this workflow for a CMS issue paper, transfer sheet, supply paper, image, or equivalent source.
 
+## Mandatory marker preflight
+
+Before mutating `Main Stock` for any new batch intake:
+
+1. Inspect the current used range for existing MSA background markers.
+2. Count light green `#D9EAD3`, light yellow `#FFF2CC`, and light red `#F4CCCC` markers.
+3. If no existing MSA markers are present, continue.
+4. If any are present, report the counts by color and **pause before intake writes**. Ask the user whether to clear the old MSA markers or preserve them and continue.
+5. Do not choose automatically. If clear is approved, remove only background fills confidently attributable to MSA, preserve all values/formulas/other formatting, and read back the cleared ranges before proceeding.
+6. Marker cleanup is visual-session hygiene only. `Audit_Log` remains the historical operation trail and must not be cleared or rewritten merely because markers were removed.
+
+This preflight prevents markers from previous work from being visually mixed with the incoming batch.
+
 ## Extract
 
 Capture only what the source supports:
@@ -18,16 +31,26 @@ Capture only what the source supports:
 
 Preserve exact numbers and source precision. Separate blank, zero, overwritten, and unreadable values. Do not infer a missing value merely because a similar line suggests one. Do not round a source price merely to match an existing sheet display format.
 
+## Route fixed assets before Main Stock matching
+
+Before treating every transfer line as medicine/consumable stock, detect confirmed fixed assets.
+
+- `FA...` codes and clearly durable fixed-asset instruments belong to the dedicated Fixed Assets ledger, not `Main Stock` or `Daily Usage`.
+- Do not treat absence from the medicine/consumable CMS price catalogue as an identity failure for a confirmed fixed asset.
+- Follow [fixed-assets.md](fixed-assets.md).
+- If the dedicated asset ledger or its schema is not yet available, hold those lines as `FIXED ASSET — HOLD FOR ASSET LEDGER` and continue processing safe consumable lines from the same transfer.
+
 ## Reconcile before writing
 
 1. Inspect the current `Main Stock` layout, relevant rows, formulas, materialized calculated values, and existing lot pattern.
-2. Compare every source line against local name, code, descriptions, strength/form/size, unit, confirmed mappings, and earlier CMS batches.
-3. Classify it as SAFE, REVIEW, CONFLICT, or NEW / UNMAPPED using the main skill rules.
+2. Compare every non-fixed-asset source line against local name, code, descriptions, strength/form/size, unit, confirmed mappings, and earlier CMS batches.
+3. Classify it as SAFE, REVIEW, CONFLICT, NEW / UNMAPPED, or route it to the fixed-assets workflow using the main skill rules.
 4. Determine whether it maps to:
    - an existing stock lot,
    - a new expiry lot of an existing local item,
    - a new local item,
-   - or a mapping that needs confirmation.
+   - a mapping that needs confirmation,
+   - or a fixed asset outside Main Stock.
 5. Do not overwrite or merge an older expiry lot when the source has a different expiry date, even when CMS code and item identity are the same.
 6. Check idempotency before applying quantities. An existing preserved batch sheet is evidence but not by itself proof that Main Stock was updated; use multiple live receipt/history signals such as code, normalized identity, expiry, received quantity, source price, batch history, or backups. Never double-intake an already processed transfer.
 7. If the transfer is already represented, switch to **reconciliation-only mode**. Do not mutate received quantities merely because the original paper has been supplied again. Use the source to identify missing dependent identity fields, stale mappings, unit gaps, expiry-lot inconsistencies, source-transcription errors, or other data-quality problems.
@@ -65,4 +88,4 @@ When a preserved batch is compared with the original source, correct proven tran
 
 ## Verify and report
 
-Read back all affected rows. Confirm quantities, source precision, expiry values, identities, untouched derived/helper fields, unrelated neighboring cells, and visual marks. Report matched lines, new lots/items, conflicts, unreadable fields, warnings, idempotency decisions, reconciliation-only corrections, and verification status.
+Read back all affected rows. Confirm quantities, source precision, expiry values, identities, untouched derived/helper fields, unrelated neighboring cells, and visual marks. Report marker-preflight decision, matched lines, new lots/items, fixed assets routed/held, conflicts, unreadable fields, warnings, idempotency decisions, reconciliation-only corrections, and verification status.
