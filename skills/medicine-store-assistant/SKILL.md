@@ -69,6 +69,20 @@ Normalize only harmless variation in abbreviations, punctuation, spacing, word o
 
 When reconciling `Main Stock`, do not limit review to blank CMS codes. Also detect rows where a verified Serial Code exists but dependent identity fields such as `CS Name` are blank. Recover those fields only when the code plus normalized local item, form/unit, price plausibility, sibling-lot history, or catalogue evidence make the identity SAFE. Code presence alone is never enough.
 
+## New expiry-lot row insertion
+
+When a confirmed source shows the same local item as a distinct expiry lot, keep it adjacent to its sibling item rows and create a real row insertion rather than overwriting an existing lot.
+
+- If the item family now has multiple expiry lots, ensure each participating sibling name carries a terminal `(month/year)` expiry suffix consistent with its own `Expiry Date`.
+- Insert the new lot immediately within the same-name family rather than appending it elsewhere in the sheet.
+- For a newly inserted lot, set `Remaining Stock` to **0**. Record the source quantity in `Received Stock`.
+- Use the established local operational unit for the item family when that convention is verified; for gloves, use `Pair`.
+- Populate only verified source, identity, and stable configuration fields. Do not seed calculated/helper fields merely because they currently contain materialized values in Google Sheets.
+- In the current `Main Stock` contract, treat these as writable when supported by verified evidence: `No.`, `Items`, `Expiry Date`, `Unit`, `Remaining Stock`, `Received Stock`, `Reorder Level`, `Reorder Surplus Factor`, `CMS Price`, optional `Remark`, `Serial Code`, and `CS Name`.
+- Treat `Date Status`, `Stock Status Today`, `This Month Usage`, `Stock Remark`, `Estimated Request Qty`, `Shortage Date`, `Price`, `Reorder Row`, and `Expiry Filter Helper` as derived/calculated/helper fields unless the live workbook contract proves otherwise. In particular, **do not write `Price`**; it is derived by the Excel workflow and may change with expiry-related pricing logic.
+- After insertion, renumber the `No.` column sequentially through the used range. This is structural maintenance, not an operational data mark.
+- Read back the inserted row, affected sibling rows, renumbered tail, and untouched derived/helper fields before reporting success.
+
 ## Mutation protocol
 
 Before editing:
@@ -86,7 +100,7 @@ After editing:
 2. Verify the intended values were written.
 3. Verify unrelated values were not changed.
 4. Verify any visual marks according to [references/visual-marking.md](references/visual-marking.md).
-5. Use `Audit_Log` for significant multi-row reconciliation, price synchronization, code reassignment/recycling, or ambiguity resolution.
+5. Use `Audit_Log` for significant multi-row reconciliation, price synchronization, code reassignment/recycling, new expiry-lot insertion, or ambiguity resolution.
 
 Never claim success before read-back verification.
 
@@ -113,6 +127,8 @@ Never:
 - rewrite actual usage to make FIFO/FEFO appear compliant,
 - overwrite an older expiry lot merely because the code matches,
 - silently change an item-name expiry suffix or `Expiry Date` merely to make them agree,
+- populate a derived/helper field from a neighboring row without a verified contract,
+- write the `Price` column during new-lot intake,
 - propagate a price from code match alone,
 - replace historical transaction prices with today's catalogue price,
 - force local generic names to CMS brand names,
