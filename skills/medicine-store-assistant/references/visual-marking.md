@@ -10,6 +10,20 @@ Use direct cell formatting as lightweight operational metadata. Color must compl
 
 When meanings compete on the same cell, use `red > yellow > green`. Never mark a disputed or unverified value green.
 
+## Mandatory pre-intake marker scan
+
+Before any **new Main Stock batch intake**, inspect the used Main Stock range for existing MSA markers.
+
+1. Count existing green, yellow, and red MSA markers using the exact palette above.
+2. If all counts are zero, continue normally.
+3. If any count is nonzero, report the counts by color and **stop before batch writes**. Ask the user whether to clear the old MSA markers or preserve them and continue.
+4. Never clear old markers automatically.
+5. If the user approves clearing, remove only background fills confidently attributable to MSA. Do not change cell values, formulas, number formats, borders, alignment, data validation, notes, conditional formatting, or unrelated/pre-existing fills.
+6. Read back the cleared ranges before starting the new batch.
+7. `Audit_Log` remains the durable history even when old visual markers are cleared.
+
+This preflight exists so the visual marks from one intake/reconciliation session do not become confused with a later batch.
+
 ## Write behavior
 
 1. Inspect the target values, direct formatting, formulas, and relevant conditional-format rules before mutation.
@@ -33,9 +47,10 @@ For a newly inserted expiry lot, fields such as `Items`, `Expiry Date`, `Unit`, 
 
 - Keep MSA marks persistent by default so the user can review them later.
 - Never automatically clear prior MSA marks when starting a new task.
+- For a new batch intake, the mandatory pre-intake marker scan determines whether the user wants old MSA marks cleared or preserved.
 - Clear marks only on explicit request, after inspecting the requested ranges. Remove only colors known to have been applied by MSA; do not reset unrelated or pre-existing formatting.
 - Do not create one `Audit_Log` row per color-only action. Continue to audit the underlying significant inventory operation according to the main skill rules.
 
 ## Reporting
 
-Always state the meaning and count of applied colors in the completion report. Describe warnings and review items in text as well, so color is never the only signal.
+Always state the meaning and count of applied colors in the completion report. For a new batch, also state the preflight counts and whether old markers were cleared or preserved. Describe warnings and review items in text as well, so color is never the only signal.
