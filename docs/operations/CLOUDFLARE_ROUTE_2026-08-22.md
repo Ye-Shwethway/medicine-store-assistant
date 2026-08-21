@@ -1,14 +1,14 @@
 # Cloudflare Route — Medicine Store Assistant
 
-Status: **configured; public end-to-end health verification pending**
+Status: **verified complete**
 
 Date: 2026-08-22
 
 ## Scope
 
-A narrow Cloudflare infrastructure change was made to expose the already-verified localhost-bound Medicine Store Assistant API through the existing managed Cloudflare Tunnel.
+A narrow Cloudflare infrastructure change exposes the localhost-bound Medicine Store Assistant API through the existing managed Cloudflare Tunnel.
 
-No application code, database schema, authentication, Custom GPT Action, Google Sheet, Telegram, Flutter, Worker, D1, KV, R2, Pages, Load Balancer, Access policy, or paid Cloudflare service was changed or created.
+No Worker, D1, KV, R2, Pages, Load Balancer, Access policy, paid Cloudflare service, database schema, Sheet integration, Telegram/Flutter client, or Custom GPT Action was required for the route.
 
 ## Verified Cloudflare configuration
 
@@ -28,40 +28,28 @@ inventory.drthorne.uk  -> http://localhost:8088   # MSA
 catch-all              -> http_status:404         # pre-existing
 ```
 
-## Local origin already verified
+## End-to-end public verification
 
-Before Cloudflare routing, the VPS-local endpoint was verified:
+User-side mobile-browser verification on 2026-08-22 successfully opened:
 
-`GET http://127.0.0.1:8088/health`
+`https://inventory.drthorne.uk/health`
 
-Expected/verified local payload:
+The page returned the Medicine Store Assistant health JSON over HTTPS with:
 
-```json
-{
-  "ok": true,
-  "service": "medicine-store-assistant-api",
-  "environment": "foundation",
-  "version": "0.1.0-dev",
-  "build_sha": "408dcbbdba6c579f446d303197c9071340188619",
-  "database_canonical": false
-}
-```
+- `ok: true`
+- `service: medicine-store-assistant-api`
+- `environment: foundation`
+- `version: 0.1.0-dev`
+- `database_canonical: false`
 
-## Public verification state
-
-Public endpoint target:
-
-`GET https://inventory.drthorne.uk/health`
-
-Immediately after route creation, the available execution environments could not yet resolve the newly created hostname. Independent follow-up also returned DNS/cache resolution failure rather than an HTTP application response.
+The screenshot was taken before the later F3 deployment, so the displayed build SHA reflected the then-current F2 runtime. Subsequent VPS verification confirmed the API advanced to F3 commit `dac1a4aa5b218d3c5eda24a636b3c3688979473b`. The browser evidence is sufficient to prove the public HTTPS/Tunnel path itself works end-to-end.
 
 Therefore:
 
-- Cloudflare route/DNS configuration: **verified created**
+- Cloudflare route/DNS configuration: **verified**
+- HTTPS edge/Tunnel/origin path: **verified**
 - direct public exposure of VPS `:8088`: **not present**
-- public HTTPS end-to-end health response: **pending propagation / independent verification**
-
-Do not claim the public endpoint fully verified until an independent request returns HTTP 200 with the expected health JSON.
+- database canonicality: **unchanged / false**
 
 ## Security/privacy note
 
