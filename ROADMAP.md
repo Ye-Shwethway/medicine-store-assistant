@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Project Roadmap
 
-Status: **Phase 2 foundation active; F0/F1 complete, F2 authored and deployment verification pending**
+Status: **Phase 2 foundation active; F0/F1 complete, F2 migration applied and final readiness verification pending**
 
 This roadmap tracks the full Medicine Store Assistant project and must stay synchronized with `NEW_CHAT_BOOTSTRAP.md`.
 
@@ -86,12 +86,14 @@ Route/DNS read-back succeeded. Direct public exposure of VPS port 8088 was not p
 
 ### F2 — PostgreSQL schema/migration foundation
 
-Status: **approved and authored; VPS apply/verification pending**
+Status: **migration applied; final readiness verification pending**
 
-Repository implementation now includes:
+Canonical runtime evidence: `docs/operations/F2_VPS_MIGRATION_VERIFICATION_2026-08-22.md`.
+
+Repository/runtime implementation includes:
 
 - Alembic migration tooling;
-- SQLAlchemy + psycopg runtime dependencies;
+- SQLAlchemy + psycopg v3 runtime dependencies;
 - initial migration `0001_foundation`;
 - user/role/external-identity foundation;
 - service-principal/credential metadata foundation;
@@ -102,23 +104,33 @@ Repository implementation now includes:
 - `/ready` endpoint for DB connectivity + expected migration revision;
 - one-command `deploy/apply_f2_foundation.sh` deployment helper using secret-safe Compose validation.
 
-F2 explicitly does **not** contain stock ledger movements/receipt/usage/adjustment write APIs, live inventory import, Sheet mirror writes, or database canonical promotion.
+Verified F2 runtime evidence so far:
 
-F2 exit criteria still pending runtime verification:
+- repository validator passed;
+- API image rebuilt successfully;
+- migration `0001_foundation` applied successfully to isolated MSA PostgreSQL;
+- API restarted and subsequently returned HTTP 200 on `/health`;
+- runtime served build SHA `2fff4408666723159543af900c3df8b8e3dd14fb`;
+- `database_canonical: false` remains preserved.
 
-- repo validator passes at deployed commit;
-- image rebuild succeeds;
-- migration applies cleanly to the isolated MSA PostgreSQL database;
-- `/health` remains HTTP 200 and `database_canonical: false`;
-- `/ready` returns HTTP 200 with migration `0001_foundation`;
-- DB remains private/no host port;
-- unrelated services remain healthy.
+The first apply attempt exposed a SQLAlchemy driver mismatch: plain `postgresql://` selected psycopg2 while the project installs psycopg v3. Repository code now normalizes URLs to `postgresql+psycopg://`; no psycopg2 dependency or VPS-local source patch was introduced.
+
+The successful migration run then hit a transient curl race immediately after API container recreation. Subsequent `/health` was healthy, so `deploy/apply_f2_foundation.sh` is now hardened with retry/backoff for `/health` and `/ready`.
+
+F2 final exit criteria still require one clean hardened verification run showing:
+
+- `/health` HTTP 200 and `database_canonical: false`;
+- `/ready` HTTP 200;
+- `/ready` reports `database: reachable`;
+- migration and expected migration both equal `0001_foundation`.
+
+F2 explicitly does **not** contain stock ledger write APIs, live inventory import, Sheet mirror writes, or database canonical promotion.
 
 ### F3 — Core read-only domain/API
 
 Status: **not started**
 
-After F2 runtime verification, implement read-only product/lot/month/catalogue/user-safe diagnostics before real inventory writes.
+After F2 final readiness verification, implement read-only product/lot/month/catalogue/user-safe diagnostics before real inventory writes.
 
 ### F4 — Ledger primitives in isolated test mode
 
@@ -176,9 +188,9 @@ Regenerate Main Stock, Daily Usage, This Month Received, and Final Reorder histo
 
 ## Current next work
 
-1. Apply and verify F2 migration foundation on the VPS.
+1. Pull the hardened F2 apply script and run one clean verification pass; migration rerun is idempotent at `0001_foundation`.
 2. Recheck external `https://inventory.drthorne.uk/health` when DNS propagation permits.
-3. If F2 verification passes, document it and authorize F3 read-only domain/API.
+3. If `/ready` passes, record F2 verified complete and authorize F3 read-only domain/API.
 
 No live inventory import, production stock write authority, Custom GPT Action connection, Telegram/Flutter rollout, Sheet mirror conversion, or DB canonical promotion is enabled yet.
 
