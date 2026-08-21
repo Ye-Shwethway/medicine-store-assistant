@@ -5,7 +5,7 @@ Use direct cell formatting as lightweight operational metadata. Color must compl
 ## Palette
 
 - **Light green `#D9EAD3` — written and verified:** Apply to each cell whose value the assistant actually writes as part of a successful operation.
-- **Light yellow `#FFF2CC` — review required:** Apply to the most relevant target cell when a likely match, unmapped item, unclear source field, or other pending decision requires user review and the identity-sensitive value is not written.
+- **Light yellow `#FFF2CC` — review required:** Apply to the most relevant target cell when a likely match, unmapped item, unclear source field, expiry-suffix inconsistency, or other pending decision requires user review and the identity-sensitive value is not written.
 - **Light red `#F4CCCC` — warning or conflict:** Apply to the disputed target cell when a confirmed mismatch, recycled CMS identity, invalid contradiction, or other blocked high-risk condition needs attention.
 
 When meanings compete on the same cell, use `red > yellow > green`. Never mark a disputed or unverified value green.
@@ -20,6 +20,7 @@ When meanings compete on the same cell, use `red > yellow > green`. Never mark a
 6. Apply only `userEnteredFormat.backgroundColorStyle` with the exact RGB color. Preserve values, formulas, number formats, borders, alignment, validation, notes, and all unrelated formatting.
 7. Do not silently replace a meaningful existing fill or a conflicting conditional-format signal. Preserve it and report the conflict unless the user explicitly authorizes replacement.
 8. If a warning concerns one field, mark that field. If no single field represents the issue, mark the item-name cell rather than the whole row.
+9. **Expiry suffix mismatch:** when a terminal expiry marker in `Items` disagrees with the row's `Expiry Date`, leave both values unchanged and mark the **Item Name / Items cell** light yellow for later review. Use red only when stronger source evidence establishes that one of the values is definitively wrong or the mismatch creates a confirmed high-risk conflict. Do not mark the `Expiry Date` cell merely to force visual agreement.
 
 ## Persistence and clearing
 
