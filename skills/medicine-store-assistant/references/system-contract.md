@@ -10,6 +10,7 @@ Important sheets may include:
 
 - `Main Stock`
 - `Daily Usage`
+- `Fixed Assets`
 - `CMS_Price_List_YYYYMM` versioned price-list sheets
 - `CMS_Batch_<TRANSFER>_<DATE>` batch or transfer sheets
 - `Audit_Log`
@@ -26,6 +27,39 @@ Treat these names as discovery hints, not proof of the current live structure. I
 - Do not rewrite formulas or calculated fields without explicit authorization.
 - Do not restructure sheets to simplify assistant operations.
 - Do not disturb archives, reports, reorder calculations, or synchronization.
+
+### Approved Daily Usage Google-Sheet extension
+
+The user has explicitly approved one Google-Sheet-side extension to `Daily Usage`: an `Expiry Date` field placed at the far right after the existing `Remark` column.
+
+Under the current live layout this is `AM Expiry Date`, synchronized from the matched `Main Stock` lot's structured `Expiry Date` field. It is a derived/read-only operational aid and is not a routine usage-entry column.
+
+This approval does not authorize insertion of other columns inside the Excel-compatible Daily Usage production range.
+
+## Daily Usage bidirectional synchronization
+
+`Main Stock` is the structural/base-data master for Daily Usage. The canonical Daily Usage flow is defined in `references/daily-usage.md`.
+
+Current approved mapping when the live schema confirms these fields:
+
+- `Main Stock A No.` -> `Daily Usage A No.`
+- `Main Stock B Items` -> `Daily Usage B Items`
+- `Main Stock F Remaining Stock` -> `Daily Usage C Remaining Stock`
+- `Main Stock G Received Stock` -> `Daily Usage D Received Stock`
+- `Main Stock C Expiry Date` -> `Daily Usage AM Expiry Date`
+
+Daily usage input belongs in day columns `E:AI` (`1`-`31`). After entry:
+
+- calculate `Daily Usage AJ This Month Usage = SUM(E:AI)`,
+- calculate `Daily Usage AK This Month Remaining = C + D - AJ`,
+- synchronize `Daily Usage AJ` -> `Main Stock J This Month Usage`,
+- synchronize `Daily Usage AK` -> `Main Stock H Stock Status Today`.
+
+Never reverse-sync the calculated current balance into `Main Stock F Remaining Stock`; that field remains the base/opening stock source for Daily Usage.
+
+Before a Daily Usage mutation, verify structural parity by item/lot identity. Repair confirmed missing Daily rows by real row insertion while preserving existing day history. Do not blindly delete extra Daily rows that may contain historical usage.
+
+## Optional assistant metadata
 
 If assistant-specific metadata is needed and the user authorizes it, prefer an `Item_Mapping` helper sheet with fields such as:
 
