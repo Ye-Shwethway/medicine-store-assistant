@@ -1,25 +1,10 @@
 # Medicine Store Assistant — Project Roadmap
 
-Status: **Phase 2 foundation active; F0 and F1 verified complete; Cloudflare route configured, public health verification pending**
+Status: **Phase 2 foundation active; F0/F1 complete, F2 authored and deployment verification pending**
 
-This roadmap tracks the full Medicine Store Assistant project, not only the published `$msa` skill. Keep it synchronized with `NEW_CHAT_BOOTSTRAP.md` after significant changes.
+This roadmap tracks the full Medicine Store Assistant project and must stay synchronized with `NEW_CHAT_BOOTSTRAP.md`.
 
-## Project goals
-
-Build a reliable medicine-store information system that preserves the familiar spreadsheet workflow while moving canonical data integrity into deterministic backend infrastructure.
-
-Primary goals:
-
-- preserve the published Git-backed `$msa` skill;
-- preserve source-document truth, lot separation, local naming, and Excel/Google Sheets compatibility;
-- introduce stable product/lot identity independent of spreadsheet row number;
-- preserve complete monthly history and full CMS catalogue history;
-- move arithmetic, idempotency, constraints, transactions, audit, authentication and authorization into deterministic backend code;
-- expose a safe typed API for Custom GPT, Telegram, Flutter, staff users and Sheet integration;
-- reuse the existing VPS and Cloudflare Free/custom domain where useful;
-- avoid big-bang migration and unnecessary paid infrastructure.
-
-## Architecture baseline
+## Core architecture
 
 ```text
 MSA Custom GPT ─┐
@@ -29,221 +14,178 @@ Flutter ────────┘              │
                                └──> Excel monthly exports
 ```
 
-Staff access is a first-class backend concern. Human users, external identities (such as Telegram), service clients and audit attribution must resolve to stable backend identities rather than being embedded ad hoc in inventory rows.
+GitHub stores code/docs only. The current Google workbook remains operationally authoritative until shadow/dual validation and explicit database promotion.
 
-GitHub remains code/docs distribution. Operational/private data and secrets must never be committed to the public repository.
+## Phase 0 — Existing skill/workbook foundation
 
-## Phase 0 — Existing skill and workbook foundation
+Status: **completed / active operational workflow**
 
-Status: **completed / active production workflow**
+The Git-backed `$msa` skill, source hierarchy, lot handling, CMS matching rules, visual marking, tab persistence, Fixed Assets boundary, Daily Usage parity, and Main/Daily synchronization contract remain preserved.
 
-Established:
+## Phase 1 — Architecture documentation
 
-- canonical Git-backed skill at `skills/medicine-store-assistant/`;
-- `$msa` invocation alias;
-- source-authority hierarchy and cautious CMS identity matching;
-- fixed-asset boundary;
-- visual marking and read-back verification;
-- tab sequencing/persistence policy;
-- Main Stock new-lot insertion rules;
-- Daily Usage structural parity and bidirectional synchronization contract;
-- live Daily Usage parity repair completed;
-- full AJ/AK recalculation and Main H/J reverse synchronization completed.
+Status: **sufficient for foundation implementation**
 
-The Google workbook remains authoritative until database promotion is explicitly approved after shadow validation.
+Canonical docs cover inventory architecture/data model, monthly lifecycle, CMS versioning, integrity/audit, Sheet/Excel compatibility, API/client architecture, migration/shadow validation, user/access management, decisions, VPS deployment, backup/recovery, and implementation slices.
 
-## Phase 1 — Canonical architecture documentation
+### F2 schema decisions — approved 2026-08-22
 
-Status: **foundation design sufficient for reversible runtime work; schema/auth gates remain open**
+Locked v1 decisions:
 
-Canonical documents include:
+- initial migration uses one `OPENING_BALANCE` movement per migrated pre-existing lot; month boundaries do not create repeated opening movements;
+- normal lot boundary is product + expiry, while receipt-line provenance stays separate;
+- `product_id` is stable; harmless local-name changes do not create a new product;
+- quantities use fixed-point `NUMERIC(18,3)` with unit-level whole-number validation for discrete units;
+- normal writes may not create negative stock; privileged explicit reconciliation exceptions require audit/reason;
+- corrections use reversal/amendment rather than destructive history rewrite;
+- roles are `OWNER`, `ADMIN`, `STAFF`, `READ_ONLY`;
+- stable backend `user_id` is canonical human identity;
+- Telegram numeric user ID is an external identity link;
+- Flutter uses native MSA credentials/session design independent of Telegram;
+- non-human clients use scoped service principals;
+- protected operations preserve actor/client/operation attribution.
 
-- `docs/architecture/CANONICAL_INVENTORY_ARCHITECTURE.md`
-- `docs/architecture/INVENTORY_DATA_MODEL.md`
-- `docs/architecture/MONTHLY_LIFECYCLE.md`
-- `docs/architecture/CMS_CATALOGUE_VERSIONING.md`
-- `docs/architecture/INVENTORY_INTEGRITY_AND_AUDIT.md`
-- `docs/architecture/SHEET_MIRROR_AND_COMPATIBILITY.md`
-- `docs/architecture/API_AND_CLIENT_ARCHITECTURE.md`
-- `docs/architecture/MIGRATION_AND_SHADOW_VALIDATION.md`
-- `docs/architecture/DECISIONS_AND_OPEN_QUESTIONS.md`
-- `docs/architecture/USER_ACCESS_AND_AUTHORIZATION.md`
-- `IMPLEMENTATION_PLAN.md`
-- `docs/operations/VPS_DEPLOYMENT.md`
-- `docs/operations/BACKUP_AND_RECOVERY.md`
-
-Locked clarifications:
-
-- Main Stock and Daily Usage are primary operational views.
-- This Month Received is a display-only filtered projection, not an independent canonical store.
-- Reorder/Final Reorder are workflow/display projections; the final user-approved reorder may be preserved in monthly history.
-- Spreadsheet row numbers are not canonical identities.
-- Full CMS catalogue versions should be retained historically.
-- Backend calculations and integrity are deterministic, not LLM-authored.
-- Same repository remains monorepo-style; published skill path stays stable.
-- Custom GPT Actions → VPS API is the preferred first direct AI-access experiment.
-- Future staff use through Telegram/Flutter requires a backend user/access domain with stable user identities, roles, external-identity links, revocation/deactivation and audit attribution.
-
-Schema implementation still requires decisions in `docs/architecture/DECISIONS_AND_OPEN_QUESTIONS.md`, including opening-balance representation, lot granularity, quantity precision, negative-stock policy, historical-correction semantics, and v1 auth/access choices.
+Canonical record: `docs/architecture/F2_SCHEMA_DECISION_PROPOSAL.md` (historical filename, approved/locked content).
 
 ## Phase 2 — Backend foundation
 
 Status: **active**
 
-### Slice F0 — VPS inspection and safe host preparation
-
-Status: **completed 2026-08-22**
-
-Verified evidence: `docs/operations/F0_VPS_INSPECTION_2026-08-22.md`.
-
-### Slice F1 — Repository Runtime Skeleton
+### F0 — VPS inspection
 
 Status: **verified complete 2026-08-22**
 
-Canonical evidence: `docs/operations/F1_VPS_RUNTIME_VERIFICATION_2026-08-22.md`.
+Evidence: `docs/operations/F0_VPS_INSPECTION_2026-08-22.md`.
 
-Verified results:
+### F1 — Runtime skeleton
 
-- deployed canonical commit `408dcbbdba6c579f446d303197c9071340188619`;
-- repository validator PASS (`medicine-store-assistant` plugin 1.1.0);
-- FastAPI runtime skeleton deployed in Docker;
-- PostgreSQL 16 Alpine container deployed privately on the project Docker network;
-- API bound only to `127.0.0.1:8088`;
-- PostgreSQL has no host-published port;
-- `/health` returned HTTP 200 with expected build/environment metadata and `database_canonical: false`;
-- API/PostgreSQL memory usage remained well below configured caps at verification;
-- unrelated VPS containers/services remained unchanged.
+Status: **verified complete 2026-08-22**
 
-Operational hardening learned in F1:
+Evidence: `docs/operations/F1_VPS_RUNTIME_VERIFICATION_2026-08-22.md`.
 
-- rendered `docker compose config` output can expose interpolated runtime secrets; use secret-safe validation such as `config --quiet` when appropriate and never copy rendered secret-bearing configuration into logs/docs/chat.
+Verified runtime:
+
+- FastAPI + PostgreSQL containers;
+- API localhost-only on `127.0.0.1:8088`;
+- DB has no host-published port;
+- `/health` HTTP 200;
+- `database_canonical: false`;
+- unrelated VPS services unchanged.
+
+Bamboo/one-time executor is closed and no longer part of the implementation workflow.
 
 ### Cloudflare public route
 
-Status: **configured 2026-08-22; public end-to-end health verification pending**
+Status: **configured; external health verification pending**
 
-Evidence: `docs/operations/CLOUDFLARE_ROUTE_2026-08-22.md`.
+Configured hostname:
 
-Configured route:
+`inventory.drthorne.uk -> existing managed Cloudflare Tunnel -> http://localhost:8088`
 
-`https://inventory.drthorne.uk` → existing managed Cloudflare Tunnel → `http://localhost:8088`
+Route/DNS read-back succeeded. Direct public exposure of VPS port 8088 was not present. Independent public `/health` verification is still pending due resolver/cache propagation; do not claim the HTTPS slice fully complete until HTTP 200 + expected JSON are observed externally.
 
-Verified Cloudflare-side facts:
+### F2 — PostgreSQL schema/migration foundation
 
-- hostname was unused before assignment;
-- existing managed tunnel was reused;
-- proxied CNAME/tunnel hostname route was created additively;
-- unrelated existing tunnel routes were preserved;
-- no Worker, D1, KV, R2, Pages, Load Balancer, Access policy, paid Cloudflare service, or host reverse proxy was added;
-- VPS port `8088` remains non-public and localhost-bound.
+Status: **approved and authored; VPS apply/verification pending**
 
-Immediately after creation, available execution environments could not resolve the new hostname, so HTTP 200 + expected public `/health` JSON has **not yet been independently verified**. Do not mark this slice fully complete until that succeeds.
+Repository implementation now includes:
 
-### Next gate — architecture decisions before F2 schema
+- Alembic migration tooling;
+- SQLAlchemy + psycopg runtime dependencies;
+- initial migration `0001_foundation`;
+- user/role/external-identity foundation;
+- service-principal/credential metadata foundation;
+- product/product-lot stable identity tables;
+- operating-month table;
+- CMS catalogue version/item tables;
+- audit-event attribution foundation;
+- `/ready` endpoint for DB connectivity + expected migration revision;
+- one-command `deploy/apply_f2_foundation.sh` deployment helper using secret-safe Compose validation.
 
-Status: **current planning work**
+F2 explicitly does **not** contain stock ledger movements/receipt/usage/adjustment write APIs, live inventory import, Sheet mirror writes, or database canonical promotion.
 
-Before canonical inventory/auth tables or migrations, resolve the F2-gating decisions in `docs/architecture/DECISIONS_AND_OPEN_QUESTIONS.md` and `USER_ACCESS_AND_AUTHORIZATION.md`.
+F2 exit criteria still pending runtime verification:
 
-Key decisions include:
+- repo validator passes at deployed commit;
+- image rebuild succeeds;
+- migration applies cleanly to the isolated MSA PostgreSQL database;
+- `/health` remains HTTP 200 and `database_canonical: false`;
+- `/ready` returns HTTP 200 with migration `0001_foundation`;
+- DB remains private/no host port;
+- unrelated services remain healthy.
 
-- opening-balance representation;
-- lot granularity;
-- product rename/identity semantics;
-- quantity precision;
-- negative-stock policy;
-- historical correction semantics;
-- minimal v1 user/role model;
-- external identity linkage for Telegram;
-- Flutter authentication/session approach;
-- service identity/scopes for Custom GPT and other integrations.
-
-### Slice F2 — PostgreSQL schema foundation
-
-Status: **not yet authorized**
-
-After gating decisions are locked, introduce migration tooling, stable user/product/lot/month/catalogue entities, database readiness and least-privilege application credentials. No live inventory import yet.
-
-### Slice F3 — Core read-only domain/API
+### F3 — Core read-only domain/API
 
 Status: **not started**
 
-Implement stable identities and read-only APIs before real stock writes.
+After F2 runtime verification, implement read-only product/lot/month/catalogue/user-safe diagnostics before real inventory writes.
 
-### Slice F4 — Ledger primitives in isolated test mode
-
-Status: **not started**
-
-Implement typed opening/receipt/usage/adjustment operations with idempotency, atomic transactions, reversal/correction support, audit and deterministic balance calculation using synthetic data only.
-
-## Phase 3 — Shadow migration and reconciliation
+### F4 — Ledger primitives in isolated test mode
 
 Status: **not started**
 
-Import current live Sheet state into shadow PostgreSQL, preserve provenance, compare backend projections against the workbook, and surface mismatches without silent repair.
+Later implement opening/receipt/usage/adjustment operations with idempotency, atomic transactions, correction/reversal support, audit, and deterministic balances using synthetic/test data first.
+
+## Phase 3 — Shadow migration/reconciliation
+
+Status: **not started**
+
+Import current Sheet state into shadow PostgreSQL, preserve provenance, compare backend projections against the workbook, and report mismatches without silent repair.
 
 ## Phase 4 — Dual validation
 
 Status: **not started**
 
-Run representative real operations through current Sheet workflow plus backend shadow path and compare results before promotion.
+Run representative real workflows through current Sheet + backend shadow path and compare before promotion.
 
 ## Phase 5 — Canonical database promotion
 
 Status: **not started; explicit approval required**
 
-Requires successful parity validation, tested backups/restores, measurable acceptance criteria and rollback/cutback plan.
+Requires parity acceptance, tested backup/restore, and rollback/cutback plan.
 
 ## Phase 6 — Private Custom GPT Action experiment
 
-Status: **planned after public HTTPS + stable read-only API**
+Status: **planned after stable public HTTPS + read-only API**
 
-Start with read-only Actions only. Version-control OpenAPI under `integrations/custom-gpt/`, use a revocable scoped service credential, and expose no arbitrary SQL/database credentials.
+Start read-only with a revocable scoped service credential. No arbitrary SQL/database credentials.
 
-## Phase 7 — Google Sheets backend mirror
-
-Status: **future**
-
-After database promotion, make DB-to-Sheet projection the normal direction and translate approved Sheet-originated edits into typed operations.
-
-## Phase 8 — Telegram client
-
-Status: **future multi-user client**
-
-Use stable backend user identities and role-based authorization. Telegram numeric user ID is an external identity link, not the canonical user primary key. Authentication, authorization, idempotency, audit and read-back are required before writes.
-
-## Phase 9 — Flutter application
-
-Status: **future multi-user client**
-
-Use the same backend users/roles and typed API. Flutter authentication must not create a second user or inventory model.
-
-## Phase 10 — Mature monthly archive/export
+## Phase 7 — Google Sheets mirror
 
 Status: **future**
 
-Regenerate familiar Main Stock, Daily Usage, This Month Received and Final Reorder outputs from canonical history.
+After database promotion, DB-to-Sheet projection becomes normal direction; approved Sheet edits translate into typed backend operations.
 
-## Current checkpoint
+## Phase 8 — Telegram staff client
 
-F0 and F1 are verified complete. Bamboo/one-time VPS executor is no longer part of the implementation workflow.
+Status: **future multi-user client**
 
-Cloudflare route is configured but public `/health` verification is still pending DNS/edge propagation.
+Use canonical users/roles and Telegram numeric external identities.
 
-Current next work:
+## Phase 9 — Flutter staff application
 
-1. independently re-check `https://inventory.drthorne.uk/health` after propagation and close the Cloudflare route slice when it returns the expected HTTP 200 payload;
-2. resolve F2 schema + v1 user/auth gating decisions;
-3. authorize and implement F2 only after those decisions are documented.
+Status: **future multi-user client**
 
-No canonical inventory schema, live import, Custom GPT Action or production write authority is enabled yet.
+Use the same backend identity/domain/API model.
+
+## Phase 10 — Monthly archive/export
+
+Status: **future**
+
+Regenerate Main Stock, Daily Usage, This Month Received, and Final Reorder historical outputs from canonical history.
+
+## Current next work
+
+1. Apply and verify F2 migration foundation on the VPS.
+2. Recheck external `https://inventory.drthorne.uk/health` when DNS propagation permits.
+3. If F2 verification passes, document it and authorize F3 read-only domain/API.
+
+No live inventory import, production stock write authority, Custom GPT Action connection, Telegram/Flutter rollout, Sheet mirror conversion, or DB canonical promotion is enabled yet.
 
 ## Continuity rule
 
-After every significant architecture decision, implementation slice, deployment change, migration/reconciliation result or next-work change:
+After every significant architecture decision, implementation slice, deployment change, migration result, or next-work change:
 
 1. update `ROADMAP.md`;
 2. update `NEW_CHAT_BOOTSTRAP.md`;
-3. update relevant architecture/operations docs.
-
-A new chat must be able to determine completed work, current truth and the next authorized slice from repository documents alone.
+3. update relevant canonical architecture/operations docs.
