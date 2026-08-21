@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Project Roadmap
 
-Status: **Phase 2 foundation active; F0/F1 complete, F2 migration applied and final readiness verification pending**
+Status: **Phase 2 foundation active; F0/F1/F2 verified complete**
 
 This roadmap tracks the full Medicine Store Assistant project and must stay synchronized with `NEW_CHAT_BOOTSTRAP.md`.
 
@@ -30,22 +30,22 @@ Canonical docs cover inventory architecture/data model, monthly lifecycle, CMS v
 
 ### F2 schema decisions — approved 2026-08-22
 
-Locked v1 decisions:
+Locked v1 decisions include:
 
-- initial migration uses one `OPENING_BALANCE` movement per migrated pre-existing lot; month boundaries do not create repeated opening movements;
-- normal lot boundary is product + expiry, while receipt-line provenance stays separate;
-- `product_id` is stable; harmless local-name changes do not create a new product;
-- quantities use fixed-point `NUMERIC(18,3)` with unit-level whole-number validation for discrete units;
-- normal writes may not create negative stock; privileged explicit reconciliation exceptions require audit/reason;
-- corrections use reversal/amendment rather than destructive history rewrite;
-- roles are `OWNER`, `ADMIN`, `STAFF`, `READ_ONLY`;
+- one initial `OPENING_BALANCE` movement per migrated pre-existing lot; no repeated monthly opening movement;
+- normal lot boundary = product + expiry, with receipt provenance kept separately;
+- stable `product_id`; harmless local-name changes do not create new identity;
+- fixed-point `NUMERIC(18,3)` quantities with whole-number validation for discrete units;
+- normal writes cannot silently create negative stock;
+- corrections use reversal/amendment rather than destructive rewriting;
+- roles = `OWNER`, `ADMIN`, `STAFF`, `READ_ONLY`;
 - stable backend `user_id` is canonical human identity;
 - Telegram numeric user ID is an external identity link;
-- Flutter uses native MSA credentials/session design independent of Telegram;
+- Flutter uses native MSA credentials/session design;
 - non-human clients use scoped service principals;
 - protected operations preserve actor/client/operation attribution.
 
-Canonical record: `docs/architecture/F2_SCHEMA_DECISION_PROPOSAL.md` (historical filename, approved/locked content).
+Canonical record: `docs/architecture/F2_SCHEMA_DECISION_PROPOSAL.md`.
 
 ## Phase 2 — Backend foundation
 
@@ -63,74 +63,51 @@ Status: **verified complete 2026-08-22**
 
 Evidence: `docs/operations/F1_VPS_RUNTIME_VERIFICATION_2026-08-22.md`.
 
-Verified runtime:
-
-- FastAPI + PostgreSQL containers;
-- API localhost-only on `127.0.0.1:8088`;
-- DB has no host-published port;
-- `/health` HTTP 200;
-- `database_canonical: false`;
-- unrelated VPS services unchanged.
+Verified runtime includes FastAPI + PostgreSQL containers, API localhost-only at `127.0.0.1:8088`, no host-published MSA database port, `/health` HTTP 200, and `database_canonical: false`.
 
 Bamboo/one-time executor is closed and no longer part of the implementation workflow.
 
 ### Cloudflare public route
 
-Status: **configured; external health verification pending**
+Status: **configured; external health verification still pending**
 
-Configured hostname:
+Configured route:
 
 `inventory.drthorne.uk -> existing managed Cloudflare Tunnel -> http://localhost:8088`
 
-Route/DNS read-back succeeded. Direct public exposure of VPS port 8088 was not present. Independent public `/health` verification is still pending due resolver/cache propagation; do not claim the HTTPS slice fully complete until HTTP 200 + expected JSON are observed externally.
+Cloudflare route/DNS read-back succeeded and VPS port 8088 remains non-public. Independent public fetch still has not produced a confirmed HTTP 200 response, so do not claim the HTTPS slice fully complete yet.
 
 ### F2 — PostgreSQL schema/migration foundation
 
-Status: **migration applied; final readiness verification pending**
+Status: **verified complete 2026-08-22**
 
-Canonical runtime evidence: `docs/operations/F2_VPS_MIGRATION_VERIFICATION_2026-08-22.md`.
+Canonical evidence: `docs/operations/F2_VPS_MIGRATION_VERIFICATION_2026-08-22.md`.
 
-Repository/runtime implementation includes:
+Verified implementation/runtime:
 
-- Alembic migration tooling;
-- SQLAlchemy + psycopg v3 runtime dependencies;
-- initial migration `0001_foundation`;
-- user/role/external-identity foundation;
-- service-principal/credential metadata foundation;
-- product/product-lot stable identity tables;
-- operating-month table;
-- CMS catalogue version/item tables;
-- audit-event attribution foundation;
-- `/ready` endpoint for DB connectivity + expected migration revision;
-- one-command `deploy/apply_f2_foundation.sh` deployment helper using secret-safe Compose validation.
+- SQLAlchemy + psycopg v3 + Alembic migration tooling;
+- migration `0001_foundation` applied to isolated MSA PostgreSQL;
+- foundation tables for users/roles/external identities, service principals/credential metadata, products/lots, operating months, CMS catalogue versions/items, and audit events;
+- `/health` returned HTTP 200 with build SHA `a9cd98e4af6fd20aee07a783f82daf46d557ac7a` and `database_canonical: false`;
+- `/ready` returned HTTP 200 with `database: reachable`, migration `0001_foundation`, expected migration `0001_foundation`, and `database_canonical: false`;
+- deploy helper now tolerates transient container-recreate connection resets by retrying until stable readiness;
+- psycopg v3 is the intended PostgreSQL driver; runtime URLs are normalized to `postgresql+psycopg://`.
 
-Verified F2 runtime evidence so far:
-
-- repository validator passed;
-- API image rebuilt successfully;
-- migration `0001_foundation` applied successfully to isolated MSA PostgreSQL;
-- API restarted and subsequently returned HTTP 200 on `/health`;
-- runtime served build SHA `2fff4408666723159543af900c3df8b8e3dd14fb`;
-- `database_canonical: false` remains preserved.
-
-The first apply attempt exposed a SQLAlchemy driver mismatch: plain `postgresql://` selected psycopg2 while the project installs psycopg v3. Repository code now normalizes URLs to `postgresql+psycopg://`; no psycopg2 dependency or VPS-local source patch was introduced.
-
-The successful migration run then hit a transient curl race immediately after API container recreation. Subsequent `/health` was healthy, so `deploy/apply_f2_foundation.sh` is now hardened with retry/backoff for `/health` and `/ready`.
-
-F2 final exit criteria still require one clean hardened verification run showing:
-
-- `/health` HTTP 200 and `database_canonical: false`;
-- `/ready` HTTP 200;
-- `/ready` reports `database: reachable`;
-- migration and expected migration both equal `0001_foundation`.
-
-F2 explicitly does **not** contain stock ledger write APIs, live inventory import, Sheet mirror writes, or database canonical promotion.
+F2 did **not** introduce stock ledger write APIs, live inventory import, Sheet mutation, Custom GPT writes, Telegram/Flutter rollout, or database canonical promotion.
 
 ### F3 — Core read-only domain/API
 
-Status: **not started**
+Status: **next implementation slice; not yet started**
 
-After F2 final readiness verification, implement read-only product/lot/month/catalogue/user-safe diagnostics before real inventory writes.
+Target scope:
+
+- read-only product lookup/listing;
+- read-only lot lookup/listing;
+- operating-month read diagnostics;
+- CMS catalogue/version read diagnostics;
+- safe user/account diagnostics without exposing credential material;
+- typed response models and stable API conventions;
+- no inventory mutations and no live Sheet import.
 
 ### F4 — Ledger primitives in isolated test mode
 
@@ -188,9 +165,9 @@ Regenerate Main Stock, Daily Usage, This Month Received, and Final Reorder histo
 
 ## Current next work
 
-1. Pull the hardened F2 apply script and run one clean verification pass; migration rerun is idempotent at `0001_foundation`.
-2. Recheck external `https://inventory.drthorne.uk/health` when DNS propagation permits.
-3. If `/ready` passes, record F2 verified complete and authorize F3 read-only domain/API.
+1. Begin F3 read-only domain/API after explicit authorization.
+2. Continue independent rechecks of `https://inventory.drthorne.uk/health` until external HTTP 200 + expected JSON are observed.
+3. Keep PostgreSQL non-canonical and do not import live inventory until later shadow-migration authorization.
 
 No live inventory import, production stock write authority, Custom GPT Action connection, Telegram/Flutter rollout, Sheet mirror conversion, or DB canonical promotion is enabled yet.
 
