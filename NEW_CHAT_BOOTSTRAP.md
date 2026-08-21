@@ -68,13 +68,17 @@ Verified deployed commit: `dac1a4aa5b218d3c5eda24a636b3c3688979473b`.
 - product/lot/month/catalogue/access diagnostics are authenticated and read-only;
 - no live inventory import and no production stock-write endpoint exists.
 
-## F4 — Synthetic ledger foundation
+### F4 — Synthetic ledger foundation
 
-**Authorized and authored; VPS verification pending.**
+**Verified complete 2026-08-22.**
 
-Repository now contains:
+Canonical evidence: `docs/operations/F4_SYNTHETIC_LEDGER_VERIFICATION_2026-08-22.md`.
 
-- migration `0002_ledger` adding `inventory_transactions`;
+Verified deployed commit: `184f964a86cfb00696f4f2622e41289ab53f165a`.
+
+Verified implementation/runtime:
+
+- migration `0002_ledger` adds `inventory_transactions`;
 - permitted transaction types: `OPENING_BALANCE`, `RECEIPT`, `USAGE`, `ADJUSTMENT_POSITIVE`, `ADJUSTMENT_NEGATIVE`;
 - fixed-point positive quantity constraint;
 - unique `operation_id` idempotency key;
@@ -82,19 +86,23 @@ Repository now contains:
 - actor linkage to user or service principal;
 - deterministic lot balance calculation;
 - normal negative-stock guard in the ledger service;
-- synthetic verifier for balance math, duplicate-operation blocking, negative-stock blocking, and linked reversal adjustment semantics;
-- verifier runs inside a transaction and rolls back, so synthetic product/lot/movement data is not retained;
-- `deploy/apply_f4_ledger_foundation.sh` applies migration, runs the synthetic verifier, then checks `/health` and `/ready`.
-
-`/ready` now expects migration `0002_ledger` after F4 deployment.
+- synthetic verifier passed balance math, duplicate-operation blocking, negative-stock blocking, and linked reversal semantics;
+- synthetic fixture data is rolled back and not retained;
+- `/health` is healthy with build SHA `184f964a86cfb00696f4f2622e41289ab53f165a` and `database_canonical: false`;
+- `/ready` is healthy with database reachable and migration/expected migration both `0002_ledger`;
+- transient connection resets during API recreation were followed by successful retry-loop verification and do not represent an unresolved failure.
 
 F4 does **not** expose production inventory write endpoints. It does not import the live Google Sheet, mutate the Sheet, connect Custom GPT writes, or promote PostgreSQL.
 
-## Immediate next work
+## Recommended next minimum safe slice
 
-1. Deploy/verify F4 with `deploy/apply_f4_ledger_foundation.sh`.
-2. If verification passes, record F4 canonical runtime evidence.
-3. Do not begin live shadow import or production stock-write authority without a later explicit slice.
+**F5 — CMS catalogue versioning using synthetic/non-sensitive sample data only.**
+
+This is recommendation-only and is **not yet authorized**.
+
+If authorized, keep F5 limited to deterministic catalogue version/hash storage, idempotent sample import, new/removed/changed diff behavior, current/historical catalogue reads needed for verification, and proof that CMS code changes cannot automatically remap local product/lot identity.
+
+Do not begin live Sheet import, production stock writes, database promotion, Telegram writes, Flutter rollout, Google Sheet mirror conversion, or Custom GPT write Actions without explicit authorization.
 
 ## Safety boundary
 
