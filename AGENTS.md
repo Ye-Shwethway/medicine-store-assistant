@@ -7,6 +7,8 @@ Treat `skills/medicine-store-assistant/` as the canonical Git-backed plugin skil
 - Keep `SKILL.md` concise: global rules and links only. Put workflow detail in its `references/` directory.
 - Preserve exact source-document truth, expiry-separated lots, and the existing Excel/Google Sheets compatibility contract.
 - Treat `docs/architecture/` as the canonical design contract for the planned database/API system. Keep architecture, data model, integrity, monthly lifecycle, client API, mirror, and migration documents mutually consistent.
+- **Use `NEW_CHAT_BOOTSTRAP.md` + `ROADMAP.md` as mandatory project-continuity documents.** After every significant architecture decision, implementation slice, deployment change, migration/reconciliation result, or change to the next authorized work, update both files so a fresh chat can recover the current checkpoint without remembered conversation context.
+- `NORMAL_CHAT_BOOTSTRAP.md` has a different role: it teaches an ordinary chat how to load and operate the published `$msa` skill. Do not turn it into the project-development continuity file.
 - **Docs first, implementation second.** Do not create production database migrations, backend write paths, Custom GPT write Actions, Telegram write behavior, or database-canonical promotion until the relevant architecture is explicitly reviewed/authorized.
 - Future implementation belongs in sibling areas such as `backend/`, `integrations/`, and `deploy/`; it must not replace the skill structure.
 - PostgreSQL/VPS implementation must use typed domain operations and deterministic integrity controls. Never expose arbitrary SQL or database credentials to GPT, Telegram, Flutter, or Google Sheets clients.
