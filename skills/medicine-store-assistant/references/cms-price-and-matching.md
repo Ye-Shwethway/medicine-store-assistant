@@ -48,6 +48,21 @@ For `Serial Code present + CS Name blank` rows:
 
 If code-to-catalogue evidence conflicts with the local item, do not populate the dependent identity field. Mark the disputed field red and report the contradiction.
 
+## Correct stale mappings from authoritative evidence
+
+A historical source document can safely correct a stale live CMS mapping when it is corroborated by the current catalogue.
+
+Treat a mapping correction as SAFE when all of the following are true:
+
+1. the original source clearly identifies the item, code, and catalogue/sale price,
+2. the current CMS catalogue independently maps that same code to the same compatible product identity and price,
+3. the live Main Stock row corresponds to that historical receipt through compatible local identity, expiry, quantity, or other strong receipt evidence,
+4. no stronger contradictory evidence exists.
+
+In that case, correct only the stale current mapping fields supported by the evidence, typically `Serial Code`, `CS Name`, and `CMS Price`. This is a mapping reconciliation, not a new intake and not permission to rewrite historical operational truth.
+
+Do not change the derived `Price` field as part of this correction merely because `CMS Price` changes. Preserve the Excel-side pricing/expiry logic and leave `Price` untouched unless its own contract explicitly authorizes a write.
+
 ## Apply prices safely
 
 When identity is compatible, update only the appropriate current CMS price field allowed by the live sheet contract. Do not overwrite receipt-time prices or other genuine historical transaction truth because the current catalogue changed.
@@ -56,6 +71,6 @@ Preserve the local operational item name. Model the relationship as `Local Name 
 
 ## Audit
 
-For each reconciled item, retain enough evidence to explain SAFE, REVIEW, CONFLICT, or NEW / UNMAPPED classification. Use `Audit_Log` for significant price synchronization, recycled-code findings, multi-row propagation, confirmed mapping changes, or broad CS Name recovery passes.
+For each reconciled item, retain enough evidence to explain SAFE, REVIEW, CONFLICT, or NEW / UNMAPPED classification. Use `Audit_Log` for significant price synchronization, recycled-code findings, multi-row propagation, historical-source corrections, confirmed mapping changes, or broad CS Name recovery passes.
 
-Read back affected rows and verify intended prices, identities, formulas, visual marks, and unchanged neighboring cells before reporting success.
+Read back affected rows and verify intended CMS prices, identities, untouched derived `Price`, formulas, visual marks, and unchanged neighboring cells before reporting success.
