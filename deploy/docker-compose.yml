@@ -1,0 +1,44 @@
+services:
+  api:
+    build:
+      context: ../backend
+    restart: unless-stopped
+    environment:
+      MSA_ENVIRONMENT: ${MSA_ENVIRONMENT:-development}
+      MSA_SERVICE_VERSION: ${MSA_SERVICE_VERSION:-0.1.0-dev}
+      MSA_BUILD_SHA: ${MSA_BUILD_SHA:-unknown}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-msa}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-msa}
+    ports:
+      - "127.0.0.1:${MSA_API_HOST_PORT:-8088}:8080"
+    mem_limit: 384m
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - msa_internal
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-msa}
+      POSTGRES_USER: ${POSTGRES_USER:-msa}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    volumes:
+      - msa_postgres_data:/var/lib/postgresql/data
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-msa} -d ${POSTGRES_DB:-msa}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - msa_internal
+
+networks:
+  msa_internal:
+    driver: bridge
+
+volumes:
+  msa_postgres_data:
