@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import os
 import secrets
 
@@ -16,6 +17,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Create a scoped MSA service credential")
     parser.add_argument("--name", required=True)
     parser.add_argument("--scope", action="append", default=[])
+    parser.add_argument("--raw", action="store_true", help="Print only the generated token")
     args = parser.parse_args()
 
     if not DATABASE_URL:
@@ -65,11 +67,15 @@ def main() -> None:
                 {
                     "service_principal_id": service_principal_id,
                     "key_hash": key_hash,
-                    "scopes": __import__("json").dumps(scopes),
+                    "scopes": json.dumps(scopes),
                 },
             )
     finally:
         engine.dispose()
+
+    if args.raw:
+        print(token)
+        return
 
     print("Service credential created. Save this token now; it will not be shown again:")
     print(token)
