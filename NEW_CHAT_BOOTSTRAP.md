@@ -78,7 +78,7 @@ Infrastructure direction:
 
 - reuse the existing VPS;
 - PostgreSQL becomes canonical only after migration validation and explicit promotion;
-- Cloudflare Free/custom domain provides stable public HTTPS entry when configured;
+- Cloudflare Free/custom domain provides stable public HTTPS entry;
 - GitHub stores code/docs only, never live credentials/private operational data;
 - AI/human clients use typed API operations, never arbitrary SQL/database credentials.
 
@@ -133,27 +133,38 @@ Verified F1 facts:
 - API and PostgreSQL containers started successfully;
 - API listens only on `127.0.0.1:8088`;
 - MSA PostgreSQL has no host-published port;
-- `/health` returns HTTP 200 with service `medicine-store-assistant-api`, environment `foundation`, version `0.1.0-dev`, matching build SHA and `database_canonical: false`;
+- local `/health` returns HTTP 200 with service `medicine-store-assistant-api`, environment `foundation`, version `0.1.0-dev`, matching build SHA and `database_canonical: false`;
 - API/PostgreSQL memory use remained far below configured caps at verification;
 - unrelated VPS services/containers remained unchanged.
 
 Important ops note: `docker compose config` with real runtime env can render interpolated secrets to stdout. Use secret-safe validation such as `config --quiet` and never copy secret-bearing rendered config into logs/chat/docs.
 
-The one-time Bamboo/VPS executor role is now closed and is not part of the ongoing implementation workflow.
+The one-time Bamboo/VPS executor role is closed and is not part of the ongoing implementation workflow.
 
 ## Current public-edge state
 
-MSA has **no Cloudflare hostname route yet**.
+Cloudflare route configured 2026-08-22.
 
-Verified local origin available for a future narrow route:
+Evidence: `docs/operations/CLOUDFLARE_ROUTE_2026-08-22.md`.
 
-`http://localhost:8088`
+Configured path:
 
-Cloudflare should be configured only as a separate explicit infrastructure step, followed by external HTTPS `/health` verification. It does not change database canonicality.
+`https://inventory.drthorne.uk` → existing managed Cloudflare Tunnel → `http://localhost:8088`
+
+Verified Cloudflare-side state:
+
+- hostname was free before assignment;
+- existing managed tunnel reused;
+- proxied tunnel CNAME/hostname route created additively;
+- existing unrelated routes preserved;
+- no Worker/D1/KV/R2/Pages/Load Balancer/Access policy/paid service added;
+- host port `8088` remains non-public.
+
+**Public end-to-end verification is still pending.** Immediately after route creation, available resolvers could not yet resolve the new hostname. Do not claim public HTTP 200/TLS health until an independent request to `https://inventory.drthorne.uk/health` returns the expected health JSON.
 
 ## Current next work
 
-1. Configure/verify the dedicated Cloudflare hostname route if authorized.
+1. Re-check public `https://inventory.drthorne.uk/health` after DNS/edge propagation and close the Cloudflare route slice when verified.
 2. Resolve F2 schema-gating domain decisions.
 3. Resolve minimal v1 user/auth/access decisions for staff Telegram/Flutter and service clients.
 4. Authorize F2 PostgreSQL schema/migration foundation.
