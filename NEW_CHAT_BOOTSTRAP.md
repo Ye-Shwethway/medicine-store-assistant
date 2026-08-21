@@ -21,54 +21,11 @@ This is distinct from `NORMAL_CHAT_BOOTSTRAP.md`, which teaches normal chats how
 
 Treat newer verified repository/runtime evidence as authoritative over remembered chat context. Do not mutate live operational state during reconciliation unless the user explicitly authorizes that slice.
 
-## Project boundary
+## Project boundary and authority
 
-Same-repository monorepo:
+Same-repository monorepo remains active. The live Google workbook/source evidence remains authoritative until PostgreSQL is explicitly promoted after shadow/dual validation.
 
-- `skills/medicine-store-assistant/` — canonical published `$msa` skill; must remain independently installable
-- `docs/architecture/` — canonical design
-- `docs/operations/` — runtime/deployment evidence
-- `backend/` — deterministic FastAPI/PostgreSQL backend
-- `integrations/` — Custom GPT / Sheets / Telegram / Flutter adapters
-- `deploy/` — VPS deployment assets
-
-## Current operational authority
-
-The live Google workbook remains authoritative until PostgreSQL is explicitly promoted after shadow/dual validation.
-
-Primary human views are Main Stock and Daily Usage. This Month Received and Reorder/Final Reorder are generated/workflow projections; final approved reorder may be snapshotted historically.
-
-## Target architecture
-
-```text
-MSA Custom GPT ─┐
-Telegram ───────┼──> Inventory API on VPS ───> PostgreSQL
-Flutter ────────┘              │
-                               ├──> Google Sheets operational mirror
-                               └──> Excel monthly exports
-```
-
-## Locked F2 domain/access decisions
-
-Approved 2026-08-22:
-
-- initial migration/canonicalization uses one `OPENING_BALANCE` movement per pre-existing lot; month boundaries do not create repeated opening movements;
-- normal lot boundary = product + expiry, with receipt lines preserved separately;
-- `product_id` remains stable across harmless local-name changes;
-- quantities use fixed-point PostgreSQL `NUMERIC(18,3)`; discrete units normally require whole-number values;
-- no implicit unit conversion in v1;
-- normal writes cannot silently create negative stock; privileged audited reconciliation exceptions require explicit reason;
-- historical corrections use reversals/amendments, not destructive rewriting;
-- roles = `OWNER`, `ADMIN`, `STAFF`, `READ_ONLY`;
-- canonical human identity = backend `user_id`;
-- Telegram numeric user ID = external identity link, username = metadata only;
-- Flutter uses native MSA credentials/session design independent of Telegram;
-- non-human clients use scoped service principals;
-- protected operations preserve actor/client/operation attribution.
-
-Canonical record: `docs/architecture/F2_SCHEMA_DECISION_PROPOSAL.md`.
-
-## Implementation checkpoint
+## Verified checkpoints
 
 ### F0 — VPS inspection
 
@@ -76,27 +33,17 @@ Canonical record: `docs/architecture/F2_SCHEMA_DECISION_PROPOSAL.md`.
 
 ### F1 — Runtime skeleton
 
+**Verified complete 2026-08-22.** API localhost-only on `127.0.0.1:8088`; MSA PostgreSQL has no host-published port.
+
+### Cloudflare public HTTPS route
+
 **Verified complete 2026-08-22.**
 
-Verified runtime:
+Canonical route:
 
-- FastAPI + PostgreSQL containers on VPS;
-- API localhost-only at `127.0.0.1:8088`;
-- PostgreSQL has no host-published port;
-- `/health` HTTP 200 with `database_canonical: false`;
-- unrelated VPS services unchanged.
+`https://inventory.drthorne.uk -> Cloudflare HTTPS -> existing managed Tunnel -> http://localhost:8088`
 
-Bamboo/one-time VPS executor role is closed and is not part of ongoing implementation.
-
-### Cloudflare edge
-
-**Configured; end-to-end public health verification pending.**
-
-Configured route:
-
-`inventory.drthorne.uk -> existing managed Cloudflare Tunnel -> http://localhost:8088`
-
-Cloudflare-side route/DNS read-back succeeded and VPS port 8088 remains non-public. User may verify externally with a browser or `curl -i https://inventory.drthorne.uk/health`. Close the Cloudflare slice only after HTTP 200 + expected public-safe health JSON are observed.
+User-side browser verification observed the expected public-safe `/health` JSON over HTTPS. VPS port 8088 remains non-public.
 
 ### F2 — PostgreSQL schema/migration foundation
 
@@ -104,54 +51,54 @@ Cloudflare-side route/DNS read-back succeeded and VPS port 8088 remains non-publ
 
 Canonical evidence: `docs/operations/F2_VPS_MIGRATION_VERIFICATION_2026-08-22.md`.
 
-Final verified runtime:
+Migration `0001_foundation` established users/roles/external identities, service principals/credential metadata, products/lots, operating months, CMS catalogue versions/items, and audit-event foundation. PostgreSQL remains non-canonical.
 
-- repository validator passed;
-- SQLAlchemy + psycopg v3 + Alembic foundation deployed;
-- migration `0001_foundation` applied successfully;
-- users/roles/external identities, service principals/credential metadata, products/lots, operating months, CMS catalogue versions/items, and audit-event foundation exist;
-- `/health` returned HTTP 200 with build SHA `a9cd98e4af6fd20aee07a783f82daf46d557ac7a` and `database_canonical: false`;
-- `/ready` returned HTTP 200 with `database: reachable`, migration `0001_foundation`, expected migration `0001_foundation`, and `database_canonical: false`;
-- deploy helper retries through transient container-recreate connection resets until stable readiness;
-- runtime PostgreSQL URLs use the intended psycopg v3 dialect.
+### F3 — Authenticated read-only API
 
-### F3 — Authenticated read-only domain/API
+**Verified complete 2026-08-22.**
+
+Canonical evidence: `docs/operations/F3_READ_API_VERIFICATION_2026-08-22.md`.
+
+Verified deployed commit: `dac1a4aa5b218d3c5eda24a636b3c3688979473b`.
+
+- `/health` and `/ready` healthy;
+- anonymous `/v1/products` -> HTTP 401;
+- authenticated `/v1/products` -> HTTP 200 with empty list before import;
+- scoped read credential stored runtime-only with plaintext token protected on VPS and hash in DB;
+- product/lot/month/catalogue/access diagnostics are authenticated and read-only;
+- no live inventory import and no production stock-write endpoint exists.
+
+## F4 — Synthetic ledger foundation
 
 **Authorized and authored; VPS verification pending.**
 
-Repository implementation now includes authenticated read-only endpoints for:
+Repository now contains:
 
-- products;
-- lots;
-- operating months;
-- CMS catalogue versions/items;
-- safe access-control counts/summary.
+- migration `0002_ledger` adding `inventory_transactions`;
+- permitted transaction types: `OPENING_BALANCE`, `RECEIPT`, `USAGE`, `ADJUSTMENT_POSITIVE`, `ADJUSTMENT_NEGATIVE`;
+- fixed-point positive quantity constraint;
+- unique `operation_id` idempotency key;
+- optional unique `reversal_of_transaction_id` linkage;
+- actor linkage to user or service principal;
+- deterministic lot balance calculation;
+- normal negative-stock guard in the ledger service;
+- synthetic verifier for balance math, duplicate-operation blocking, negative-stock blocking, and linked reversal adjustment semantics;
+- verifier runs inside a transaction and rolls back, so synthetic product/lot/movement data is not retained;
+- `deploy/apply_f4_ledger_foundation.sh` applies migration, runs the synthetic verifier, then checks `/health` and `/ready`.
 
-Security model:
+`/ready` now expects migration `0002_ledger` after F4 deployment.
 
-- domain reads require a bearer credential with `inventory:read` (or `*`) scope;
-- token is SHA-256 hashed before lookup against active `service_credentials` joined to active `service_principals`;
-- anonymous domain reads return 401;
-- no password hashes, service-key hashes, Telegram IDs, or credential material are returned by the safe access summary;
-- `/health` remains intentionally public-safe;
-- no inventory write endpoints exist in F3.
-
-Operational tooling:
-
-- `python -m app.service_key_cli` creates a high-entropy service token, stores only its hash/scopes in PostgreSQL, and can print raw token only for controlled bootstrap use;
-- `deploy/apply_f3_read_api.sh` updates runtime build SHA, validates/builds/starts the API, waits for `/health` and `/ready`, verifies anonymous `/v1/products` is 401, generates a scoped verification credential, stores its plaintext token only in `/opt/medicine-store-assistant/secrets/f3_read_api.token` with mode 0600, verifies authenticated `/v1/products` HTTP 200, and does not print the token.
-
-Current DB contains no live inventory import, so authenticated product reads are expected to return an empty list until the later shadow-migration slice.
+F4 does **not** expose production inventory write endpoints. It does not import the live Google Sheet, mutate the Sheet, connect Custom GPT writes, or promote PostgreSQL.
 
 ## Immediate next work
 
-1. Deploy/verify F3 on the VPS with `deploy/apply_f3_read_api.sh`.
-2. Accept user-side public `/health` evidence and close the Cloudflare slice if it returns HTTP 200 + expected JSON.
-3. After F3 verification, decide the next minimum slice; do not jump directly to live stock writes or database promotion.
+1. Deploy/verify F4 with `deploy/apply_f4_ledger_foundation.sh`.
+2. If verification passes, record F4 canonical runtime evidence.
+3. Do not begin live shadow import or production stock-write authority without a later explicit slice.
 
 ## Safety boundary
 
-PostgreSQL is **not canonical yet**. The live Google workbook/source documents remain authoritative. No live inventory import, stock-write authority, Custom GPT Action connection, Telegram/Flutter rollout, Sheet mirror mutation, or database promotion is active.
+PostgreSQL is **not canonical yet**. The live Google workbook/source documents remain authoritative. Public/domain API remains read-only for real inventory.
 
 ## Continuity rule
 
