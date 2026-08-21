@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Project Roadmap
 
-Status: **Phase 2 foundation active; F0/F1/F2 verified complete**
+Status: **Phase 2 foundation active; F0/F1/F2 verified complete, F3 authored and VPS verification pending**
 
 This roadmap tracks the full Medicine Store Assistant project and must stay synchronized with `NEW_CHAT_BOOTSTRAP.md`.
 
@@ -75,7 +75,7 @@ Configured route:
 
 `inventory.drthorne.uk -> existing managed Cloudflare Tunnel -> http://localhost:8088`
 
-Cloudflare route/DNS read-back succeeded and VPS port 8088 remains non-public. Independent public fetch still has not produced a confirmed HTTP 200 response, so do not claim the HTTPS slice fully complete yet.
+Cloudflare route/DNS read-back succeeded and VPS port 8088 remains non-public. Independent public fetch still has not produced a confirmed HTTP 200 response, so do not claim the HTTPS slice fully complete yet. User-side browser/`curl -i https://inventory.drthorne.uk/health` verification is acceptable evidence when the expected payload is observed.
 
 ### F2 — PostgreSQL schema/migration foundation
 
@@ -90,24 +90,43 @@ Verified implementation/runtime:
 - foundation tables for users/roles/external identities, service principals/credential metadata, products/lots, operating months, CMS catalogue versions/items, and audit events;
 - `/health` returned HTTP 200 with build SHA `a9cd98e4af6fd20aee07a783f82daf46d557ac7a` and `database_canonical: false`;
 - `/ready` returned HTTP 200 with `database: reachable`, migration `0001_foundation`, expected migration `0001_foundation`, and `database_canonical: false`;
-- deploy helper now tolerates transient container-recreate connection resets by retrying until stable readiness;
-- psycopg v3 is the intended PostgreSQL driver; runtime URLs are normalized to `postgresql+psycopg://`.
+- deploy helper retries through transient container-recreate connection resets until stable readiness;
+- psycopg v3 is the intended PostgreSQL driver.
 
 F2 did **not** introduce stock ledger write APIs, live inventory import, Sheet mutation, Custom GPT writes, Telegram/Flutter rollout, or database canonical promotion.
 
-### F3 — Core read-only domain/API
+### F3 — Authenticated read-only domain/API
 
-Status: **next implementation slice; not yet started**
+Status: **authorized and authored; VPS verification pending**
 
-Target scope:
+Repository implementation includes:
 
-- read-only product lookup/listing;
-- read-only lot lookup/listing;
-- operating-month read diagnostics;
-- CMS catalogue/version read diagnostics;
-- safe user/account diagnostics without exposing credential material;
-- typed response models and stable API conventions;
-- no inventory mutations and no live Sheet import.
+- authenticated `GET /v1/products`;
+- authenticated `GET /v1/lots`;
+- authenticated `GET /v1/months`;
+- authenticated CMS catalogue version/item reads;
+- authenticated safe access-control summary with no password hashes, service-key hashes, Telegram identifiers, or credential material exposed;
+- server-side scoped bearer authentication using `service_principals` + `service_credentials` and SHA-256 token verification;
+- required scope `inventory:read` (or `*`);
+- service-key bootstrap CLI that generates a high-entropy token and stores only its hash in PostgreSQL;
+- `deploy/apply_f3_read_api.sh` to rebuild/start the API, verify `/health` and `/ready`, verify anonymous domain reads return HTTP 401, create a runtime-only read credential, store the plaintext token in a protected VPS file, and verify authenticated product reads.
+
+Security boundary:
+
+- Cloudflare public routing must never make inventory reads anonymous;
+- `/health` remains public-safe;
+- domain reads require authentication;
+- no POST/PATCH/DELETE inventory endpoints are introduced;
+- current database remains empty of live inventory until the later shadow-import slice.
+
+F3 exit criteria:
+
+- repository validator passes at deployed commit;
+- `/health` and `/ready` remain healthy;
+- unauthenticated `/v1/products` returns 401;
+- authenticated `/v1/products` returns HTTP 200 (expected empty list before shadow import);
+- generated read credential is runtime-only and not printed/committed;
+- database remains non-canonical.
 
 ### F4 — Ledger primitives in isolated test mode
 
@@ -135,7 +154,7 @@ Requires parity acceptance, tested backup/restore, and rollback/cutback plan.
 
 ## Phase 6 — Private Custom GPT Action experiment
 
-Status: **planned after stable public HTTPS + read-only API**
+Status: **planned after stable public HTTPS + verified read-only API**
 
 Start read-only with a revocable scoped service credential. No arbitrary SQL/database credentials.
 
@@ -165,8 +184,8 @@ Regenerate Main Stock, Daily Usage, This Month Received, and Final Reorder histo
 
 ## Current next work
 
-1. Begin F3 read-only domain/API after explicit authorization.
-2. Continue independent rechecks of `https://inventory.drthorne.uk/health` until external HTTP 200 + expected JSON are observed.
+1. Deploy/verify F3 on the VPS using `deploy/apply_f3_read_api.sh`.
+2. Accept user-side public `/health` verification when available and close the Cloudflare route slice if HTTP 200 + expected JSON are observed.
 3. Keep PostgreSQL non-canonical and do not import live inventory until later shadow-migration authorization.
 
 No live inventory import, production stock write authority, Custom GPT Action connection, Telegram/Flutter rollout, Sheet mirror conversion, or DB canonical promotion is enabled yet.
