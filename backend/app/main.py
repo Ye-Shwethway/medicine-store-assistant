@@ -5,6 +5,7 @@ import os
 from fastapi import FastAPI, Response, status
 
 from app.db import database_readiness
+from app.read_api import router as read_router
 
 SERVICE_NAME = "medicine-store-assistant-api"
 SERVICE_VERSION = os.getenv("MSA_SERVICE_VERSION", "0.1.0-dev")
@@ -16,9 +17,11 @@ app = FastAPI(
     version=SERVICE_VERSION,
     description=(
         "Typed API boundary for the Medicine Store Assistant backend. "
-        "Canonical inventory write operations are not enabled in the foundation runtime."
+        "F3 exposes authenticated read-only domain endpoints; canonical inventory writes remain disabled."
     ),
 )
+
+app.include_router(read_router)
 
 
 @app.get("/health", tags=["system"], summary="Service health")
@@ -37,7 +40,7 @@ def health() -> dict[str, object]:
 
 @app.get("/ready", tags=["system"], summary="Database readiness")
 def ready(response: Response) -> dict[str, object]:
-    """Report whether PostgreSQL is reachable and the F2 migration is applied."""
+    """Report whether PostgreSQL is reachable and the foundation migration is applied."""
 
     readiness = database_readiness()
     if not readiness["ok"]:
