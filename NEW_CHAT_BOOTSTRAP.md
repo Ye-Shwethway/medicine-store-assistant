@@ -22,22 +22,22 @@ At the start of a development chat, read and reconcile in this order:
 5. `docs/architecture/README.md`
 6. the task-relevant architecture/operations documents
 7. `skills/medicine-store-assistant/SKILL.md` and task-relevant references when spreadsheet operations are involved
-8. current repository code/config/runtime evidence once implementation exists
+8. current repository code/config/runtime evidence
 
 Treat newer verified repository/runtime evidence as authoritative over remembered chat context.
 
-Do not modify production, the live workbook, backend state, deployment, schema, or integrations during reconciliation unless the user explicitly authorizes that slice.
+Do not modify production, the live workbook, backend schema/state, deployment, or integrations during reconciliation unless the user explicitly authorizes that slice.
 
 ## Project identity and repository boundary
 
-Medicine Store Assistant is now a broader medicine-store information-system project while preserving its original Git-backed workflow skill.
+Medicine Store Assistant is a broader medicine-store information-system project while preserving its original Git-backed workflow skill.
 
-Same-repository monorepo direction:
+Same-repository monorepo:
 
 - `skills/medicine-store-assistant/` — canonical published Git-backed skill; alias `$msa`
 - `docs/architecture/` — canonical domain/system design
 - `docs/operations/` — deployment/backup/runtime evidence
-- `backend/` — deterministic Inventory API/runtime when implemented
+- `backend/` — deterministic Inventory API/runtime
 - `integrations/` — Custom GPT, Google Sheets, Telegram, Flutter adapters
 - `deploy/` — VPS deployment assets
 
@@ -77,10 +77,24 @@ Flutter ────────┘              │
 Infrastructure direction:
 
 - reuse the existing VPS;
-- PostgreSQL on VPS becomes canonical only after migration validation and explicit promotion;
-- Cloudflare Free/custom domain may provide stable public HTTPS entry routing;
+- PostgreSQL becomes canonical only after migration validation and explicit promotion;
+- Cloudflare Free/custom domain provides stable public HTTPS entry when configured;
 - GitHub stores code/docs only, never live credentials/private operational data;
-- AI clients use typed API operations, never arbitrary SQL/database credentials.
+- AI/human clients use typed API operations, never arbitrary SQL/database credentials.
+
+## User/access direction
+
+Future Telegram and Flutter clients are multi-user staff surfaces.
+
+- maintain stable backend `user_id` identities;
+- link external identities such as Telegram numeric user IDs separately;
+- do not use Telegram username as canonical identity;
+- use a small v1 role model such as Owner/Admin/Staff/Read-only unless the final access design chooses otherwise;
+- service clients such as the MSA Custom GPT use separate service identities/scoped credentials rather than pretending to be human users;
+- disabling/revoking an account must preserve historical audit attribution;
+- transaction/audit records must be attributable to actor + client/channel + operation ID.
+
+Canonical design: `docs/architecture/USER_ACCESS_AND_AUTHORIZATION.md`.
 
 ## Canonical data principles
 
@@ -89,27 +103,14 @@ Infrastructure direction:
 - spreadsheet row order is presentation metadata;
 - CMS code is versioned external identity, never sufficient local primary identity by itself;
 - stock movement is ledger/event based: opening, receipts, usage, approved adjustments;
-- deterministic backend code owns calculations, idempotency, constraints, transactions, and audit;
-- historical operational records are correction-safe and are not silently hard-deleted.
+- deterministic backend code owns calculations, idempotency, constraints, transactions and audit;
+- historical operational records are correction-safe and not silently hard-deleted.
 
-## Current documentation checkpoint
+## Documentation checkpoint
 
-Architecture/docs foundation exists for:
+Architecture/docs foundation exists for inventory architecture, data model, monthly lifecycle, CMS versioning, integrity/audit, Sheet/Excel compatibility, API/client architecture, migration, user/access management, decisions/open questions, implementation slices, VPS deployment and backup/recovery.
 
-- canonical inventory architecture;
-- inventory data model;
-- monthly lifecycle;
-- CMS catalogue versioning;
-- integrity/audit;
-- Sheet/Excel compatibility;
-- API/client architecture;
-- migration/shadow validation;
-- decisions/open questions;
-- implementation slices;
-- VPS deployment baseline;
-- backup/recovery baseline.
-
-Schema-gating decisions remain open in `docs/architecture/DECISIONS_AND_OPEN_QUESTIONS.md`; therefore canonical inventory migrations/tables are not yet authorized.
+Schema/auth gating decisions remain open in `docs/architecture/DECISIONS_AND_OPEN_QUESTIONS.md` and `USER_ACCESS_AND_AUTHORIZATION.md`; therefore canonical inventory/user migrations are not yet authorized.
 
 ## Implementation checkpoint
 
@@ -117,64 +118,62 @@ Schema-gating decisions remain open in `docs/architecture/DECISIONS_AND_OPEN_QUE
 
 Status: **completed 2026-08-22**.
 
-Canonical evidence: `docs/operations/F0_VPS_INSPECTION_2026-08-22.md`.
-
-Verified F0 facts:
-
-- Ubuntu 24.04.4 LTS x86_64;
-- 2 vCPU;
-- 3.3 GiB RAM with limited headroom and substantial swap already in use;
-- 63 GiB root disk with about 17 GiB free at inspection time;
-- Docker Engine 29.3.0 and Compose plugin 5.1.1 available;
-- managed-token `cloudflared` tunnel active; hostname routing is controlled in Cloudflare dashboard/Zero Trust;
-- no host nginx/Caddy/Traefik reverse proxy;
-- dedicated `/opt/medicine-store-assistant/` host area prepared with `medstore` non-login system user;
-- no MSA code cloned, credentials created, public app port opened, or database deployed;
-- unrelated host/Docker PostgreSQL services already exist and must not be reused;
-- no active host firewall was reported, so MSA host publishes must remain localhost-only by default;
-- preferred first API host port is `8088`, subject to a fresh conflict check;
-- PostgreSQL should normally stay private on the Docker network and does not need a host port.
-
-Resource posture requires conservative API/PostgreSQL memory limits and no unnecessary Redis/broker/proxy sidecars.
+Evidence: `docs/operations/F0_VPS_INSPECTION_2026-08-22.md`.
 
 ### F1 — Repository Runtime Skeleton
 
-Status: **explicitly authorized / next slice**.
+Status: **verified complete 2026-08-22**.
 
-Authorized scope:
+Evidence: `docs/operations/F1_VPS_RUNTIME_VERIFICATION_2026-08-22.md`.
 
-- create sibling runtime folders without altering `skills/medicine-store-assistant/`;
-- minimal API with deterministic `/health` and build/version metadata;
-- Dockerfile + Compose;
-- isolated PostgreSQL service definition with private Docker networking and secret-driven configuration;
-- no canonical inventory schema/migrations/tables yet;
-- localhost-only API bind, initially `127.0.0.1:8088` after conflict check;
-- no public DB port;
-- `.env.example` / `.gitignore`, no real secrets in Git;
-- build/start/health verification and repository validation.
+Verified F1 facts:
 
-Explicitly out of F1:
+- deployed canonical commit `408dcbbdba6c579f446d303197c9071340188619`;
+- repository validator PASS for plugin version 1.1.0;
+- API and PostgreSQL containers started successfully;
+- API listens only on `127.0.0.1:8088`;
+- MSA PostgreSQL has no host-published port;
+- `/health` returns HTTP 200 with service `medicine-store-assistant-api`, environment `foundation`, version `0.1.0-dev`, matching build SHA and `database_canonical: false`;
+- API/PostgreSQL memory use remained far below configured caps at verification;
+- unrelated VPS services/containers remained unchanged.
 
-- Cloudflare hostname routing;
-- Custom GPT creation/action connection;
-- Google Sheet mutation/mirror service;
-- inventory schema/migrations;
+Important ops note: `docker compose config` with real runtime env can render interpolated secrets to stdout. Use secret-safe validation such as `config --quiet` and never copy secret-bearing rendered config into logs/chat/docs.
+
+The one-time Bamboo/VPS executor role is now closed and is not part of the ongoing implementation workflow.
+
+## Current public-edge state
+
+MSA has **no Cloudflare hostname route yet**.
+
+Verified local origin available for a future narrow route:
+
+`http://localhost:8088`
+
+Cloudflare should be configured only as a separate explicit infrastructure step, followed by external HTTPS `/health` verification. It does not change database canonicality.
+
+## Current next work
+
+1. Configure/verify the dedicated Cloudflare hostname route if authorized.
+2. Resolve F2 schema-gating domain decisions.
+3. Resolve minimal v1 user/auth/access decisions for staff Telegram/Flutter and service clients.
+4. Authorize F2 PostgreSQL schema/migration foundation.
+5. Implement read-only domain/API before any real stock writes.
+6. Create/test the private MSA Custom GPT only after stable public HTTPS + read-only OpenAPI operations exist.
+
+Explicitly not yet implemented/authorized:
+
+- canonical inventory/user migrations;
 - live inventory import;
-- canonical DB promotion;
-- Telegram/Flutter implementation.
-
-## Next sequence after F1
-
-1. Resolve schema-gating decisions in `DECISIONS_AND_OPEN_QUESTIONS.md`.
-2. Authorize F2 PostgreSQL schema/migration foundation.
-3. Implement read-only domain/API foundation.
-4. When read-only API health/contract is stable, configure Cloudflare custom hostname.
-5. Then create the private MSA Custom GPT and test read-only Actions.
-6. Ledger writes/shadow migration come later under separate authorization.
+- Google Sheets backend mirror;
+- Custom GPT Action connection;
+- Telegram staff client;
+- Flutter staff client;
+- database canonical promotion;
+- production stock write authority.
 
 ## Continuity maintenance rule
 
-After every significant architecture decision, implementation slice, migration result, deployment change, or next-work change:
+After every significant architecture decision, implementation slice, migration result, deployment change or next-work change:
 
 - update `ROADMAP.md`;
 - update this `NEW_CHAT_BOOTSTRAP.md`;
