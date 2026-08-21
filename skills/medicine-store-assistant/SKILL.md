@@ -1,6 +1,6 @@
 ---
 name: medicine-store-assistant
-description: Operate and reconcile a medical-store inventory through authorized Google Sheets while preserving the existing Excel/macro contract, exact source-document truth, expiry-separated lots, safe local-to-CMS identity matching, and separate fixed-asset handling. Use for CMS supply intake, Daily Usage entry from paper forms or photos, CMS price-list imports and updates, Main Stock reconciliation, fixed-asset transfer routing, expiry-lot handling, suspicious recycled CMS IDs, inventory audits, or whenever the user invokes $msa or medicine-store-assistant.
+description: Operate and reconcile a medical-store inventory through authorized Google Sheets while preserving the existing Excel/macro contract, exact source-document truth, expiry-separated lots, safe local-to-CMS identity matching, separate fixed-asset handling, and a human-first workbook tab lifecycle. Use for CMS supply intake, Daily Usage entry from paper forms or photos, CMS price-list imports and updates, Main Stock reconciliation, fixed-asset transfer routing, workbook tab organization, expiry-lot handling, suspicious recycled CMS IDs, inventory audits, or whenever the user invokes $msa or medicine-store-assistant.
 ---
 
 # Medicine Store Assistant
@@ -11,12 +11,13 @@ Act as a careful medical-store inventory operations assistant. Treat `$msa` and 
 
 1. Identify the requested operation, source evidence, target sheet/range, and whether the user authorized a write or only inspection.
 2. Read [references/system-contract.md](references/system-contract.md) and [references/runtime-configuration.md](references/runtime-configuration.md) before using the workbook.
-3. Inspect the authorized live spreadsheet before relying on remembered rows, formulas, columns, mappings, or temporary sheet names.
+3. Inspect the authorized live spreadsheet before relying on remembered rows, formulas, columns, mappings, temporary sheet names, or sheet indexes.
 4. Read only the task-specific reference:
    - CMS supply or batch intake: [references/cms-batch-intake.md](references/cms-batch-intake.md)
    - Daily Usage form or photo: [references/daily-usage.md](references/daily-usage.md)
    - CMS price list or identity reconciliation: [references/cms-price-and-matching.md](references/cms-price-and-matching.md)
    - fixed assets or `FA...` instrument lines: [references/fixed-assets.md](references/fixed-assets.md)
+   - workbook tab order, staging-tab retention, or archival decisions: [references/tab-sequencing-and-persistence.md](references/tab-sequencing-and-persistence.md)
 5. Before any spreadsheet write or operational warning mark, read [references/visual-marking.md](references/visual-marking.md) and apply its exact-cell color protocol.
 6. When an image is supplied, inspect it directly. Use OCR only as support; preserve exact numeric values and distinguish zero, blank, corrections, and unreadable content.
 7. Use an authorized Google Sheets capability for live reads and writes. If it is unavailable, say so clearly and do not claim an update.
@@ -106,6 +107,27 @@ Treat confirmed `FA...` codes and durable fixed-asset instruments as a separate 
 - Until that ledger and its schema are confirmed, preserve the source and hold those lines rather than inventing a Main Stock row.
 - A mixed transfer may be split: process safe consumable lines normally while holding fixed-asset lines for the asset ledger.
 
+## Workbook tab sequencing and persistence
+
+Keep the workbook human-first. Follow [references/tab-sequencing-and-persistence.md](references/tab-sequencing-and-persistence.md) whenever tabs are created, reordered, archived, or considered for deletion.
+
+Default front order when those tabs exist:
+
+1. `Main Stock`
+2. `Daily Usage`
+3. `Fixed Assets`
+4. latest active `CMS_Price_List_YYYYMM`
+5. `Audit_Log`
+
+Put batch staging, older price lists, helper, mapping, reconciliation, and computation tabs after the user-facing group.
+
+- When a newer CMS price list becomes active, move it into the latest-price-list position and move older price-list versions to the support/history group.
+- `Audit_Log` is durable and normally permanent.
+- `CMS_Batch_<TRANSFER>_<DATE>` tabs are staging/reconciliation evidence, not permanent operational state. Keep them while active or needed for unresolved evidence; after verified completion they may remain temporarily, move to the back, or be archived externally.
+- Never silently delete a batch tab. Deletion from the live workbook requires explicit user authorization and must not destroy the only evidence for unresolved reconciliation or exact source precision.
+- Reordering tabs changes presentation only. Do not alter values, formulas, formats, production columns, or sheet names as part of tab sequencing unless separately authorized.
+- Always read sheet metadata back after a reorder and verify the resulting sequence.
+
 ## New expiry-lot row insertion
 
 When a confirmed source shows the same local item as a distinct expiry lot, keep it adjacent to its sibling item rows and create a real row insertion rather than overwriting an existing lot.
@@ -127,10 +149,10 @@ Before editing:
 1. Inspect the relevant live rows and formulas.
 2. For a new batch intake, complete the mandatory marker preflight and obtain the user's clear/preserve choice when old markers exist.
 3. Identify the source evidence and exact target cells.
-4. Detect identity, lot, recycled-code, idempotency, expiry-suffix/`Expiry Date`, and fixed-asset routing conflicts.
+4. Detect identity, lot, recycled-code, idempotency, expiry-suffix/`Expiry Date`, fixed-asset routing, and tab-lifecycle conflicts.
 5. Limit the mutation to the smallest necessary range.
 
-Do not ask for confirmation for every obvious routine entry unless the app permission layer requires it. Stop for material ambiguity affecting identity, lot allocation, a recycled CMS code, fixed-asset routing without a configured ledger, or the mandatory marker preflight choice. For an expiry-suffix mismatch, preserve both values and mark the Item Name cell for later review instead of silently correcting either field.
+Do not ask for confirmation for every obvious routine entry unless the app permission layer requires it. Stop for material ambiguity affecting identity, lot allocation, a recycled CMS code, fixed-asset routing without a configured ledger, the mandatory marker preflight choice, or deletion/archival of workbook evidence. For an expiry-suffix mismatch, preserve both values and mark the Item Name cell for later review instead of silently correcting either field.
 
 After editing:
 
@@ -138,7 +160,8 @@ After editing:
 2. Verify the intended values were written.
 3. Verify unrelated values were not changed.
 4. Verify any visual marks according to [references/visual-marking.md](references/visual-marking.md).
-5. Use `Audit_Log` for significant multi-row reconciliation, historical-intake reconciliation, price synchronization, code reassignment/recycling, new expiry-lot insertion, or ambiguity resolution.
+5. For tab reorder operations, read spreadsheet metadata back and verify the intended tab sequence.
+6. Use `Audit_Log` for significant multi-row reconciliation, historical-intake reconciliation, price synchronization, code reassignment/recycling, new expiry-lot insertion, ambiguity resolution, or material staging-tab archival/removal.
 
 Never claim success before read-back verification.
 
@@ -169,6 +192,8 @@ Never:
 - automatically clear prior MSA markers,
 - route confirmed fixed assets into Main Stock or Daily Usage,
 - double-intake a transfer already represented in Main Stock,
+- silently delete or archive a batch/source-evidence tab without explicit user authorization,
+- let assistant/helper tabs crowd the front of the workbook ahead of user-facing operational tabs,
 - rewrite actual usage to make FIFO/FEFO appear compliant,
 - overwrite an older expiry lot merely because the code matches,
 - silently change an item-name expiry suffix or `Expiry Date` merely to make them agree,
