@@ -14,6 +14,14 @@ cd "$REPO_DIR"
 
 python3 scripts/validate_repository.py
 
+CURRENT_SHA="$(git rev-parse HEAD)"
+if grep -q '^MSA_BUILD_SHA=' "$ENV_FILE"; then
+  sed -i "s/^MSA_BUILD_SHA=.*/MSA_BUILD_SHA=${CURRENT_SHA}/" "$ENV_FILE"
+else
+  printf '\nMSA_BUILD_SHA=%s\n' "$CURRENT_SHA" >> "$ENV_FILE"
+fi
+chmod 600 "$ENV_FILE"
+
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" config --quiet
 
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" build api
@@ -32,4 +40,4 @@ echo
 curl --fail --silent --show-error "http://127.0.0.1:${API_PORT}/ready"
 echo
 
-echo "F2 foundation migration applied and readiness verified."
+echo "F2 foundation migration applied and readiness verified at ${CURRENT_SHA}."
