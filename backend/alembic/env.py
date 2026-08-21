@@ -10,9 +10,16 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
+
+def normalize_database_url(url: str) -> str:
+    if url.startswith("postgresql://"):
+        return "postgresql+psycopg://" + url[len("postgresql://") :]
+    return url
+
+
 runtime_url = os.getenv("DATABASE_URL")
 if runtime_url:
-    config.set_main_option("sqlalchemy.url", runtime_url)
+    config.set_main_option("sqlalchemy.url", normalize_database_url(runtime_url))
 
 
 def run_migrations_offline() -> None:
