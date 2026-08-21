@@ -2,8 +2,25 @@ name: Validate Git-backed plugin
 
 on:
   push:
+    branches: [test]
+    paths:
+      - 'skills/**'
+      - 'scripts/validate_repository.py'
+      - '.codex-plugin/**'
+      - '.agents/**'
+      - 'VERSION'
+      - 'NORMAL_CHAT_BOOTSTRAP.md'
+      - '.github/workflows/validate-skill.yml'
   pull_request:
-  workflow_dispatch:
+    branches: [main]
+    paths:
+      - 'skills/**'
+      - 'scripts/validate_repository.py'
+      - '.codex-plugin/**'
+      - '.agents/**'
+      - 'VERSION'
+      - 'NORMAL_CHAT_BOOTSTRAP.md'
+      - '.github/workflows/validate-skill.yml'
 
 permissions:
   contents: read

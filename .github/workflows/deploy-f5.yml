@@ -1,13 +1,15 @@
 name: Deploy F5 to VPS
 
 on:
-  workflow_dispatch:
   push:
+    branches: [main]
     paths:
-      - .github/f5-deploy-trigger
+      - 'backend/**'
+      - 'deploy/**'
+      - '.github/workflows/deploy-f5.yml'
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: msa-vps-deploy
@@ -34,14 +36,3 @@ jobs:
       - name: Deploy and verify F5
         shell: bash
         run: bash deploy/apply_f5_catalogue_versioning.sh
-
-      - name: Record successful deployment
-        shell: bash
-        run: |
-          set -euo pipefail
-          printf 'status=pass\nsource_sha=%s\nworkflow_run_id=%s\n' "$GITHUB_SHA" "$GITHUB_RUN_ID" > .github/f5-deploy-result
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .github/f5-deploy-result
-          git commit -m "Record successful F5 VPS deployment"
-          git push
