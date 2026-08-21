@@ -43,9 +43,20 @@ Never assume one `Main Stock` row equals one unique item. Distinguish:
 
 CMS codes can be retired, changed, or reused. Never treat a CMS code alone as proof of identity. Preserve local names unless the user explicitly asks to rename them. Preserve separate expiry lots according to the established workbook pattern.
 
+### Expiry-suffix normalization
+
+A terminal expiry marker in a local item name, such as `(3/2031)`, `(11/2027)`, or `(8/29)`, is lot metadata used to distinguish same-name rows. It is not part of the product identity for matching.
+
+- Ignore only a clearly terminal month/year expiry suffix when comparing otherwise identical local items or reconciling them to a CMS identity.
+- Do not strip product-defining parentheses such as `(China)`, `(BPI)`, `(15ml)`, `(Adult)`, `(Surgicare)`, device size, strength, formulation, brand, or manufacturer clues.
+- When a row contains both an item-name expiry suffix and an `Expiry Date` value, cross-check them.
+- Treat the dedicated `Expiry Date` column as the live structured expiry field unless stronger source evidence proves otherwise.
+- If the suffix and `Expiry Date` disagree, do not silently rename the item or change the expiry. Leave both values unchanged, mark the **Item Name cell** for review according to `visual-marking.md`, report the mismatch, and let the user resolve it later.
+- A suffix mismatch must not by itself prevent identity matching when the non-expiry product evidence is otherwise strong, but it must remain visibly flagged as unresolved lot metadata.
+
 ## Matching decisions
 
-Evaluate code together with description, local name, strength, dosage form, size, volume, gauge, dimensions, unit, manufacturer/brand clues, confirmed mappings, and prior batch history.
+Evaluate code together with description, local name after harmless normalization, strength, dosage form, size, volume, gauge, dimensions, unit, manufacturer/brand clues, confirmed mappings, and prior batch history.
 
 Classify internally:
 
@@ -54,7 +65,9 @@ Classify internally:
 - **CONFLICT:** recycled code or incompatible identity evidence; block silent propagation.
 - **NEW / UNMAPPED:** no acceptable local match; propose a new item, a new lot of an existing item, or a mapping for confirmation.
 
-Normalize only harmless variation in abbreviations, punctuation, spacing, and word order. Preserve clinically and operationally meaningful differences such as strength, formulation, adult/child type, device size, gauge, or volume.
+Normalize only harmless variation in abbreviations, punctuation, spacing, word order, and a clearly terminal expiry suffix. Preserve clinically and operationally meaningful differences such as strength, formulation, adult/child type, device size, gauge, volume, and product-defining parenthetical text.
+
+When reconciling `Main Stock`, do not limit review to blank CMS codes. Also detect rows where a verified Serial Code exists but dependent identity fields such as `CS Name` are blank. Recover those fields only when the code plus normalized local item, form/unit, price plausibility, sibling-lot history, or catalogue evidence make the identity SAFE. Code presence alone is never enough.
 
 ## Mutation protocol
 
@@ -62,10 +75,10 @@ Before editing:
 
 1. Inspect the relevant live rows and formulas.
 2. Identify the source evidence and exact target cells.
-3. Detect identity, lot, and recycled-code conflicts.
+3. Detect identity, lot, recycled-code, and expiry-suffix/`Expiry Date` conflicts.
 4. Limit the mutation to the smallest necessary range.
 
-Do not ask for confirmation for every obvious routine entry unless the app permission layer requires it. Stop for material ambiguity affecting identity, lot allocation, or a recycled CMS code.
+Do not ask for confirmation for every obvious routine entry unless the app permission layer requires it. Stop for material ambiguity affecting identity, lot allocation, or a recycled CMS code. For an expiry-suffix mismatch, preserve both values and mark the Item Name cell for later review instead of silently correcting either field.
 
 After editing:
 
@@ -99,6 +112,7 @@ Never:
 
 - rewrite actual usage to make FIFO/FEFO appear compliant,
 - overwrite an older expiry lot merely because the code matches,
+- silently change an item-name expiry suffix or `Expiry Date` merely to make them agree,
 - propagate a price from code match alone,
 - replace historical transaction prices with today's catalogue price,
 - force local generic names to CMS brand names,
