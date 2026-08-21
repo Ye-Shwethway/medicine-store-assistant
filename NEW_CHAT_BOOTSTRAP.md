@@ -74,7 +74,7 @@ Approved 2026-08-22:
 - non-human clients use scoped service principals;
 - protected operations preserve actor/client/operation attribution.
 
-Canonical record: `docs/architecture/F2_SCHEMA_DECISION_PROPOSAL.md` (approved/locked content despite historical filename).
+Canonical record: `docs/architecture/F2_SCHEMA_DECISION_PROPOSAL.md`.
 
 ## Implementation checkpoint
 
@@ -104,49 +104,56 @@ Configured route:
 
 `inventory.drthorne.uk -> existing managed Cloudflare Tunnel -> http://localhost:8088`
 
-Cloudflare-side route/DNS read-back succeeded and VPS port 8088 remains non-public. Independent HTTPS `/health` verification has not yet succeeded because resolver/cache propagation was still pending. Do not claim full public-route completion until external HTTP 200 + expected JSON are observed.
+Cloudflare-side route/DNS read-back succeeded and VPS port 8088 remains non-public. Independent HTTPS `/health` verification is still pending.
 
 ### F2 — PostgreSQL schema/migration foundation
 
-**Approved and authored; VPS runtime apply/verification pending.**
+**Migration applied; final readiness verification pending.**
 
-Repository now contains:
+Canonical evidence: `docs/operations/F2_VPS_MIGRATION_VERIFICATION_2026-08-22.md`.
 
-- SQLAlchemy + psycopg + Alembic dependencies;
-- `backend/alembic.ini` and Alembic environment;
+Implemented foundation:
+
+- SQLAlchemy + psycopg v3 + Alembic;
 - migration `0001_foundation`;
-- foundation tables for users/roles/external identities, service principals/credential metadata, products/lots, operating months, CMS catalogue versions/items, and audit events;
-- `/ready` endpoint that requires PostgreSQL reachability and expected migration `0001_foundation`;
-- `deploy/apply_f2_foundation.sh` for secret-safe one-command migration/rebuild/readiness verification.
+- users/roles/external identities;
+- service principals/credential metadata;
+- products/product lots;
+- operating months;
+- CMS catalogue versions/items;
+- audit-event attribution foundation;
+- `/ready` endpoint for database reachability + expected migration revision.
 
-F2 deliberately does not include stock ledger tables/write APIs, live Sheet import, canonical promotion, Custom GPT writes, Telegram/Flutter rollout, or Sheet mirror mutation.
+Verified runtime so far:
+
+- repository validator passed;
+- migration `0001_foundation` applied successfully;
+- API restarted successfully and subsequently served `/health` HTTP 200;
+- deployed runtime health response reported build SHA `2fff4408666723159543af900c3df8b8e3dd14fb` and `database_canonical: false`.
+
+First F2 attempt failed before migration because a plain `postgresql://` URL caused SQLAlchemy to choose psycopg2 while the project intentionally uses psycopg v3. Repo code was fixed to normalize to `postgresql+psycopg://`; no VPS-local patch or psycopg2 package was added.
+
+The successful migration run then exited on an immediate post-container-recreate curl race. Subsequent `/health` was healthy, confirming this was a verification timing race rather than a steady-state service failure. `deploy/apply_f2_foundation.sh` now retries `/health` and `/ready` after recreation.
+
+F2 final completion requires one clean hardened apply/verification run showing:
+
+- `/health` HTTP 200 and `database_canonical: false`;
+- `/ready` HTTP 200;
+- `database: reachable`;
+- `migration: 0001_foundation`;
+- `expected_migration: 0001_foundation`.
+
+Re-running `alembic upgrade head` is expected to be idempotent when already at `0001_foundation`.
 
 ## Immediate next work
 
-1. Apply/verify F2 on the VPS using the existing sealed runtime environment.
-2. Re-test public `https://inventory.drthorne.uk/health` after propagation.
-3. If F2 passes, record canonical runtime evidence and move to F3 read-only domain/API.
-
-## F2 expected verification
-
-After deployment:
-
-- repository validator passes;
-- migration applies cleanly;
-- `/health` remains HTTP 200 and `database_canonical: false`;
-- `/ready` returns HTTP 200 with:
-  - `ok: true`
-  - `database: reachable`
-  - `migration: 0001_foundation`
-  - `expected_migration: 0001_foundation`
-  - `database_canonical: false`
-- API remains localhost-only;
-- DB has no host-published port;
-- unrelated services remain healthy.
+1. Pull current `main` and run the hardened F2 apply script once.
+2. If `/ready` passes, mark F2 verified complete and begin F3 read-only API work.
+3. Independently re-test public `https://inventory.drthorne.uk/health` when DNS propagation permits.
 
 ## Safety boundary
 
-PostgreSQL is **not canonical yet**. The live Google workbook/source documents remain authoritative. No production inventory data should be imported or written as part of F2.
+PostgreSQL is **not canonical yet**. The live Google workbook/source documents remain authoritative. No live inventory import, stock-write authority, Custom GPT Action connection, Telegram/Flutter rollout, Sheet mirror mutation, or database promotion is active.
 
 ## Continuity rule
 
