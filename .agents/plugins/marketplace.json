@@ -6,7 +6,11 @@
   "plugins": [
     {
       "name": "medicine-store-assistant",
-      "source": "./",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/Ye-Shwethway/medicine-store-assistant.git",
+        "ref": "main"
+      },
       "policy": {
         "installation": "AVAILABLE",
         "authentication": "ON_INSTALL"
