@@ -1,0 +1,41 @@
+# Runtime secrets / local environment
+.env
+.env.*
+!.env.example
+secrets/
+*.pem
+*.key
+*.crt
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Database / backups / exports
+*.sql
+*.dump
+*.backup
+backups/
+exports/
+
+# Operational/private data
+inventory-data/
+operational-data/
+*.xlsx
+*.xlsm
+*.csv
+*.tsv
+
+# Local tooling / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Logs
+*.log
+logs/
