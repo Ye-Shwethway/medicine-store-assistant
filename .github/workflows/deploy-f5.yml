@@ -1,0 +1,33 @@
+name: Deploy F5 to VPS
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: msa-vps-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy-f5:
+    runs-on: [self-hosted, linux, msa-vps]
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Preflight runner access
+        shell: bash
+        run: |
+          set -euo pipefail
+          id
+          docker version
+          docker compose version
+          test -r /opt/medicine-store-assistant/secrets/runtime.env
+          echo "runner_preflight=pass"
+
+      - name: Deploy and verify F5
+        shell: bash
+        run: bash deploy/apply_f5_catalogue_versioning.sh
