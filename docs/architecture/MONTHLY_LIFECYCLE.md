@@ -6,14 +6,21 @@ Status: **design contract — implementation pending**
 
 Preserve the useful behavior of the existing Excel Master workflow while moving monthly history and month-transition logic into deterministic backend operations.
 
-The current four core operational concepts remain first-class:
+The familiar four-sheet monthly package remains an important human-facing/export contract:
 
 1. Main Stock
 2. Daily Usage
 3. This Month Received
 4. Final Reorder
 
-The database must be able to produce a historical month package equivalent to those four views without depending on an old workbook copy as the only archive.
+However, these four sheets are **not four independent canonical data stores**.
+
+- `Main Stock` is an operational inventory-state projection.
+- `Daily Usage` is an operational usage projection over normalized dated usage events.
+- `This Month Received` is a display-only filtered projection of current-month receipts.
+- `Final Reorder` is a human-facing final reorder output derived from inventory/reorder state and may include authorized manual edits before submission.
+
+The database must be able to reproduce the historical month package without depending on an old workbook copy as the only archive.
 
 ## Month entity
 
@@ -51,7 +58,19 @@ Do not simulate this by deleting old transactions or overwriting their dates.
 
 Every committed intake records receipt batch/line history and canonical stock movement.
 
-`This Month Received` is a projection of receipt activity whose effective date belongs to the open month, subject to explicit authorized handling of legitimate back-dated source transfers.
+`This Month Received` is not a second receipt ledger. It is a display-only projection of rows/lots whose `Received Stock` or canonical receipt activity belongs to the active month.
+
+The legacy Excel view contains only the operational fields needed for review, such as:
+
+- No.
+- Items
+- Sub Store Qty
+- Received Qty
+- Unit
+- Expiry Date
+- Remark
+
+The backend may generate an equivalent view from canonical receipt and inventory data. No independent `this_month_received` truth table is required merely to reproduce the worksheet.
 
 ### Usage
 
@@ -93,13 +112,31 @@ For each lot:
 
 ### This Month Received
 
-Receipt-line or receipt-summary view for the month, retaining transfer/batch traceability.
+A display-only filtered projection of current-month receipt activity.
+
+It should be reproducible from canonical receipt/inventory data and should not become a separately maintained ledger after database promotion.
+
+### Reorder working view
+
+The legacy Excel workflow contains an intermediate `Reorder` sheet that synchronizes or displays reorder candidates already calculated from Main Stock. It is a working/display surface rather than canonical stock truth.
+
+The future backend may expose an equivalent generated working view when useful, but it should derive from canonical inventory state and the approved reorder calculation.
 
 ### Final Reorder
 
-Deterministic reorder result derived from the approved reorder algorithm and the month's state/configuration.
+`Final Reorder` is the human-facing reorder document prepared from the calculated reorder candidates.
 
-The exact reorder formula must be documented from the existing Excel behavior before backend implementation. Do not invent a replacement formula during architecture work.
+The existing workflow copies the working reorder output into `Final Reorder`, where the user may make authorized manual edits before sending it to CMS and archiving it in the monthly Master package.
+
+Therefore distinguish:
+
+1. **calculated reorder recommendation** — deterministic derived output,
+2. **working Reorder view** — generated/display surface,
+3. **final reorder submission** — the user-approved, potentially manually adjusted result.
+
+Only the final approved/submitted reorder needs durable month-close snapshot semantics as a historical business record. The intermediate display sheet does not need its own canonical truth table.
+
+The exact reorder formula must still be documented from the existing Main Stock/Excel behavior before backend implementation. Do not invent a replacement formula during architecture work.
 
 ## Month close preflight
 
@@ -112,6 +149,7 @@ Before close, the backend should require deterministic checks such as:
 - stock ledger balances reconcile to materialized/current state,
 - unresolved conflicts that are defined as close-blocking are surfaced,
 - required reorder computation has completed under the approved rule,
+- the intended final reorder submission state is known when a final reorder is required for that month,
 - the intended month is still `OPEN`,
 - the close operation has not already been completed.
 
@@ -121,7 +159,7 @@ Whether specific REVIEW items block close or are allowed with explicit carry-for
 
 Closing creates an immutable historical snapshot package.
 
-At minimum, preserve enough data to reproduce the four core views for that month:
+At minimum, preserve enough data to reproduce the familiar monthly views and business records:
 
 - product/lot identity snapshot,
 - opening stock,
@@ -130,7 +168,8 @@ At minimum, preserve enough data to reproduce the four core views for that month
 - closing stock,
 - expiry data,
 - reorder configuration used,
-- final reorder result,
+- calculated reorder recommendation where useful for audit,
+- final user-approved reorder result when one was produced,
 - relevant current CMS price/mapping snapshot if the historical report requires it.
 
 Closed snapshots are append-only/immutable under normal operation.
@@ -160,6 +199,8 @@ The future system should support export of any closed month into an `.xlsx` work
 - This Month Received
 - Final Reorder
 
+The four-sheet export is a compatibility/report package, not evidence that all four sheets require independent canonical database tables.
+
 Historical Excel export becomes a portable representation generated from the database, not the only canonical archive.
 
 If exact existing workbook formatting/macros must be preserved, treat that as a compatibility/export project after the canonical data model is stable.
@@ -185,7 +226,7 @@ The database should allow queries such as:
 - usage for a product/lot on a particular date,
 - receipts for a transfer or month,
 - month-over-month usage changes,
-- historical reorder outputs,
-- price/catalouge context at a prior month.
+- calculated and final historical reorder outputs,
+- price/catalogue context at a prior month.
 
 These queries should not depend on locating an archived worksheet copy.
