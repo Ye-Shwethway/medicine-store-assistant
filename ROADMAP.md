@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Project Roadmap
 
-Status: **Phase 2 foundation active; F0 and F1 verified complete**
+Status: **Phase 2 foundation active; F0 and F1 verified complete; Cloudflare route configured, public health verification pending**
 
 This roadmap tracks the full Medicine Store Assistant project, not only the published `$msa` skill. Keep it synchronized with `NEW_CHAT_BOOTSTRAP.md` after significant changes.
 
@@ -118,6 +118,27 @@ Operational hardening learned in F1:
 
 - rendered `docker compose config` output can expose interpolated runtime secrets; use secret-safe validation such as `config --quiet` when appropriate and never copy rendered secret-bearing configuration into logs/docs/chat.
 
+### Cloudflare public route
+
+Status: **configured 2026-08-22; public end-to-end health verification pending**
+
+Evidence: `docs/operations/CLOUDFLARE_ROUTE_2026-08-22.md`.
+
+Configured route:
+
+`https://inventory.drthorne.uk` → existing managed Cloudflare Tunnel → `http://localhost:8088`
+
+Verified Cloudflare-side facts:
+
+- hostname was unused before assignment;
+- existing managed tunnel was reused;
+- proxied CNAME/tunnel hostname route was created additively;
+- unrelated existing tunnel routes were preserved;
+- no Worker, D1, KV, R2, Pages, Load Balancer, Access policy, paid Cloudflare service, or host reverse proxy was added;
+- VPS port `8088` remains non-public and localhost-bound.
+
+Immediately after creation, available execution environments could not resolve the new hostname, so HTTP 200 + expected public `/health` JSON has **not yet been independently verified**. Do not mark this slice fully complete until that succeeds.
+
 ### Next gate — architecture decisions before F2 schema
 
 Status: **current planning work**
@@ -136,12 +157,6 @@ Key decisions include:
 - external identity linkage for Telegram;
 - Flutter authentication/session approach;
 - service identity/scopes for Custom GPT and other integrations.
-
-### Cloudflare public route
-
-Status: **not configured yet**
-
-The local origin is now verified at `http://localhost:8088`. A dedicated Cloudflare route may be configured as a separate narrow infrastructure step without changing database canonicality. Public health must be verified after routing.
 
 ### Slice F2 — PostgreSQL schema foundation
 
@@ -213,9 +228,11 @@ Regenerate familiar Main Stock, Daily Usage, This Month Received and Final Reord
 
 F0 and F1 are verified complete. Bamboo/one-time VPS executor is no longer part of the implementation workflow.
 
+Cloudflare route is configured but public `/health` verification is still pending DNS/edge propagation.
+
 Current next work:
 
-1. optionally configure and verify the narrow Cloudflare hostname route to the already verified local `/health` origin;
+1. independently re-check `https://inventory.drthorne.uk/health` after propagation and close the Cloudflare route slice when it returns the expected HTTP 200 payload;
 2. resolve F2 schema + v1 user/auth gating decisions;
 3. authorize and implement F2 only after those decisions are documented.
 
