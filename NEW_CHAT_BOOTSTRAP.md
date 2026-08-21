@@ -36,15 +36,7 @@ Same-repository monorepo:
 
 The live Google workbook remains authoritative until PostgreSQL is explicitly promoted after shadow/dual validation.
 
-Primary human views:
-
-- Main Stock
-- Daily Usage
-
-Generated/workflow views:
-
-- This Month Received — display-only filtered projection
-- Reorder / Final Reorder — working/final workflow projections; final approved reorder may be snapshotted historically
+Primary human views are Main Stock and Daily Usage. This Month Received and Reorder/Final Reorder are generated/workflow projections; final approved reorder may be snapshotted historically.
 
 ## Target architecture
 
@@ -70,7 +62,7 @@ Approved 2026-08-22:
 - roles = `OWNER`, `ADMIN`, `STAFF`, `READ_ONLY`;
 - canonical human identity = backend `user_id`;
 - Telegram numeric user ID = external identity link, username = metadata only;
-- Flutter will use native MSA credentials/session design independent of Telegram;
+- Flutter uses native MSA credentials/session design independent of Telegram;
 - non-human clients use scoped service principals;
 - protected operations preserve actor/client/operation attribution.
 
@@ -104,52 +96,41 @@ Configured route:
 
 `inventory.drthorne.uk -> existing managed Cloudflare Tunnel -> http://localhost:8088`
 
-Cloudflare-side route/DNS read-back succeeded and VPS port 8088 remains non-public. Independent HTTPS `/health` verification is still pending.
+Cloudflare-side route/DNS read-back succeeded and VPS port 8088 remains non-public. Independent external fetch has still not produced a confirmed public HTTP 200 response, so keep this slice open until verified.
 
 ### F2 — PostgreSQL schema/migration foundation
 
-**Migration applied; final readiness verification pending.**
+**Verified complete 2026-08-22.**
 
 Canonical evidence: `docs/operations/F2_VPS_MIGRATION_VERIFICATION_2026-08-22.md`.
 
-Implemented foundation:
-
-- SQLAlchemy + psycopg v3 + Alembic;
-- migration `0001_foundation`;
-- users/roles/external identities;
-- service principals/credential metadata;
-- products/product lots;
-- operating months;
-- CMS catalogue versions/items;
-- audit-event attribution foundation;
-- `/ready` endpoint for database reachability + expected migration revision.
-
-Verified runtime so far:
+Final verified runtime:
 
 - repository validator passed;
+- SQLAlchemy + psycopg v3 + Alembic foundation deployed;
 - migration `0001_foundation` applied successfully;
-- API restarted successfully and subsequently served `/health` HTTP 200;
-- deployed runtime health response reported build SHA `2fff4408666723159543af900c3df8b8e3dd14fb` and `database_canonical: false`.
+- users/roles/external identities, service principals/credential metadata, products/lots, operating months, CMS catalogue versions/items, and audit-event foundation exist;
+- `/health` returned HTTP 200 with build SHA `a9cd98e4af6fd20aee07a783f82daf46d557ac7a` and `database_canonical: false`;
+- `/ready` returned HTTP 200 with `database: reachable`, migration `0001_foundation`, expected migration `0001_foundation`, and `database_canonical: false`;
+- deploy helper retries through transient container-recreate connection resets until stable readiness;
+- runtime PostgreSQL URLs are normalized to the intended `postgresql+psycopg://` driver.
 
-First F2 attempt failed before migration because a plain `postgresql://` URL caused SQLAlchemy to choose psycopg2 while the project intentionally uses psycopg v3. Repo code was fixed to normalize to `postgresql+psycopg://`; no VPS-local patch or psycopg2 package was added.
-
-The successful migration run then exited on an immediate post-container-recreate curl race. Subsequent `/health` was healthy, confirming this was a verification timing race rather than a steady-state service failure. `deploy/apply_f2_foundation.sh` now retries `/health` and `/ready` after recreation.
-
-F2 final completion requires one clean hardened apply/verification run showing:
-
-- `/health` HTTP 200 and `database_canonical: false`;
-- `/ready` HTTP 200;
-- `database: reachable`;
-- `migration: 0001_foundation`;
-- `expected_migration: 0001_foundation`.
-
-Re-running `alembic upgrade head` is expected to be idempotent when already at `0001_foundation`.
+F2 did not enable stock ledger writes, import live inventory, mutate the Sheet, connect Custom GPT Actions, deploy Telegram/Flutter, or promote PostgreSQL to canonical authority.
 
 ## Immediate next work
 
-1. Pull current `main` and run the hardened F2 apply script once.
-2. If `/ready` passes, mark F2 verified complete and begin F3 read-only API work.
-3. Independently re-test public `https://inventory.drthorne.uk/health` when DNS propagation permits.
+F3 — Core read-only domain/API — is the next implementation slice but is **not yet started**.
+
+Target F3 scope:
+
+- read-only product and lot lookup/listing;
+- operating-month read diagnostics;
+- CMS catalogue/version read diagnostics;
+- safe user/account diagnostics with no credential exposure;
+- typed response models and stable API conventions;
+- no inventory mutations and no live Sheet import.
+
+Separately, continue independent external checks of `https://inventory.drthorne.uk/health` until public HTTP 200 + expected JSON are observed.
 
 ## Safety boundary
 
