@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Architecture Index
 
-Status: **documentation-first / implementation not yet authorized**
+Status: **foundation implementation active; PostgreSQL non-canonical**
 
 This directory defines the future canonical architecture for Medicine Store Assistant (MSA) beyond the current spreadsheet-operating skill.
 
@@ -44,15 +44,15 @@ The intended same-repository layout is:
 medicine-store-assistant/
 ├── skills/medicine-store-assistant/   # published Git-backed skill; preserve
 ├── docs/architecture/                 # canonical system design
-├── backend/                           # future deterministic API + DB runtime
-├── integrations/                     # future GPT/Sheets/Telegram/Flutter adapters
-├── deploy/                            # future VPS deployment assets
+├── backend/                           # deterministic API + DB runtime
+├── integrations/                      # GPT/Sheets/Telegram/Flutter adapters
+├── deploy/                            # VPS deployment assets
 ├── AGENTS.md
 ├── NORMAL_CHAT_BOOTSTRAP.md
 └── README.md
 ```
 
-Folders shown as `future` are architectural reservations only until implementation is explicitly authorized.
+The foundation runtime now exists under `backend/` and `deploy/`, but this does not change operational authority: PostgreSQL remains non-canonical until the explicit migration/shadow-validation promotion process succeeds.
 
 ## Design rule
 
