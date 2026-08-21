@@ -29,8 +29,19 @@ Preserve exact numbers and source precision. Separate blank, zero, overwritten, 
    - a new local item,
    - or a mapping that needs confirmation.
 5. Do not overwrite or merge an older expiry lot when the source has a different expiry date, even when CMS code and item identity are the same.
-6. Check idempotency before applying quantities. An existing preserved batch sheet is evidence but not by itself proof that Main Stock was updated; use batch/history/live receipt evidence. Never double-intake an already processed transfer.
-7. Write only when the classification and requested operation permit it.
+6. Check idempotency before applying quantities. An existing preserved batch sheet is evidence but not by itself proof that Main Stock was updated; use multiple live receipt/history signals such as code, normalized identity, expiry, received quantity, source price, batch history, or backups. Never double-intake an already processed transfer.
+7. If the transfer is already represented, switch to **reconciliation-only mode**. Do not mutate received quantities merely because the original paper has been supplied again. Use the source to identify missing dependent identity fields, stale mappings, unit gaps, expiry-lot inconsistencies, source-transcription errors, or other data-quality problems.
+8. Write only when the classification and requested operation permit it.
+
+## Historical-source correction
+
+A historical paper source can establish a SAFE correction without re-intaking the transfer.
+
+- When the original source and the verified current CMS catalogue independently agree on the same code, product identity, and catalogue price, and the live row contains a contradictory CMS mapping, correct only the stale current mapping fields supported by that evidence.
+- Typical correctable fields are `Serial Code`, `CS Name`, and `CMS Price`.
+- Do not use this as permission to rewrite historical usage or derived values. In particular, keep the derived `Price` column untouched unless its own workbook contract explicitly allows a write.
+- A matching quantity/expiry receipt in Main Stock strengthens the conclusion that the paper line is the historical source for that row.
+- If source and catalogue do not independently agree, retain REVIEW/CONFLICT handling instead of forcing a correction.
 
 ## New expiry-lot insertion
 
@@ -54,4 +65,4 @@ When a preserved batch is compared with the original source, correct proven tran
 
 ## Verify and report
 
-Read back all affected rows. Confirm quantities, source precision, expiry values, identities, untouched derived/helper fields, unrelated neighboring cells, and visual marks. Report matched lines, new lots/items, conflicts, unreadable fields, warnings, idempotency decisions, and verification status.
+Read back all affected rows. Confirm quantities, source precision, expiry values, identities, untouched derived/helper fields, unrelated neighboring cells, and visual marks. Report matched lines, new lots/items, conflicts, unreadable fields, warnings, idempotency decisions, reconciliation-only corrections, and verification status.
