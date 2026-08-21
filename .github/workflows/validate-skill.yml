@@ -1,4 +1,4 @@
-name: Validate portable skill
+name: Validate Git-backed plugin
 
 on:
   push:
@@ -14,5 +14,5 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
-      - name: Validate repository structure
+      - name: Validate plugin package
         run: python scripts/validate_repository.py

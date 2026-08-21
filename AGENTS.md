@@ -1,6 +1,6 @@
 # Repository Rules
 
-Treat `.agents/skills/medicine-store-assistant/` as the canonical portable MSA source.
+Treat `skills/medicine-store-assistant/` as the canonical Git-backed plugin skill source.
 
 - Preserve the skill name `medicine-store-assistant` and invocation alias `$msa`.
 - Keep `SKILL.md` concise: global rules and links only. Put workflow detail in its `references/` directory.
@@ -9,5 +9,6 @@ Treat `.agents/skills/medicine-store-assistant/` as the canonical portable MSA s
 - Use runtime configuration or authorized live discovery for spreadsheet identity.
 - Validate every change with `python scripts/validate_repository.py`.
 - Bump `VERSION` and `.codex-plugin/plugin.json` together for release changes.
+- Keep `.agents/plugins/marketplace.json` installable from the public Git repository.
+- Update `NORMAL_CHAT_BOOTSTRAP.md` whenever the canonical skill path or startup contract changes.
 - Do not add Telegram or autonomous write behavior until its authentication, dry-run, approval, idempotency, audit, and read-back design is explicit.
-

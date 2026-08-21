@@ -1,13 +1,35 @@
 {
   "name": "medicine-store-assistant",
-  "version": "1.0.0",
-  "description": "Safely operate and reconcile a medical-store inventory through authorized Google Sheets.",
+  "version": "1.1.0",
+  "description": "Safely operate and reconcile medical-store inventory through authorized Google Sheets.",
+  "author": {
+    "name": "Ye-Shwethway",
+    "url": "https://github.com/Ye-Shwethway"
+  },
   "homepage": "https://github.com/Ye-Shwethway/medicine-store-assistant",
   "repository": "https://github.com/Ye-Shwethway/medicine-store-assistant",
-  "skills": "./.agents/skills/",
+  "keywords": [
+    "medical-store",
+    "inventory",
+    "google-sheets",
+    "cms",
+    "reconciliation"
+  ],
+  "skills": "./skills/",
   "interface": {
     "displayName": "Medicine Store Assistant",
     "shortDescription": "Operate medical-store inventory safely",
-    "defaultPrompt": "Use medicine-store-assistant to process this inventory task safely."
+    "longDescription": "Process CMS intake, daily usage, price reconciliation, expiry-separated lots, and audited Google Sheets updates while preserving source-document truth.",
+    "developerName": "Ye-Shwethway",
+    "category": "Productivity",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/Ye-Shwethway/medicine-store-assistant",
+    "defaultPrompt": [
+      "Use medicine-store-assistant to inspect this medical-store inventory task. Do not write unless I authorize it.",
+      "Use $msa to process this inventory document and verify every affected cell after writing."
+    ]
   }
 }
