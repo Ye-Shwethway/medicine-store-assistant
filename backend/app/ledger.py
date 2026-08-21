@@ -64,6 +64,13 @@ def record_transaction(
     if quantity <= 0:
         raise LedgerError("quantity must be positive")
 
+    existing_operation = connection.execute(
+        text("SELECT transaction_id FROM inventory_transactions WHERE operation_id = :operation_id"),
+        {"operation_id": operation_id},
+    ).scalar_one_or_none()
+    if existing_operation is not None:
+        raise DuplicateOperationError(operation_id)
+
     if transaction_type in NEGATIVE_TYPES and not allow_negative:
         current = lot_balance(connection, lot_id)
         if current - quantity < 0:
