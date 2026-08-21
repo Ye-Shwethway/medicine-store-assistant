@@ -1,0 +1,13 @@
+{
+  "name": "medicine-store-assistant",
+  "version": "1.0.0",
+  "description": "Safely operate and reconcile a medical-store inventory through authorized Google Sheets.",
+  "homepage": "https://github.com/Ye-Shwethway/medicine-store-assistant",
+  "repository": "https://github.com/Ye-Shwethway/medicine-store-assistant",
+  "skills": "./.agents/skills/",
+  "interface": {
+    "displayName": "Medicine Store Assistant",
+    "shortDescription": "Operate medical-store inventory safely",
+    "defaultPrompt": "Use medicine-store-assistant to process this inventory task safely."
+  }
+}

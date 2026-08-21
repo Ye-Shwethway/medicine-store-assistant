@@ -1,0 +1,17 @@
+{
+  "name": "medicine-store-assistant-marketplace",
+  "interface": {
+    "displayName": "Medicine Store Assistant"
+  },
+  "plugins": [
+    {
+      "name": "medicine-store-assistant",
+      "source": "./",
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

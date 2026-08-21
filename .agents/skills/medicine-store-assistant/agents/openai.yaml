@@ -1,0 +1,13 @@
+interface:
+  display_name: Medicine Store Assistant
+  short_description: Operate medical-store inventory safely
+  default_prompt: >-
+    Use medicine-store-assistant (short invocation: $msa) to process this
+    medical-store inventory task safely.
+policy:
+  products:
+    - chatgpt
+    - codex
+    - api
+    - atlas
+  allow_implicit_invocation: true
