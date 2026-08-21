@@ -25,6 +25,21 @@ Treat newer verified repository/runtime evidence as authoritative over remembere
 
 Same-repository monorepo remains active. The live Google workbook/source evidence remains authoritative until PostgreSQL is explicitly promoted after shadow/dual validation.
 
+## Deployment workflow
+
+Canonical development/deployment flow is now:
+
+`test -> pull request -> main -> automatic VPS deployment for relevant runtime changes`
+
+- `test` is the staging/integration branch.
+- Do not require the user to press a GitHub Actions manual deploy button for normal project continuation.
+- Git-backed skill validation is path-aware and runs only for skill/plugin/package-contract changes.
+- Backend validation is path-aware and lightweight: repository contract validation, Python compilation, and deployment-shell syntax checks for backend/deploy/workflow changes.
+- Docs-only/unrelated changes do not run the backend suite and do not deploy the VPS.
+- Relevant `main` changes under `backend/**`, `deploy/**`, or the deployment workflow automatically run on the repository-scoped self-hosted runner labelled `self-hosted`, `linux`, `msa-vps`.
+- The runner account has `docker` and `medstore` group access; no NOPASSWD sudo rule is used.
+- Runtime secrets remain on the VPS at `/opt/medicine-store-assistant/secrets/runtime.env`, readable by the runner through group permission, and are not copied into GitHub.
+
 ## Verified checkpoints
 
 ### F0 — VPS inspection
@@ -63,9 +78,9 @@ F4 verified migration `0002_ledger`, deterministic balance math, operation-id id
 
 ## F5 — Synthetic CMS catalogue versioning
 
-**Authorized and authored; VPS verification pending.**
+**Authorized and authored; automated VPS verification pending final evidence.**
 
-Repository now contains:
+Repository contains:
 
 - migration `0003_catalogue` adding catalogue row-count/import/parser metadata, source row number, and DB-level unique source-hash protection;
 - deterministic SHA-256 catalogue content hashing;
@@ -78,19 +93,13 @@ Repository now contains:
 - synthetic verifier that proves hash idempotency, historical version availability, add/remove diff, price diff, and identity-shift guard;
 - verifier transaction rollback so synthetic catalogue data is not retained;
 - `deploy/apply_f5_catalogue_versioning.sh` for migration + verifier + health/readiness verification;
-- `/ready` now expects `0003_catalogue` after deployment.
+- `/ready` expects `0003_catalogue` after deployment.
 
 F5 does **not** ingest a live CMS catalogue, import live Google Sheet inventory, mutate local item mappings, change production prices, create stock movement, mutate Sheets, enable Telegram/Flutter/GPT writes, or promote PostgreSQL.
 
 ## Immediate next work
 
-Run:
-
-```bash
-cd /opt/medicine-store-assistant/app/repo && git pull --ff-only && bash deploy/apply_f5_catalogue_versioning.sh
-```
-
-Expected F5 evidence:
+Inspect the automatic self-hosted-runner F5 deployment evidence. F5 may be marked complete only if evidence proves:
 
 - repository validator PASS;
 - Alembic `0002_ledger -> 0003_catalogue`;
@@ -99,7 +108,7 @@ Expected F5 evidence:
 - `/health` healthy with `database_canonical: false`;
 - `/ready` migration and expected migration both `0003_catalogue`.
 
-If the VPS output reveals a repository-side failure, fix the canonical repository rather than applying an ad-hoc VPS patch.
+If runtime evidence reveals a repository-side failure, fix the canonical repository through the `test -> main` flow rather than applying an ad-hoc VPS patch.
 
 ## Safety boundary
 

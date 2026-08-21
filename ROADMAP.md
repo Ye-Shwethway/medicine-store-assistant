@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Project Roadmap
 
-Status: **Phase 2 foundation active; F0/F1/F2/F3/F4 verified complete; F5 authored and VPS verification pending**
+Status: **Phase 2 foundation active; F0/F1/F2/F3/F4 verified complete; F5 authored and automated VPS verification in progress**
 
 This roadmap tracks the full Medicine Store Assistant project and must stay synchronized with `NEW_CHAT_BOOTSTRAP.md`.
 
@@ -15,6 +15,24 @@ Flutter ────────┘              │
 ```
 
 GitHub stores code/docs only. The current Google workbook remains operationally authoritative until shadow/dual validation and explicit database promotion.
+
+## Delivery / deployment policy
+
+Development promotion now uses a repository branch flow:
+
+`test -> pull request -> main -> automatic VPS deploy for relevant runtime changes`
+
+Rules:
+
+- `test` is the staging/integration branch for authored changes;
+- promotion to `main` occurs through a PR/merge rather than requiring a manual GitHub Actions button;
+- backend/deploy validation is path-aware and lightweight: repository contract validation, Python compilation, and shell syntax checks only when backend/deploy/workflow paths change;
+- Git-backed skill validation runs only when skill/plugin/package-contract paths change;
+- docs-only and unrelated changes do not run the backend validation suite and do not trigger VPS deployment;
+- VPS deployment runs automatically on `main` only when `backend/**`, `deploy/**`, or the deployment workflow itself changes;
+- deployment is pinned to the repository-scoped self-hosted runner labels `self-hosted`, `linux`, `msa-vps`;
+- runtime secrets remain on the VPS at `/opt/medicine-store-assistant/secrets/runtime.env`; GitHub does not receive the database secret file;
+- the runner account has only the group access needed for repository/runtime read access and Docker execution; no NOPASSWD sudo rule is required.
 
 ## Phase 0 — Existing skill/workbook foundation
 
@@ -64,7 +82,7 @@ F4 proved deterministic balance calculation, duplicate-operation/idempotency pro
 
 ### F5 — CMS catalogue versioning with synthetic/non-sensitive data
 
-Status: **authorized and authored; VPS verification pending**
+Status: **authorized and authored; automated VPS verification pending final evidence**
 
 Purpose: prove deterministic catalogue archival/version/diff behavior without importing or mutating live medicine-store inventory.
 
@@ -78,29 +96,10 @@ Repository implementation includes:
 - explicit identity-sensitive fields (`brand_name`, `description`, `form`, `type`, `class_name`) used only to flag possible code reuse/identity shift; no local product or lot mapping is changed automatically;
 - synthetic verifier covering hash idempotency, historical version availability, add/remove diff, price-only diff, and same-code incompatible-identity detection;
 - synthetic verifier transaction rollback so sample catalogue versions/items are not retained;
-- `deploy/apply_f5_catalogue_versioning.sh` to validate the repository, build the API, apply migration, run the synthetic verifier, restart the API, and verify `/health` and `/ready`;
-- `/ready` now expects migration `0003_catalogue` after F5 deployment.
+- `deploy/apply_f5_catalogue_versioning.sh` for migration, synthetic verification, API restart, and health/readiness verification;
+- `/ready` expects migration `0003_catalogue` after F5 deployment.
 
 F5 does **not** read the live CMS Google Sheet, import a real CMS price list, mutate local inventory mappings, update production prices, create stock movements, mutate Google Sheets, enable client writes, or promote PostgreSQL.
-
-Current VPS verification command:
-
-```bash
-cd /opt/medicine-store-assistant/app/repo && git pull --ff-only && bash deploy/apply_f5_catalogue_versioning.sh
-```
-
-Expected success evidence includes:
-
-- repository validator PASS;
-- Alembic upgrade `0002_ledger -> 0003_catalogue`;
-- `F5 synthetic catalogue verification PASS`;
-- `hash_idempotency=pass`;
-- `version_history=pass`;
-- `add_remove_diff=pass`;
-- `price_diff=pass`;
-- `identity_shift_guard=pass`;
-- `/health` with `database_canonical: false`;
-- `/ready` with migration and expected migration both `0003_catalogue`.
 
 ## Phase 3 — Shadow migration/reconciliation
 
@@ -131,8 +130,8 @@ Status: **future**
 
 ## Current next work
 
-1. Run the F5 VPS verification command above and inspect its exact output.
-2. If verification passes, record F5 canonical runtime evidence and mark F5 verified complete.
+1. Inspect automated F5 VPS workflow evidence from the self-hosted runner.
+2. If verification proves migration `0003_catalogue`, all synthetic catalogue invariants, healthy `/health`, healthy `/ready`, and `database_canonical: false`, record canonical F5 runtime evidence and mark F5 verified complete.
 3. Do not begin live CMS catalogue ingestion, live Sheet shadow import, production inventory writes, database promotion, Telegram writes, Flutter rollout, Sheet mirror conversion, or Custom GPT write Actions without a later explicit slice.
 
 ## Continuity rule
