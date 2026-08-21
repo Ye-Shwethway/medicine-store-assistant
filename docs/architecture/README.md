@@ -32,6 +32,7 @@ MSA will evolve toward a ledger-backed inventory system in which:
 6. [SHEET_MIRROR_AND_COMPATIBILITY.md](SHEET_MIRROR_AND_COMPATIBILITY.md) — Google Sheets mirror contract and Excel compatibility.
 7. [API_AND_CLIENT_ARCHITECTURE.md](API_AND_CLIENT_ARCHITECTURE.md) — VPS API, Custom GPT Actions, Telegram, Flutter, and future access paths.
 8. [MIGRATION_AND_SHADOW_VALIDATION.md](MIGRATION_AND_SHADOW_VALIDATION.md) — safe migration from the current spreadsheet-first system to database canonicality.
+9. [DECISIONS_AND_OPEN_QUESTIONS.md](DECISIONS_AND_OPEN_QUESTIONS.md) — locked direction plus unresolved choices that must be settled before each implementation slice.
 
 ## Repository boundary
 
@@ -54,3 +55,5 @@ Folders shown as `future` are architectural reservations only until implementati
 ## Design rule
 
 Do not implement from one document in isolation. The data model, integrity rules, monthly lifecycle, mirror contract, and migration plan form one system contract and must remain mutually consistent.
+
+Before implementing a slice, review `DECISIONS_AND_OPEN_QUESTIONS.md` and resolve the questions that gate that slice. Do not block unrelated safe documentation/research on questions that are only relevant to later phases.
