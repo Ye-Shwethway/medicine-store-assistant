@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Project Roadmap
 
-Status: **F0/F1/F2/F3/F4/F5/F5.1/F6A/F6C verified complete; F6B remains test-only; PostgreSQL remains non-canonical**
+Status: **F0/F1/F2/F3/F4/F5/F5.1/F6A/F6C verified complete; F6B remains test-only; Web Dashboard design foundation active; PostgreSQL remains non-canonical**
 
 The live Google workbook/source documents remain operationally authoritative. The current staged F6B snapshot is **test-only** and is **not an accepted migration baseline**. A fresh real migration dataset will be imported later only after the operational workflow and user-facing management UI are ready and explicitly approved.
 
@@ -65,13 +65,23 @@ Verified behavior:
 - API responses are designed to state `migration_baseline_accepted:false` and `database_canonical:false`;
 - `/health` and `/ready` green at migration `0004_shadow`.
 
-## Next product slice — proposal only
+## Active product direction — Web Dashboard
 
-The next meaningful product work should be **user-facing management UI architecture/foundation**, not real migration reconciliation.
+User-facing web management is now the active product direction. The current F6B/F6C test data will be used only as the dashboard test dataset while the workflow is designed.
 
-The UI should eventually let the owner safely browse/manage inventory, lots, catalogue mappings, shadow/import review state, and later authorized operations without relying on raw API calls or database access. Google Sheets remains the practical human-facing source today until this UI is ready.
+UI/UX Pro Max has been adopted as the dashboard design-intelligence reference, pinned for this design cycle to upstream commit `bc826e2267a36d98a2dcf5231e16c30ff546770f` from `nextlevelbuilder/ui-ux-pro-max-skill`.
 
-Do not import/accept a real migration baseline merely to continue backend development.
+Canonical design docs:
+
+- `docs/design/UI_UX_PRO_MAX_INTEGRATION.md`
+- `design-system/medicine-store-assistant/MASTER.md`
+- `design-system/medicine-store-assistant/pages/dashboard.md`
+
+A developer bootstrap script at `scripts/bootstrap_ui_ux_pro_max.sh` materializes the pinned third-party skill locally under `.agents/skills/ui-ux-pro-max/`. The materialized third-party bundle is ignored by Git and is not a production runtime dependency.
+
+Current Figma work contains a clean `Dashboard v2 — UUPM` page built from the adopted design principles. The next implementation slice should turn the approved design into an authenticated interactive web dashboard that consumes the existing read API. Major interactions to prove before production writes include navigation, search/filtering, row detail, loading/empty/error states, keyboard/touch accessibility, and responsive behavior.
+
+Do not import/accept a real migration baseline merely to continue UI development.
 
 ## Safety boundary
 
