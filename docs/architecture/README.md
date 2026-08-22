@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Architecture Index
 
-Status: **foundation implementation active; F7 read-only Web Dashboard verified; F7.2A canonical multi-user identity next; PostgreSQL non-canonical**
+Status: **F7.2A canonical human identity/sessions verified; F7.2B User Management next; PostgreSQL remains non-canonical**
 
 This directory defines the future canonical architecture for Medicine Store Assistant beyond the current spreadsheet-operating skill.
 
@@ -27,8 +27,13 @@ MSA evolves toward a ledger-backed multi-client inventory system in which:
 
 ## Current F7 architecture
 
-- exactly one Main Store plus Owner-created Sub Stores;
-- Owner-only global Settings;
+F7.2A is deployed and runtime-verified. Human accounts now use the existing F2 canonical `users` / `roles` / `user_roles` foundation with stable UUID `user_id`, username + password, `PENDING` / `ACTIVE` / `DISABLED` state, durable DB-bound revocable sessions, backend role helpers, explicit authenticated 403 behavior, and disabled-user enforcement. This changed authentication/control-plane identity only; inventory remains read-only.
+
+Current direction continues with:
+
+- F7.2B User Management next;
+- exactly one Main Store plus Owner-created Sub Stores later in F7.4;
+- Owner-only global Settings in its later authorized slice;
 - Owner-configurable reorder basis (`MAIN_STORE_ONLY` initially, later optional `TOTAL_ACTIVE_STOCK`);
 - human User Management separate from Owner-only AI Agent Management;
 - AI agents may be granted Main Store and/or Sub Store capabilities; they are not inherently Sub-Store-only;
@@ -36,6 +41,8 @@ MSA evolves toward a ledger-backed multi-client inventory system in which:
 - Smart Calculator is DB-backed and calculation-only first;
 - Smart Analysis is deterministic first, AI-assisted second;
 - Alerts/Notifications reuse backend events across clients.
+
+Verified F7.2A anchor: PR #36, merge `c3aa75d65e0bc6d1836227fe8450b0b3de5b2651`, deploy run `32586385336`. Deployment preserved `database_canonical=false`, `migration_baseline_accepted=false`, and performed no live workbook import or inventory mutation.
 
 ## Documents
 

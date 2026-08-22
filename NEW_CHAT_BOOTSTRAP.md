@@ -57,7 +57,23 @@ Verified complete:
 - F6A synthetic shadow migration adapter
 - F6C authenticated shadow read API
 - F7.1 read-only Web Dashboard foundation
-- temporary/bootstrap Owner login -> authenticated dashboard data -> logout flow
+- F7.2A canonical multi-user identity and sessions
+
+F7.2A verification anchor:
+
+- implementation PR #36;
+- merge SHA `c3aa75d65e0bc6d1836227fe8450b0b3de5b2651`;
+- automatic deploy run `32586385336` / job `97063270146` — success;
+- Alembic upgraded `0004_shadow -> 0005_identity`;
+- canonical Owner bootstrap resolved stable `user_id` and username `owner` without plaintext credential exposure;
+- username + password authentication — pass;
+- DB-bound durable/revocable session — pass;
+- backend Owner RBAC — pass;
+- explicit authenticated `403 / Access denied` — pass;
+- disabled-user protected-access denial — pass;
+- public dashboard private gate — 401 when anonymous;
+- `database_canonical=false` and `migration_baseline_accepted=false` preserved;
+- no live workbook import and no inventory mutation occurred.
 
 F6B remains test-only:
 
@@ -70,7 +86,7 @@ F6B remains test-only:
 - `migration_baseline_accepted=false`
 - `database_canonical=false`
 
-The current password-only Owner bridge is proven but is **not** the final multi-user credential model.
+The former password-only Owner bridge is superseded by the canonical F7.2A human account/session model. The existing password hash was reused as bootstrap evidence; plaintext credentials were never written to Git or logs.
 
 ## Product direction
 
@@ -114,22 +130,31 @@ A narrow SAFE workflow may later run without asking for confirmation on every ob
 - `STAFF`
 - `READ_ONLY`
 
-### F7.2A — Canonical human identity — **NEXT**
+### Human states
 
-Implement:
+- `PENDING`
+- `ACTIVE`
+- `DISABLED`
 
-- stable `user_id`;
-- username + password;
-- roles/states;
-- revocable sessions;
-- bootstrap Owner migration into canonical user model;
-- backend-enforced authorization;
-- explicit authenticated 403 state;
+### F7.2A — Canonical human identity — **VERIFIED COMPLETE**
+
+Current deployed model:
+
+- stable canonical UUID `user_id`;
+- username + password login;
+- one canonical role per user from the approved role set;
+- canonical account states above;
+- opaque DB-bound sessions stored as server-side token digests with expiry/revocation/credential-version binding;
+- backend role-policy helpers;
+- authenticated 403 behavior;
+- disabled users fail protected-session resolution;
 - inventory remains read-only.
 
-### F7.2B — User Management
+### F7.2B — User Management — **NEXT**
 
 Separate human-account surface for pending access requests, Owner approval/rejection, allowed role assignment, disable/reactivate/revoke, and security events. ADMIN cannot grant/promote OWNER.
+
+F7.2B must reuse F7.2A canonical `user_id`, roles, states, sessions, and backend authorization. It must not introduce credential lifecycle, AI Agent Management, operational Audit UI, inventory writes, or canonical DB promotion.
 
 ### F7.2C — Credential lifecycle
 
@@ -205,14 +230,13 @@ Deterministic events first, optional AI explanation second, reusable across Web/
 
 ## Immediate implementation boundary
 
-Start the next chat with **F7.2A canonical multi-user identity**.
+Start the next implementation chat with **F7.2B User Management**.
 
 Then continue in order:
 
-1. F7.2B User Management
-2. F7.2C credential lifecycle
-3. F7.2D AI Agent Management
-4. F7.3 actor-aware Audit
+1. F7.2C credential lifecycle
+2. F7.2D AI Agent Management
+3. F7.3 actor-aware Audit
 
 Do not jump ahead to production stock writes, AI writes, store transfers, Smart Calculator deduction, Telegram/Flutter mutation, or canonical promotion.
 
@@ -221,11 +245,11 @@ Do not jump ahead to production stock writes, AI writes, store transfers, Smart 
 A fresh implementation chat is ready when it can establish all of the following from repository evidence without remembered chat context:
 
 - current SOT boundary: Sheet authoritative, PostgreSQL non-canonical;
-- verified F7.1/bootstrap Owner checkpoint;
+- verified F7.2A canonical identity/session checkpoint and PR #36/deploy #32586385336 evidence;
 - test-only F6B status and counts;
 - delivery policy and issue #26 deployment evidence path;
-- next slice = F7.2A;
-- F7.2B/C/D and F7.3 order;
+- next slice = F7.2B;
+- F7.2C/D and F7.3 order;
 - Owner-only AI Agent Management and Settings;
 - AI may eventually operate on Main Store or Sub Stores only inside Owner-granted typed scopes;
 - `$msa` SAFE/REVIEW/CONFLICT/NEW_UNMAPPED + read-back/audit workflow parity;
