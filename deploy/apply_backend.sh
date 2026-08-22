@@ -44,6 +44,9 @@ docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm \
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm \
   api python -c 'from app.dashboard_auth import ensure_bootstrap_owner; u=ensure_bootstrap_owner(); print("canonical_owner_bootstrap=pass user_id=" + u["user_id"] + " username=" + u["username"])'
 
+docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm \
+  api sh -c 'grep -Fq "user-profile-card" app/dashboard_assets/dashboard.html && grep -Fq "User Management" app/dashboard_assets/dashboard.html && grep -Fq "Request access" app/dashboard_assets/login.html && echo "f7_2b_ui_contract=pass"'
+
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d api
 
 API_PORT="$(awk -F= '$1 == "MSA_API_HOST_PORT" {print $2}' "$ENV_FILE" | tail -n1)"
@@ -76,7 +79,15 @@ for route in \
   '/dashboard/api/authorization/owner' \
   '/dashboard/api/overview' \
   '/dashboard/api/rows' \
-  '/dashboard/api/review-reasons'; do
+  '/dashboard/api/review-reasons' \
+  '/dashboard/api/access-requests' \
+  '/dashboard/api/users' \
+  '/dashboard/api/users/{user_id}/approve' \
+  '/dashboard/api/users/{user_id}/reject' \
+  '/dashboard/api/users/{user_id}/role' \
+  '/dashboard/api/users/{user_id}/disable' \
+  '/dashboard/api/users/{user_id}/reactivate' \
+  '/dashboard/api/users/{user_id}/revoke-sessions'; do
   grep -Fq "\"${route}\"" <<<"$OPENAPI"
 done
 
@@ -84,10 +95,17 @@ LOGIN_BODY="$(curl --fail --silent --show-error "http://127.0.0.1:${API_PORT}/da
 grep -Fq 'Secure dashboard access' <<<"$LOGIN_BODY"
 grep -Fq '>Username<' <<<"$LOGIN_BODY"
 grep -Fq '>Password<' <<<"$LOGIN_BODY"
+grep -Fq 'Request access' <<<"$LOGIN_BODY"
 
 ANON_STATUS="$(curl --silent --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:${API_PORT}/v1/shadow/batches")"
 if [[ "$ANON_STATUS" != "401" ]]; then
   echo "error: anonymous shadow read returned HTTP ${ANON_STATUS}, expected 401" >&2
+  exit 1
+fi
+
+ANON_USERS_STATUS="$(curl --silent --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:${API_PORT}/dashboard/api/users")"
+if [[ "$ANON_USERS_STATUS" != "401" && "$ANON_USERS_STATUS" != "503" ]]; then
+  echo "error: anonymous User Management returned HTTP ${ANON_USERS_STATUS}, expected 401 or fail-closed 503" >&2
   exit 1
 fi
 
@@ -103,8 +121,7 @@ if [[ "$DASHBOARD_PRIVATE_STATUS" != "401" && "$DASHBOARD_PRIVATE_STATUS" != "50
   exit 1
 fi
 
-# Exercise canonical human identity, revocable sessions, RBAC, disabled-user denial,
-# and the existing read-only dashboard against the running API.
+# Exercise canonical identity and the full F7.2B human-account lifecycle against the running API.
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T \
   -e MSA_DASHBOARD_VERIFY_BASE_URL=http://127.0.0.1:8080 \
   api python -m app.dashboard_runtime_verify
@@ -123,7 +140,14 @@ if [[ "$PUBLIC_PRIVATE_STATUS" != "401" && "$PUBLIC_PRIVATE_STATUS" != "503" ]];
   exit 1
 fi
 
+PUBLIC_USERS_STATUS="$(curl --silent --output /dev/null --write-out '%{http_code}' "${PUBLIC_BASE_URL}/dashboard/api/users")"
+if [[ "$PUBLIC_USERS_STATUS" != "401" && "$PUBLIC_USERS_STATUS" != "503" ]]; then
+  echo "error: public unauthenticated User Management returned HTTP ${PUBLIC_USERS_STATUS}, expected 401 or fail-closed 503" >&2
+  exit 1
+fi
+
 echo "shadow_routes=pass shadow_test_batch=pass anonymous_auth_guard=pass"
 echo "f7_2a_identity=pass canonical_owner=pass username_password=pass durable_sessions=pass backend_rbac=pass access_denied_403=pass disabled_user_denied=pass"
-echo "dashboard_public_route=pass dashboard_public_private_gate=pass:${PUBLIC_PRIVATE_STATUS} public_base=${PUBLIC_BASE_URL}"
+echo "f7_2b_user_management=pass request_pending=pass approval=pass rejection=pass role_assignment=pass disable_reactivate=pass session_revoke=pass owner_escalation_guard=pass account_events=pass notification_events=pass profile_ui=pass"
+echo "dashboard_public_route=pass dashboard_public_private_gate=pass:${PUBLIC_PRIVATE_STATUS} user_management_public_gate=pass:${PUBLIC_USERS_STATUS} public_base=${PUBLIC_BASE_URL}"
 echo "MSA backend deployed at ${CURRENT_SHA}; inventory remains read-only; no live workbook import executed."
