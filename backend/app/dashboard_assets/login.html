@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="light dark">
   <title>Sign in — Medicine Store Assistant</title>
-  <link rel="stylesheet" href="/dashboard/login.css?v=f72c2-1">
+  <link rel="stylesheet" href="/dashboard/login.css?v=f72c3-1">
 </head>
 <body>
   <main class="login-shell" id="loginRoot" data-theme="light">
@@ -37,13 +37,16 @@
       </div>
 
       <section id="requestPanel" hidden aria-labelledby="requestTitle">
-        <div class="login-heading request-heading"><p class="eyebrow">Owner-reviewed access</p><h1 id="requestTitle">Request access</h1><p>Your request stays pending until the Owner approves it and assigns a role.</p></div>
+        <div class="login-heading request-heading"><p class="eyebrow">Owner-reviewed access</p><h1 id="requestTitle">Request access</h1><p>Your request stays pending until the Owner approves it and assigns a role. Verify your email now so password recovery is ready after approval.</p></div>
         <form id="requestForm" novalidate>
           <label for="requestDisplayName">Display name</label>
           <input id="requestDisplayName" name="display_name" type="text" autocomplete="name" maxlength="160" required>
           <label for="requestUsername">Username</label>
           <input id="requestUsername" name="username" type="text" autocomplete="username" maxlength="64" pattern="[A-Za-z0-9._-]{3,64}" required>
           <p class="field-help">3–64 letters, numbers, dots, dashes, or underscores.</p>
+          <label for="requestEmail">Recovery email</label>
+          <input id="requestEmail" name="email" type="email" autocomplete="email" maxlength="320" required>
+          <p class="field-help">We will send a verification link. Verifying your email does not grant dashboard access.</p>
           <label for="requestPassword">Password</label>
           <input id="requestPassword" name="password" type="password" autocomplete="new-password" minlength="10" required>
           <p class="field-help">At least 10 characters. This password is stored only as a one-way hash.</p>
@@ -93,6 +96,6 @@
       <button class="theme-toggle" id="themeToggle" type="button" aria-label="Switch theme">☀︎ / ☾</button>
     </section>
   </main>
-  <script src="/dashboard/login.js?v=f72c2-1" defer></script>
+  <script src="/dashboard/login.js?v=f72c3-1" defer></script>
 </body>
 </html>

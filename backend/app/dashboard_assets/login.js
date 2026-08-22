@@ -81,6 +81,22 @@
     try{return decodeURIComponent(match[1])}catch{return ''}
   }
 
+  async function completeAccessEmailVerification(){
+    const token=hashToken('verify-access-email');
+    if(!token)return false;
+    show('verifyEmail');
+    const verifyError=document.querySelector('#verifyEmailError');
+    const verifySuccess=document.querySelector('#verifyEmailSuccess');
+    document.querySelector('#verifyEmailCopy').textContent='Confirming the recovery email attached to your pending access request.';
+    try{
+      const data=await api('/dashboard/api/access-email-verifications/complete',{method:'POST',body:JSON.stringify({token})});
+      verifySuccess.textContent=data.message||'Email verified. Your request still requires Owner approval.';
+      document.querySelector('#verifyEmailCopy').textContent='Email verification is complete. Dashboard access remains pending until the Owner approves your request and assigns a role.';
+    }catch(err){verifyError.textContent=err.message}
+    history.replaceState(null,'',location.pathname);
+    return true;
+  }
+
   async function completeEmailVerification(){
     verifyEmailToken=hashToken('verify-email');
     if(!verifyEmailToken)return false;
@@ -99,6 +115,7 @@
 
   async function bootstrap(){
     configureRecoveryChoice();
+    if(await completeAccessEmailVerification())return;
     if(await completeEmailVerification())return;
     resetToken=hashToken('reset');
     if(resetToken){show('reset');return}
@@ -123,8 +140,10 @@
     e.preventDefault();const requestError=document.querySelector('#requestError');const requestSuccess=document.querySelector('#requestSuccess');const requestSubmit=document.querySelector('#requestSubmit');const requestPassword=document.querySelector('#requestPassword');const requestConfirm=document.querySelector('#requestConfirmPassword');requestError.textContent='';requestSuccess.textContent='';
     if(requestPassword.value!==requestConfirm.value){requestError.textContent='Passwords do not match.';requestConfirm.focus();return}
     requestSubmit.disabled=true;requestSubmit.textContent='Submitting…';
-    try{const data=await api('/dashboard/api/access-requests/confirmed',{method:'POST',body:JSON.stringify({display_name:document.querySelector('#requestDisplayName').value,username:document.querySelector('#requestUsername').value,password:requestPassword.value,confirm_password:requestConfirm.value})});requestPassword.value='';requestConfirm.value='';requestSuccess.textContent=data.message||'Request submitted for Owner review.';requestSubmit.textContent='Request submitted'}
-    catch(err){requestError.textContent=err.message;requestSubmit.disabled=false;requestSubmit.textContent='Submit request'}
+    try{
+      const data=await api('/dashboard/api/access-requests/confirmed',{method:'POST',body:JSON.stringify({display_name:document.querySelector('#requestDisplayName').value,username:document.querySelector('#requestUsername').value,email:document.querySelector('#requestEmail').value,password:requestPassword.value,confirm_password:requestConfirm.value})});
+      requestPassword.value='';requestConfirm.value='';requestSuccess.textContent=data.message||'Request submitted for Owner review.';requestSubmit.textContent='Request submitted';
+    }catch(err){requestError.textContent=err.message;requestSubmit.disabled=false;requestSubmit.textContent='Submit request'}
   });
 
   forgotForm?.addEventListener('submit',async e=>{
