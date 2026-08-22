@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Project Roadmap
 
-Status: **F0/F1/F2/F3/F4/F5/F5.1/F6A verified complete; PostgreSQL remains non-canonical**
+Status: **F0/F1/F2/F3/F4/F5/F5.1/F6A verified complete; F6B authorized and authored on test; PostgreSQL remains non-canonical**
 
 The live Google workbook/source documents remain operationally authoritative until shadow/dual validation and explicit database promotion.
 
@@ -42,25 +42,42 @@ Verified F6A runtime:
 - `/health` healthy with `database_canonical: false`;
 - `/ready` database reachable with migration/expected migration both `0004_shadow`.
 
-F6A did not read or import the live Google workbook.
+## F6B — read-only live-workbook shadow snapshot
 
-## Next gated slice — F6B
+Status: **authorized; implementation authored on `test`; runtime credential bootstrap pending before merge**.
 
-**F6B — first read-only live-workbook snapshot import into shadow PostgreSQL** is the next logical slice, but it crosses the live-source boundary and therefore requires explicit authorization before implementation.
+The authoritative workbook was identified as `Medicine Store Cloud`. Read-only inspection confirmed the live `Main Stock` and `Daily Usage` column contracts.
 
-If authorized, F6B should:
+F6B authored behavior:
 
-1. read a controlled snapshot of the authoritative Main Stock and Daily Usage workbook data;
-2. preserve workbook/sheet/row provenance and source hash;
-3. stage data only in the shadow migration domain first;
-4. classify SAFE / REVIEW / CONFLICT / NEW-UNMAPPED cases;
-5. produce counts and mismatch reports without silent repair;
-6. avoid production stock-write endpoints and keep PostgreSQL non-canonical;
-7. make reruns idempotent and traceable to the exact snapshot.
+1. use Google Sheets read-only OAuth scope only;
+2. read `Main Stock` and `Daily Usage` without mutating the workbook;
+3. preserve exact source sheet/row provenance and deterministic source hashes;
+4. stage live rows only in F6A shadow migration tables;
+5. classify `SAFE`, `REVIEW`, `CONFLICT`, and `NEW_UNMAPPED` cases;
+6. validate Main Stock and Daily Usage balance formulas and cross-sheet monthly usage/current balance consistency;
+7. perform no automatic identity repair/remapping;
+8. create no canonical products/lots/ledger transactions;
+9. keep PostgreSQL non-canonical and the Google workbook authoritative;
+10. keep all live workbook rows and Google credentials out of the public repository.
+
+Canonical plan: `docs/operations/F6B_LIVE_SHADOW_IMPORT_PLAN.md`.
+
+### Current gate
+
+The self-hosted VPS runner does not yet have a dedicated Google service-account credential. Do not merge the F6B runtime path to `main` until:
+
+- a dedicated service account exists;
+- its email is shared to `Medicine Store Cloud` as Viewer only;
+- its JSON key is stored outside the repository at `/opt/medicine-store-assistant/secrets/google-service-account.json`;
+- `runtime.env` contains `MSA_GOOGLE_SPREADSHEET_ID` and `MSA_GOOGLE_SERVICE_ACCOUNT_FILE`;
+- `msa-runner` can read the credential through the existing `medstore` group boundary without printing it.
+
+After that one-time credential bootstrap, F6B promotion remains automatic: `test -> PR -> main -> self-hosted deploy/import/verify`.
 
 ## Safety boundary
 
-Do not begin F6B live Sheet import, production stock writes, database promotion, Telegram writes, Flutter rollout, Google Sheet mirror conversion, or Custom GPT write Actions without explicit authorization for that slice.
+F6B is authorized only for read-only source access and shadow staging. It does not authorize production stock writes, database promotion, Telegram writes, Flutter rollout, Google Sheet mirror conversion, or Custom GPT write Actions.
 
 ## Continuity rule
 
