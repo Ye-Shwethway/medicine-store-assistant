@@ -5,7 +5,7 @@ import os
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 
-EXPECTED_MIGRATION = "0008_email_recovery"
+EXPECTED_MIGRATION = "0009_recovery_token_cleanup"
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 
