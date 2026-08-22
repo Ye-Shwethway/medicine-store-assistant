@@ -22,6 +22,7 @@ docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" build api
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d db
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm api alembic upgrade head
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm api python -m app.catalogue_verify
+docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm api python -m app.catalogue_api_verify
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d api
 
 API_PORT="$(awk -F= '$1 == "MSA_API_HOST_PORT" {print $2}' "$ENV_FILE" | tail -n1)"
@@ -46,4 +47,4 @@ wait_for_url() {
 wait_for_url "http://127.0.0.1:${API_PORT}/health"
 wait_for_url "http://127.0.0.1:${API_PORT}/ready"
 
-echo "F5 synthetic catalogue versioning applied and verified at ${CURRENT_SHA}."
+echo "F5/F5.1 catalogue foundation and authenticated read surface applied and verified at ${CURRENT_SHA}."
