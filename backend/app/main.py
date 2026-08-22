@@ -5,6 +5,7 @@ import os
 from fastapi import FastAPI, Request, Response, status
 from fastapi.responses import RedirectResponse
 
+from app.access_request_confirmed import router as access_request_confirmed_router
 from app.credential_lifecycle import router as credential_lifecycle_router
 from app.dashboard import router as dashboard_router
 from app.dashboard_auth import SESSION_COOKIE, validate_session_token
@@ -39,7 +40,7 @@ async def dashboard_login_gate(request: Request, call_next):
 
     if path == "/dashboard" and not authenticated:
         return RedirectResponse(url="/dashboard/login", status_code=status.HTTP_307_TEMPORARY_REDIRECT)
-    if path == "/dashboard/login" and authenticated:
+    if path == "/dashboard/login" and authenticated and request.query_params.get("verify-email") != "1":
         return RedirectResponse(url="/dashboard", status_code=status.HTTP_307_TEMPORARY_REDIRECT)
 
     return await call_next(request)
@@ -48,6 +49,7 @@ async def dashboard_login_gate(request: Request, call_next):
 app.include_router(dashboard_login_router)
 app.include_router(dashboard_router)
 app.include_router(user_management_router)
+app.include_router(access_request_confirmed_router)
 app.include_router(credential_lifecycle_router)
 app.include_router(email_recovery_router)
 app.include_router(read_router)
