@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Implementation Plan
 
-Status: **foundation and read-only dashboard verified; F7.2A canonical multi-user identity is the next implementation slice; production inventory write authority remains unauthorized**
+Status: **F7.2A canonical multi-user identity and sessions verified complete; F7.2B User Management is the next implementation slice; production inventory write authority remains unauthorized**
 
 This file is the execution contract for the current Medicine Store Assistant architecture. `ROADMAP.md` remains the high-level roadmap; this plan defines implementation order, dependencies, and exit criteria.
 
@@ -62,9 +62,21 @@ Verified complete:
 - F6A — synthetic shadow migration adapter
 - F6C — authenticated shadow read API
 - F7.1 — read-only Web Dashboard foundation
-- bootstrap Owner login/data/logout path for F7.2
+- F7.2A — canonical multi-user identity and sessions
 
 F6B remains a verified **test-only** live-workbook staging exercise, not an accepted migration baseline.
+
+F7.2A verification evidence:
+
+- PR #36 merged as `c3aa75d65e0bc6d1836227fe8450b0b3de5b2651`;
+- automatic VPS deploy run `32586385336`, job `97063270146`, completed successfully;
+- Alembic `0004_shadow -> 0005_identity` succeeded;
+- existing F2 `users` / `roles` / `user_roles` were evolved as the canonical human identity model rather than replaced;
+- canonical Owner bootstrap used the existing password hash without plaintext exposure;
+- username/password auth, durable revocable DB session, Owner RBAC, authenticated 403, and disabled-user denial all passed runtime acceptance;
+- F6B remained row_count 1646 / SAFE 1417 / REVIEW 222 / CONFLICT 0 / NEW_UNMAPPED 7;
+- `database_canonical=false` and `migration_baseline_accepted=false` remained true boundaries;
+- deployment executed no live workbook import and no inventory mutation.
 
 ## 4. Product architecture direction
 
@@ -90,34 +102,39 @@ All clients reuse the same backend identity, authority, store-location, preferen
 
 # F7 — Application and control-plane foundation before production writes
 
-## F7.2A — Canonical multi-user identity and sessions — **NEXT**
+## F7.2A — Canonical multi-user identity and sessions — **VERIFIED COMPLETE**
 
 Purpose: replace the bootstrap password-only Owner bridge with durable human accounts.
 
-### Tasks
+### Implemented
 
-- stable canonical `user_id`;
-- unique mutable username;
-- password hash + credential metadata;
-- roles `OWNER`, `ADMIN`, `STAFF`, `READ_ONLY`;
+- stable canonical UUID `user_id` using the existing F2 `users` table;
+- username login field and username + password authentication;
+- approved roles `OWNER`, `ADMIN`, `STAFF`, `READ_ONLY` through the existing `roles` / `user_roles` model;
 - account states `PENDING`, `ACTIVE`, `DISABLED`;
-- user-bound revocable sessions;
-- migrate/bootstrap the existing Owner into the canonical model without exposing plaintext credentials;
-- normal Owner login becomes username + password;
-- backend authorization helpers and deterministic role-policy tests;
-- explicit authenticated `403 / Access denied` state;
-- session revocation on disable/security events;
-- inventory remains read-only.
+- one role per canonical human user for the current static RBAC model;
+- durable user-bound `user_sessions` with opaque client token, server-side keyed digest, expiry, revocation, last-seen tracking, and credential-version binding;
+- bootstrap of the existing Owner password hash into the canonical user model without plaintext exposure;
+- normal Owner login changed from password-only to username + password;
+- backend `require_roles(...)` helper and `require_owner_session` specialization;
+- explicit authenticated `403 / Access denied` result for role denial;
+- protected-session resolution rejects disabled users immediately;
+- deployment acceptance exercises a temporary auth-only READ_ONLY user and removes it afterward;
+- inventory/dashboard data access remains read-only.
 
-### Exit criteria
+### Verified exit criteria
 
-- Owner authenticates with username + password;
-- session resolves to stable `user_id` + `OWNER` role;
-- disabled users lose protected access;
-- role checks are server-side;
-- no inventory mutation is introduced.
+- Owner authenticates through the canonical username/password model — pass;
+- session resolves to stable `user_id` + `OWNER` role — pass;
+- disabled user loses protected access with an existing session — pass;
+- server-side role denial returns authenticated 403 / `Access denied` — pass;
+- anonymous private dashboard access remains 401 — pass;
+- PostgreSQL remains non-canonical and F6B remains test-only — pass;
+- no inventory mutation was introduced — pass.
 
-## F7.2B — User Management
+Compatibility note: F7.2A preserved the already-deployed bootstrap PBKDF2 password hash specifically so the Owner could migrate without plaintext access. New credential creation/upgrade policy belongs to F7.2C and must not be silently expanded inside F7.2B.
+
+## F7.2B — User Management — **NEXT**
 
 Purpose: durable human account/access workflow, separate from Audit and AI Agent Management.
 
@@ -130,15 +147,17 @@ Purpose: durable human account/access workflow, separate from Audit and AI Agent
 - ADMIN may perform only explicitly delegated account operations and can never grant/promote `OWNER`;
 - Owner creation/promotion remains a separate high-risk flow;
 - disable/reactivate/revoke flows;
-- security events for account/role/status changes;
+- security events for account/role/status changes using only the minimum interface/schema prerequisite needed for this slice;
 - reusable notification-event contract for future Telegram/Flutter approval mirrors.
 
 ### Exit criteria
 
 - pending/rejected users cannot access protected inventory;
 - approved users receive the exact assigned role;
+- disabled users lose existing protected sessions through F7.2A enforcement;
 - escalation boundaries are backend-enforced;
-- User Management remains separate from operational Audit and AI Agent Management.
+- User Management remains separate from operational Audit and AI Agent Management;
+- no credential-reset lifecycle or inventory mutation is introduced.
 
 ## F7.2C — Credential lifecycle
 
@@ -429,8 +448,8 @@ Flutter may provide mobile-optimized card/table views, Smart Calculator, receipt
 
 ## Recommended execution order
 
-1. **F7.2A — Canonical multi-user identity** — next
-2. **F7.2B — User Management**
+1. **F7.2A — Canonical multi-user identity** — verified complete
+2. **F7.2B — User Management** — next
 3. **F7.2C — Credential lifecycle**
 4. **F7.2D — AI Agent Management & delegated authority**
 5. **F7.3 — Actor-aware Audit / operation ledger**
@@ -447,4 +466,4 @@ Flutter may provide mobile-optimized card/table views, Smart Calculator, receipt
 
 ## Immediate work boundary
 
-The next chat resumes implementation from **F7.2A canonical multi-user identity**. Complete the human identity/User Management/credential foundation before moving into F7.2D Agent Management and F7.3 Audit. Do not jump ahead to production inventory writes, AI writes, store transfers, Calculator deduction, Telegram/Flutter mutation, or canonical promotion.
+The next authorized slice is **F7.2B User Management**. Reuse the verified F7.2A canonical human identity/session/RBAC foundation. Do not implement F7.2C credential lifecycle, F7.2D AI Agent Management, F7.3 operational Audit, production inventory writes, AI writes, store transfers, Calculator deduction, Telegram/Flutter mutation, or canonical promotion as part of this slice unless a strict prerequisite is separately authorized.
