@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 concurrency:
   group: msa-vps-deploy
@@ -42,6 +43,45 @@ jobs:
         working-directory: source
         run: bash deploy/apply_backend.sh
 
+      - name: Publish deployment status
+        if: always()
+        continue-on-error: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_STATUS: ${{ job.status }}
+          STATUS_ISSUE: '26'
+        run: |
+          set -euo pipefail
+          RUN_URL="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          BODY_FILE="${RUNNER_TEMP}/msa-deploy-status.json"
+          export RUN_URL
+          python3 - <<'PY' > "$BODY_FILE"
+          import json, os
+          from datetime import datetime, timezone
+          status = os.environ['JOB_STATUS']
+          body = "\n".join([
+              "Machine-readable deployment status for Medicine Store Assistant.",
+              "",
+              f"status={status}",
+              f"source_sha={os.environ['GITHUB_SHA']}",
+              f"workflow_run_id={os.environ['GITHUB_RUN_ID']}",
+              f"workflow_run_url={os.environ['RUN_URL']}",
+              f"workflow_attempt={os.environ.get('GITHUB_RUN_ATTEMPT', '1')}",
+              f"updated_at={datetime.now(timezone.utc).isoformat()}",
+              "publisher=deploy-f5.yml",
+          ])
+          print(json.dumps({"body": body}))
+          PY
+          curl --fail-with-body --silent --show-error \
+            --request PATCH \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/${STATUS_ISSUE}" \
+            --data-binary "@${BODY_FILE}" >/dev/null
+          echo "deployment_status_issue=${STATUS_ISSUE} status=${JOB_STATUS} run=${GITHUB_RUN_ID}"
+
       - name: Report deployment result
         if: always()
         shell: bash
@@ -49,3 +89,4 @@ jobs:
           echo "source_sha=${GITHUB_SHA}"
           echo "workflow_run_id=${GITHUB_RUN_ID}"
           echo "workflow_job_status=${{ job.status }}"
+          echo "deployment_status_issue=26"
