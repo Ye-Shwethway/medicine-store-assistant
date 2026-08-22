@@ -22,8 +22,12 @@ def _get_json(base_url: str, path: str, cookie: str) -> dict:
 
 
 def main() -> None:
-    port = os.environ.get("MSA_API_HOST_PORT", "8088")
-    base_url = f"http://127.0.0.1:{port}"
+    base_url = os.environ.get("MSA_DASHBOARD_VERIFY_BASE_URL")
+    if not base_url:
+        port = os.environ.get("MSA_API_HOST_PORT", "8088")
+        base_url = f"http://127.0.0.1:{port}"
+    base_url = base_url.rstrip("/")
+
     cookie = create_session_token()
 
     overview = _get_json(base_url, "/dashboard/api/overview", cookie)
