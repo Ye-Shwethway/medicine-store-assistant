@@ -29,6 +29,8 @@
     const label=input?.previousElementSibling;
     const heading=document.querySelector('#forgotTitle')?.closest('.login-heading');
     if(!input||!label||!heading||document.querySelector('#recoveryModeSwitch'))return;
+    const intro=heading.querySelector('p:not(.eyebrow)');
+    if(intro)intro.textContent='Use either your account username or verified recovery email. The response stays generic for account privacy.';
     const switcher=document.createElement('div');
     switcher.id='recoveryModeSwitch';
     switcher.className='recovery-mode-switch';
