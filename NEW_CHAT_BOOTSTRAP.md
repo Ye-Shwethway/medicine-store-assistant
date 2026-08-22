@@ -14,8 +14,7 @@ Use this file for project-development continuity and memory reconciliation in a 
 4. `IMPLEMENTATION_PLAN.md`
 5. `docs/architecture/README.md`
 6. task-relevant architecture/operations/design docs
-7. skill references when spreadsheet/UI work is involved
-8. current repository/runtime evidence
+7. current repository/runtime evidence
 
 Treat newer verified repository/runtime evidence as authoritative over remembered chat context.
 
@@ -23,32 +22,24 @@ Treat newer verified repository/runtime evidence as authoritative over remembere
 
 The live Google workbook/source documents remain authoritative. PostgreSQL is deployed but **not canonical**.
 
-The F6B staged batch is **test-only**. It is not an accepted migration baseline and must not be treated as the real dataset to promote later. A fresh real migration dataset will be imported only after the operational workflow and user-facing management UI are ready and explicitly approved.
+The F6B staged batch is **test-only** and not an accepted migration baseline.
 
 ## Deployment and owner-interaction workflow
 
 Canonical flow: `test -> pull request -> main -> automatic VPS deployment for relevant runtime changes`.
 
-- No normal manual VPS deployment command is required from the owner.
-- No normal manual GitHub Actions deploy button is required.
-- Do not require the owner to use Termux, SSH, tmux, shell commands, or other terminal steps for normal continuation.
-- Bamboo/Bamboo Claw is not part of the normal MSA implementation, deployment, verification, or continuity workflow unless the owner explicitly re-authorizes it.
-- Prefer connected tools, repository automation, repo-scoped self-hosted runner `msa-vps-runner-01`, and durable application-native/browser admin mechanisms.
-- If a privileged VPS/runtime task cannot be completed through the normal automated path, design a safe product/admin/browser flow rather than falling back to repeated ad-hoc terminal instructions.
-- Backend validation is path-aware and lightweight.
-- Docs-only/unrelated changes do not deploy the VPS.
+- Do not require the owner to use Termux, SSH, tmux, shell commands, Bamboo/Bamboo Claw, or manual GitHub Actions for normal continuation.
+- Prefer connected tools, repository automation, repo-scoped self-hosted runner `msa-vps-runner-01`, and durable browser/admin mechanisms.
 - Runtime secrets stay on the VPS.
-- `.github/backend-deploy-result` records deployment status, source SHA, and workflow run ID.
-- Normal backend deploy does **not** read/import the live Google workbook.
-- Dashboard deploy verification checks both localhost and `https://inventory.drthorne.uk` public HTTPS paths.
+- Normal backend deploy does not read/import the live workbook.
+- Deployment status is published to GitHub issue #26 (`MSA deployment status`) with source SHA/run ID/status so connected tooling can inspect the run and job logs directly.
+- Dashboard deployment verification checks localhost and `https://inventory.drthorne.uk`.
 
 ## Verified checkpoints
 
-F0, F1, Cloudflare HTTPS route, F2, F3, F4, F5, F5.1, F6A, F6C, and **F7.1** are verified complete.
+F0, F1, Cloudflare HTTPS route, F2, F3, F4, F5, F5.1, F6A, F6C, and F7.1 are verified complete.
 
-F6B remains a verified **test-only** snapshot/staging exercise, not a migration baseline.
-
-Current test batch:
+F6B remains test-only:
 
 - batch ID `be13d127-5045-4284-a088-0a0b9b024d76`
 - rows 1646
@@ -59,13 +50,11 @@ Current test batch:
 - `migration_baseline_accepted=false`
 - `database_canonical=false`
 
-Canonical F7.1 evidence:
+The F7.2 bootstrap Owner flow is now live-verified: dedicated login works, authenticated dashboard data reads work, logout returns to login, and the test snapshot remains intact. The temporary password-only Owner bridge is therefore proven but is **not** the final multi-user credential model.
 
-`docs/operations/F7_1_WEB_DASHBOARD_FOUNDATION_VERIFICATION_2026-08-22.md`
+## F7 Web Dashboard and identity
 
-## F7 Web Dashboard
-
-Read before dashboard/auth work:
+Read before auth/user-management work:
 
 - `docs/architecture/F7_WEB_DASHBOARD.md`
 - `docs/design/UI_UX_PRO_MAX_INTEGRATION.md`
@@ -74,75 +63,60 @@ Read before dashboard/auth work:
 - `design-system/medicine-store-assistant/pages/dashboard.md`
 - `docs/architecture/F2_SCHEMA_DECISION_PROPOSAL.md`
 
-UI/UX Pro Max is pinned for this design cycle to upstream `nextlevelbuilder/ui-ux-pro-max-skill` commit `bc826e2267a36d98a2dcf5231e16c30ff546770f`.
+Dashboard v2.4 remains the locked visual/interaction baseline.
 
-Dashboard v2.4 remains the locked visual/interaction baseline. Preserve responsive sidebar/mobile drawer, visual sun/moon Light-Dark toggle, spreadsheet gridlines, Inventory→Overview path, row detail drawer, full-table focus mode, TEST DATA / DB NON-CANONICAL badges, and the read-only boundary.
+## Next authorized slice — F7.2A canonical multi-user identity
 
-### F7.1 verified deployment
+Implement the durable identity/session foundation before any production write capability:
 
-Implementation PR #14:
-
-- merge SHA `99b41c32c55d59e4acaafd44be77b78d93ed5889`
-- deploy run `32568177813`
-
-Public-route verification PR #15:
-
-- merge SHA `e114ce9abcde30f727315eea0c4314a5047f1c29`
-- deploy run `32568305770`
-- deploy job `97020051556`
-- evidence marker `0f9401baed9f950b1fb6abd507cc285f150f1c8b`
-
-Verified runtime facts:
-
-- `/dashboard` is deployed;
-- dashboard session route is deployed;
-- private dashboard BFF is fail-closed;
-- public `https://inventory.drthorne.uk/dashboard` path verified by the VPS runner;
-- dashboard auth password/session/tamper verifier passed;
-- F6C shadow verifier passed;
-- no live workbook import executed;
-- no inventory write routes were added.
-
-## Next authorized slice — F7.2 Authentication & Role-Based Access
-
-F7.2 is explicitly an authentication/RBAC slice, not credential provisioning alone.
-
-Locked design direction:
-
-- dedicated `/dashboard/login` primary sign-in page;
-- no public signup;
+- stable backend `user_id`;
+- username + password;
 - roles `OWNER`, `ADMIN`, `STAFF`, `READ_ONLY`;
-- backend policy is authoritative; hidden UI is not security;
-- role-aware navigation/control visibility;
+- states `PENDING`, `ACTIVE`, `DISABLED`;
+- user-bound revocable sessions;
+- migrate/bootstrap the existing Owner into the canonical user model;
+- normal Owner login becomes username + password;
+- backend-enforced role authorization;
 - explicit authenticated `403 / Access denied` state;
-- `Audit & Access` becomes the future account/access-management surface;
-- stable backend `user_id` is canonical human identity;
-- disable/revoke accounts rather than delete historical actors;
-- session expiry/sign-out return to login without exposing private data.
+- disabled users lose protected access;
+- inventory remains read-only.
 
-Bootstrap Owner secrets are now provisioned successfully on the protected VPS runtime. The temporary setup server and temporary files were removed after success. API restart completed and `/dashboard/api/session` reported `configured=true`; unauthenticated private dashboard reads returned HTTP 401. Owner login submission was captured for final verification. Do not mark the bootstrap public read path complete until normal runtime evidence confirms authenticated overview/rows/review reads, logout, and post-logout 401.
+Then continue:
 
-Runtime-only bootstrap values:
+### F7.2B — User Management
 
-- `MSA_DASHBOARD_OWNER_PASSWORD_HASH`
-- `MSA_DASHBOARD_SESSION_SECRET`
+- separate `User Management` surface;
+- Request access -> pending only;
+- Owner approval/rejection and allowed role assignment;
+- ADMIN cannot grant/promote OWNER;
+- disable/reactivate/revoke behavior;
+- in-product pending notifications;
+- future Telegram approval notification mirrors backend operations.
 
-They are not the final multi-user credential store. Do not put them, the plaintext Owner password, or session material in Git/browser code/logs.
+### F7.2C — Credential lifecycle
 
-Authorized implementation order:
+- change password;
+- owner-assisted forgotten-password/reset flow in v1;
+- short-lived single-use reset;
+- revoke old sessions after reset/disable.
 
-1. auth/RBAC canonical design + continuity docs;
-2. secure bootstrap Owner secret provisioning — completed;
-3. authenticated Owner public dashboard read verification — final verification pending;
-4. dedicated login + canonical user/session/RBAC implementation;
-5. OWNER / ADMIN / STAFF / READ_ONLY authorization verification.
+### F7.3 — Audit
 
-F7.2 remains read-only. Google Sheets remains the operational source of truth.
+`Audit` is separate from User Management and is reserved for store/database operational history: stock operations, corrections/reversals, imports/syncs, operation IDs, actor/client provenance, timestamps, outcomes, and relevant before/after references.
+
+## Future write/sync sequence
+
+- **F8**: Custom GPT/private API read-only experiment.
+- **F9**: first controlled typed write experiment after RBAC/ledger/idempotency/audit are verified.
+- **F10**: dual real-workflow + Google Sheet sync/mirror validation.
+- **F11**: explicit canonical promotion only after fresh migration, parity, backup/restore, audit, sync, and rollback proof.
+
+Clients such as Web, Telegram, ChatGPT/Custom GPT, and Flutter must use typed Inventory API operations. No arbitrary SQL, no direct LLM-to-DB credentials, and no direct LLM-to-Sheet mutation.
 
 ## Safety boundary
 
-Do not treat F6B test data as production migration truth. Do not begin production stock writes, database promotion, Telegram writes, Flutter rollout, Sheet mirror conversion, Custom GPT write Actions, or arbitrary permission editing without explicit authorization for those slices.
+Do not treat F6B test data as production migration truth. Do not begin production inventory writes, DB promotion, Telegram inventory writes, Flutter rollout, Sheet mirror conversion, or Custom GPT write Actions without explicit authorization for the corresponding slice.
 
 ## Continuity rule
 
-After significant architecture, implementation, deployment, migration, design-system, or next-work changes, update `ROADMAP.md`, this file, and relevant canonical docs.
+After significant architecture, implementation, deployment, migration, design-system, or next-work changes, update `ROADMAP.md`, this file, `IMPLEMENTATION_PLAN.md`, and relevant canonical docs.
