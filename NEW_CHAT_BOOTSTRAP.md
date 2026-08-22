@@ -22,17 +22,19 @@ Treat newer verified repository/runtime evidence as authoritative over remembere
 
 The live Google workbook/source documents remain authoritative. PostgreSQL is deployed but **not canonical**.
 
-The F6B staged batch is **test-only** and not an accepted migration baseline.
+The F6B staged batch remains **test-only** and not an accepted migration baseline.
+
+No production inventory write, DB promotion, Telegram/Flutter stock mutation, Sheet mirror conversion, or Custom GPT write Action is authorized merely by this bootstrap.
 
 ## Deployment and owner-interaction workflow
 
 Canonical flow: `test -> pull request -> main -> automatic VPS deployment for relevant runtime changes`.
 
-- Do not require the owner to use Termux, SSH, tmux, shell commands, Bamboo/Bamboo Claw, or manual GitHub Actions for normal continuation.
+- Do not require the Owner to use Termux, SSH, tmux, shell commands, Bamboo/Bamboo Claw, or manual GitHub Actions for normal continuation.
 - Prefer connected tools, repository automation, repo-scoped self-hosted runner `msa-vps-runner-01`, and durable browser/admin mechanisms.
 - Runtime secrets stay on the VPS.
 - Normal backend deploy does not read/import the live workbook.
-- Deployment status is published to GitHub issue #26 (`MSA deployment status`) with source SHA/run ID/status so connected tooling can inspect the run and job logs directly.
+- Deployment status is published to GitHub issue #26 (`MSA deployment status`) with source SHA/run ID/status so connected tooling can inspect runs/jobs directly.
 - Dashboard deployment verification checks localhost and `https://inventory.drthorne.uk`.
 
 ## Verified checkpoints
@@ -50,55 +52,55 @@ F6B remains test-only:
 - `migration_baseline_accepted=false`
 - `database_canonical=false`
 
-The F7.2 bootstrap Owner flow is live-verified: dedicated login works, authenticated dashboard data reads work, logout returns to login, and the test snapshot remains intact. The temporary password-only Owner bridge is proven but is **not** the final multi-user credential model.
+The bootstrap Owner flow is live-verified: dedicated login works, authenticated dashboard data reads work, logout returns to login, and the test snapshot remains intact. The password-only Owner bridge is proven but is **not** the final multi-user credential model.
 
 ## Product direction
 
-MSA is being developed as a multi-client intelligent operations system rather than only a database-backed spreadsheet replacement.
+MSA is a multi-client intelligent store-operations platform rather than only a database-backed spreadsheet replacement.
 
-Humans, AI agents, integrations, and system jobs will eventually collaborate through the same typed backend across Web, Telegram, Flutter, internal AI, and Custom GPT clients.
+Humans, AI agents, integrations, and system jobs will eventually collaborate through the same typed backend across Web, Telegram, Flutter, internal AI, Custom GPT, and scheduled jobs.
 
-The architecture must always preserve:
+Preserve:
 
 - canonical actor identity;
-- server-side authorization/delegation;
+- server-side RBAC and location scope;
+- explicit AI/service delegation;
 - deterministic database truth;
 - actor-aware operation provenance;
 - no arbitrary SQL/client DB credentials;
 - clear separation between calculated facts and AI interpretation.
 
-## F7 Web Application roadmap
+## Canonical current docs
 
 Read before current/future work:
 
+- `IMPLEMENTATION_PLAN.md`
+- `ROADMAP.md`
 - `docs/architecture/F7_WEB_DASHBOARD.md`
 - `docs/design/UI_UX_PRO_MAX_INTEGRATION.md`
 - `docs/design/F7_2_AUTH_RBAC_DESIGN.md`
 - `docs/architecture/F7_3_ACTOR_AUDIT_AND_OPERATION_LEDGER.md`
-- `docs/architecture/F7_4_F7_6_INTELLIGENCE_ARCHITECTURE.md`
+- `docs/architecture/F7_4_F7_8_STORE_AND_INTELLIGENCE_ARCHITECTURE.md`
 - `design-system/medicine-store-assistant/MASTER.md`
 - `design-system/medicine-store-assistant/pages/dashboard.md`
 - `docs/architecture/F2_SCHEMA_DECISION_PROPOSAL.md`
 
-Dashboard v2.4 remains the locked visual/interaction baseline.
+`docs/architecture/F7_4_F7_6_INTELLIGENCE_ARCHITECTURE.md` is superseded.
 
-## Next authorized slice — F7.2A canonical multi-user identity
+## Next authorized implementation sequence
 
-Implement durable identity/session foundation before production writes:
+### F7.2A — Canonical multi-user identity — **NEXT**
 
 - stable backend `user_id`;
 - username + password;
 - roles `OWNER`, `ADMIN`, `STAFF`, `READ_ONLY`;
 - states `PENDING`, `ACTIVE`, `DISABLED`;
 - user-bound revocable sessions;
-- migrate/bootstrap existing Owner into canonical user model;
+- migrate/bootstrap current Owner into canonical user model;
 - normal Owner login becomes username + password;
-- backend-enforced role authorization;
-- explicit authenticated `403 / Access denied` state;
-- disabled users lose protected access;
-- inventory remains read-only.
-
-Then continue:
+- backend-enforced authorization;
+- explicit authenticated 403 state;
+- inventory stays read-only.
 
 ### F7.2B — User Management
 
@@ -106,68 +108,76 @@ Then continue:
 - Request access -> pending only;
 - Owner approval/rejection and allowed role assignment;
 - ADMIN cannot grant/promote OWNER;
-- disable/reactivate/revoke behavior;
-- in-product pending notifications;
-- future Telegram approval notification mirrors backend operations.
+- disable/reactivate/revoke;
+- security events;
+- reusable pending-request notification event for later Telegram/Flutter delivery.
 
 ### F7.2C — Credential lifecycle
 
 - change password;
-- owner-assisted forgotten-password/reset flow in v1;
+- Owner-assisted forgotten-password/reset v1;
 - short-lived single-use reset;
 - revoke old sessions after reset/disable.
 
 ### F7.3 — Actor-aware Audit / Operation Ledger
 
-`Audit` is separate from User Management and reserved for store/database operational history.
+Audit is store/database operational history, separate from User Management.
 
-Canonical actor classes are `HUMAN`, `AI_AGENT`, `SYSTEM`, and `INTEGRATION`.
+Actor classes: `HUMAN`, `AI_AGENT`, `SYSTEM`, `INTEGRATION`.
 
-Every meaningful operation should eventually carry stable operation identity plus actor/source provenance. When an AI agent acts for a human, the delegated/authorizing `user_id` must be retained so Audit can distinguish human actions from AI-assisted or autonomous actions.
+Meaningful operations retain stable operation identity plus actor/client/authority/outcome provenance. When AI acts for a human, retain the authorizing `user_id`.
 
-Audit covers stock operations, corrections/reversals, imports/syncs, operation IDs, actor/client provenance, timestamps, outcomes, affected records, and relevant before/after or ledger references.
+### F7.4 — Inventory Locations, Store Policy & Preferences
 
-### F7.4 — Smart Analysis
+- exactly one Main Store;
+- Owner may create any number of Sub Stores;
+- location-aware product/lot balances;
+- Main -> Sub transfer model;
+- current `Daily Usage` is future Stock Transfer source evidence, not assumed end-customer usage;
+- Owner reorder policy: `MAIN_STORE_ONLY` (initial/default) or `TOTAL_ACTIVE_STOCK`;
+- user preferences include default location/Calculator Sub Store, card/table view, columns, filters, and calculator/receipt defaults.
 
-Read-only deterministic analytics plus professional dashboard charts/KPIs.
+### F7.5 — Smart Calculator / Receipts
 
-Initial v1 modules:
+Calculation-only first.
 
-- Stock Health
-- Usage Trends
-- Expiry Risk
-- Reorder Outlook
-- Price Movement
-- Data Quality
+- DB-backed item/lot/location search;
+- no separate Excel upload or Calculator column mapping;
+- same-name disambiguation;
+- quantity/price/multiple items/extra fees;
+- receiver/issuer/note;
+- saved calculations and receipt history;
+- print/PDF/export/share;
+- `CALCULATE_ONLY` now;
+- future `DISPENSE_FROM_SUB_STORE` only after controlled-write authorization;
+- selected/default Sub Store comes from backend preference/scope;
+- photo/AI scan may create drafts but never auto-commit ambiguous inventory operations.
 
-Metrics must be reproducible from SQL/domain formulas/business rules and remain useful if AI is unavailable.
+Owner batch intake/import mapping remains a separate ingestion workflow.
 
-### F7.5 — Internal AI Assistant
+### F7.6 — Smart Analysis
 
-Read-only conversational analysis grounded in typed backend analytics/tools.
+Deterministic charts/KPIs for Stock Health, Transfer/Usage Trends, Expiry Risk, Reorder Outlook, Price Movement, and Data Quality. Support Main/Sub/Total views and clearly show active reorder policy.
 
-The Assistant is an identifiable `AI_AGENT`, respects current-user RBAC scope, may explain/drill down/chart database facts, and never receives arbitrary SQL or raw DB credentials.
+### F7.7 — Internal AI Assistant
 
-### F7.6 — Alerts & Notifications
+Read-only typed-tool assistant grounded in backend truth. Identifiable `AI_AGENT`; respects user role/location scope; no arbitrary SQL or stock writes.
 
-Deterministic alert/event generation first, optional AI explanation second.
+### F7.8 — Alerts & Notifications
 
-Initial direction includes low stock, expiry, unusual usage, data-quality/mapping problems, reconciliation/sync failures, and User Management access/reset notifications.
+Deterministic events first, optional AI explanation second. Reusable across Web, Telegram, Flutter.
 
-One backend event should later be reusable across Web, Telegram, Flutter, and other notification channels.
+## Later sequence
 
-## Future integration/write sequence
+- **F8** — external/Custom GPT read-only integration.
+- **F9** — controlled typed writes after identity/audit/location/idempotency foundations; candidate commands include Main->Sub transfer and Smart Calculator Sub Store dispense.
+- **F10** — real workflow + fresh migration + Google Sheet sync/mirror validation; historical ambiguity must be surfaced, not guessed.
+- **F11** — explicit canonical DB promotion after parity, backup/restore, location-aware workflow, audit, sync, and rollback proof.
+- later Telegram/Flutter rollout reuses the same backend contracts; Flutter may cache for offline tolerance but does not become a second canonical inventory database.
 
-- **F8**: external/Custom GPT read-only integration reusing approved read/analytics APIs.
-- **F9**: first controlled typed write experiment after identity/RBAC/ledger/idempotency/actor-audit are verified.
-- **F10**: dual real-workflow + Google Sheet sync/mirror validation.
-- **F11**: explicit canonical promotion only after fresh migration, parity, backup/restore, audit, sync, and rollback proof.
+## Immediate work boundary
 
-Clients and AI agents must use typed Inventory API operations. No arbitrary SQL, no direct LLM-to-DB credentials, and no direct LLM-to-Sheet mutation.
-
-## Safety boundary
-
-Do not treat F6B test data as production migration truth. Do not begin production inventory writes, DB promotion, Telegram inventory writes, Flutter rollout, Sheet mirror conversion, or Custom GPT write Actions without explicit authorization for the corresponding slice.
+Implementation resumes from **F7.2A canonical multi-user identity**. Then F7.2B User Management and F7.2C credential lifecycle. Do not jump ahead to store-location writes, Smart Calculator stock deduction, AI writes, Telegram/Flutter stock mutation, or canonical promotion.
 
 ## Continuity rule
 
