@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Architecture Index
 
-Status: **F7.2A canonical human identity/sessions verified; F7.2B User Management next; PostgreSQL remains non-canonical**
+Status: **F7.2A canonical human identity/sessions and F7.2B User Management verified; F7.2C Credential Lifecycle next; PostgreSQL remains non-canonical**
 
 This directory defines the future canonical architecture for Medicine Store Assistant beyond the current spreadsheet-operating skill.
 
@@ -27,11 +27,14 @@ MSA evolves toward a ledger-backed multi-client inventory system in which:
 
 ## Current F7 architecture
 
-F7.2A is deployed and runtime-verified. Human accounts now use the existing F2 canonical `users` / `roles` / `user_roles` foundation with stable UUID `user_id`, username + password, `PENDING` / `ACTIVE` / `DISABLED` state, durable DB-bound revocable sessions, backend role helpers, explicit authenticated 403 behavior, and disabled-user enforcement. This changed authentication/control-plane identity only; inventory remains read-only.
+F7.2A is deployed and runtime-verified. Human accounts use the existing F2 canonical `users` / `roles` / `user_roles` foundation with stable UUID `user_id`, username + password, `PENDING` / `ACTIVE` / `DISABLED` state, durable DB-bound revocable sessions, backend role helpers, explicit authenticated 403 behavior, and disabled-user enforcement.
+
+F7.2B is also deployed and runtime-verified. It adds pending-only access requests, Owner-only human User Management, approval/rejection and `ADMIN` / `STAFF` / `READ_ONLY` assignment, non-Owner role changes with session revocation, disable/reactivate/session revoke, OWNER ordinary-flow escalation protection, account-security events, reusable notification events, and a signed-in drawer/sidebar profile card with circular avatar area, deterministic initials fallback, canonical username, and role. User Management remains separate from operational Audit.
 
 Current direction continues with:
 
-- F7.2B User Management next;
+- F7.2C Credential Lifecycle next;
+- F7.2D Owner-only AI Agent Management after F7.2C;
 - exactly one Main Store plus Owner-created Sub Stores later in F7.4;
 - Owner-only global Settings in its later authorized slice;
 - Owner-configurable reorder basis (`MAIN_STORE_ONLY` initially, later optional `TOTAL_ACTIVE_STOCK`);
@@ -42,7 +45,9 @@ Current direction continues with:
 - Smart Analysis is deterministic first, AI-assisted second;
 - Alerts/Notifications reuse backend events across clients.
 
-Verified F7.2A anchor: PR #36, merge `c3aa75d65e0bc6d1836227fe8450b0b3de5b2651`, deploy run `32586385336`. Deployment preserved `database_canonical=false`, `migration_baseline_accepted=false`, and performed no live workbook import or inventory mutation.
+Verified F7.2A anchor: PR #36, merge `c3aa75d65e0bc6d1836227fe8450b0b3de5b2651`, deploy run `32586385336`.
+
+Verified F7.2B anchor: PR #38, merge `e4671c75ab2ece2a6f5065a78779413ef3e9f38b`, deploy run `32588170791`, job `97067607202`. Deployment preserved `database_canonical=false`, `migration_baseline_accepted=false`, public User Management gate 401, and performed no live workbook import or inventory mutation.
 
 ## Documents
 
