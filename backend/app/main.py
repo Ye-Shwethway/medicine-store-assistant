@@ -10,6 +10,7 @@ from app.dashboard import router as dashboard_router
 from app.dashboard_auth import SESSION_COOKIE, validate_session_token
 from app.dashboard_login import router as dashboard_login_router
 from app.db import database_readiness
+from app.email_recovery import router as email_recovery_router
 from app.read_api import router as read_router
 from app.shadow_read_api import router as shadow_read_router
 from app.user_management import router as user_management_router
@@ -24,7 +25,7 @@ app = FastAPI(
     version=SERVICE_VERSION,
     description=(
         "Typed API boundary for the Medicine Store Assistant backend. "
-        "Authenticated inventory, canonical human identity/User Management/credential lifecycle, catalogue, "
+        "Authenticated inventory, canonical human identity/User Management/credential and email-recovery lifecycle, catalogue, "
         "test-only shadow reads, and the F7 read-only dashboard are available; canonical inventory writes remain disabled."
     ),
 )
@@ -48,6 +49,7 @@ app.include_router(dashboard_login_router)
 app.include_router(dashboard_router)
 app.include_router(user_management_router)
 app.include_router(credential_lifecycle_router)
+app.include_router(email_recovery_router)
 app.include_router(read_router)
 app.include_router(shadow_read_router)
 
