@@ -11,13 +11,37 @@ from fastapi import Cookie, HTTPException, status
 
 PASSWORD_HASH = os.getenv("MSA_DASHBOARD_OWNER_PASSWORD_HASH", "").strip()
 SESSION_SECRET = os.getenv("MSA_DASHBOARD_SESSION_SECRET", "").strip()
-SESSION_TTL_SECONDS = int(os.getenv("MSA_DASHBOARD_SESSION_TTL_SECONDS", "28800"))
 SESSION_COOKIE = "msa_dashboard_session"
 PBKDF2_ITERATIONS = 310_000
+MIN_SESSION_SECRET_LENGTH = 32
+
+
+def _session_ttl_seconds() -> int:
+    try:
+        value = int(os.getenv("MSA_DASHBOARD_SESSION_TTL_SECONDS", "28800"))
+    except ValueError:
+        return 28_800
+    return min(max(value, 300), 86_400)
+
+
+SESSION_TTL_SECONDS = _session_ttl_seconds()
+
+
+def _password_hash_shape_valid(value: str) -> bool:
+    parts = value.split(":", 3)
+    if len(parts) != 4 or parts[0] != "pbkdf2_sha256":
+        return False
+    try:
+        iterations = int(parts[1])
+        salt = _b64decode(parts[2])
+        digest = _b64decode(parts[3])
+    except (ValueError, TypeError):
+        return False
+    return iterations >= 100_000 and len(salt) >= 16 and len(digest) == 32
 
 
 def dashboard_auth_configured() -> bool:
-    return bool(PASSWORD_HASH and SESSION_SECRET)
+    return _password_hash_shape_valid(PASSWORD_HASH) and len(SESSION_SECRET) >= MIN_SESSION_SECRET_LENGTH
 
 
 def make_password_hash(password: str, *, salt: bytes | None = None) -> str:
@@ -55,7 +79,7 @@ def verify_password(password: str) -> bool:
 def create_session_token() -> str:
     if not dashboard_auth_configured():
         raise RuntimeError("dashboard authentication is not configured")
-    expires_at = int(time.time()) + max(300, SESSION_TTL_SECONDS)
+    expires_at = int(time.time()) + SESSION_TTL_SECONDS
     nonce = secrets.token_urlsafe(12)
     payload = f"owner:{expires_at}:{nonce}"
     signature = hmac.new(SESSION_SECRET.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).hexdigest()
