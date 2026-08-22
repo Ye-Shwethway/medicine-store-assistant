@@ -104,7 +104,7 @@ def _principal_dict(row) -> dict[str, str]:
 
 
 def ensure_bootstrap_owner() -> dict[str, str]:
-    """Materialize the existing Owner bridge as a canonical user without plaintext access."""
+    """Materialize the existing Owner bridge in the F2 canonical user model without plaintext access."""
     if len(SESSION_SECRET) < MIN_SESSION_SECRET_LENGTH:
         raise RuntimeError("dashboard session secret is not configured")
     engine = _engine()
@@ -113,10 +113,11 @@ def ensure_bootstrap_owner() -> dict[str, str]:
             existing = connection.execute(
                 text(
                     """
-                    SELECT user_id, username, role, state
-                    FROM users
-                    WHERE role = 'OWNER'
-                    ORDER BY created_at, user_id
+                    SELECT u.user_id, u.username, ur.role_code AS role, u.state
+                    FROM users u
+                    JOIN user_roles ur ON ur.user_id = u.user_id
+                    WHERE ur.role_code = 'OWNER'
+                    ORDER BY u.created_at, u.user_id
                     LIMIT 1
                     """
                 )
@@ -126,20 +127,30 @@ def ensure_bootstrap_owner() -> dict[str, str]:
 
             if not password_hash_shape_valid(BOOTSTRAP_PASSWORD_HASH):
                 raise RuntimeError("bootstrap Owner password hash is unavailable")
-            if len(BOOTSTRAP_OWNER_USERNAME) > 64:
+            if len(BOOTSTRAP_OWNER_USERNAME) > 120:
                 raise RuntimeError("bootstrap Owner username is invalid")
 
             created = connection.execute(
                 text(
                     """
-                    INSERT INTO users (username, password_hash, role, state)
-                    VALUES (:username, :password_hash, 'OWNER', 'ACTIVE')
-                    RETURNING user_id, username, role, state
+                    INSERT INTO users (display_name, username, password_hash, state)
+                    VALUES ('Owner', :username, :password_hash, 'ACTIVE')
+                    RETURNING user_id, username, state
                     """
                 ),
                 {"username": BOOTSTRAP_OWNER_USERNAME, "password_hash": BOOTSTRAP_PASSWORD_HASH},
             ).one()
-            return _principal_dict(created)
+            user_id = str(created._mapping["user_id"])
+            connection.execute(
+                text("INSERT INTO user_roles (user_id, role_code) VALUES (CAST(:user_id AS uuid), 'OWNER')"),
+                {"user_id": user_id},
+            )
+            return {
+                "user_id": user_id,
+                "username": str(created._mapping["username"]),
+                "role": "OWNER",
+                "state": str(created._mapping["state"]),
+            }
     finally:
         engine.dispose()
 
@@ -166,9 +177,10 @@ def authenticate_user(username: str, password: str) -> dict[str, str] | None:
                 row = connection.execute(
                     text(
                         """
-                        SELECT user_id, username, password_hash, role, state
-                        FROM users
-                        WHERE lower(username) = lower(:username)
+                        SELECT u.user_id, u.username, u.password_hash, ur.role_code AS role, u.state
+                        FROM users u
+                        JOIN user_roles ur ON ur.user_id = u.user_id
+                        WHERE lower(u.username) = lower(:username)
                         LIMIT 1
                         """
                     ),
@@ -176,7 +188,8 @@ def authenticate_user(username: str, password: str) -> dict[str, str] | None:
                 ).first()
             if row is None or row._mapping["state"] != "ACTIVE":
                 return None
-            if not verify_password_hash(password, str(row._mapping["password_hash"])):
+            stored_hash = row._mapping["password_hash"]
+            if stored_hash is None or not verify_password_hash(password, str(stored_hash)):
                 return None
             return _principal_dict(row)
         finally:
@@ -238,9 +251,10 @@ def resolve_session_token(token: str | None) -> dict[str, str] | None:
                 row = connection.execute(
                     text(
                         """
-                        SELECT s.session_id, u.user_id, u.username, u.role, u.state
+                        SELECT s.session_id, u.user_id, u.username, ur.role_code AS role, u.state
                         FROM user_sessions s
                         JOIN users u ON u.user_id = s.user_id
+                        JOIN user_roles ur ON ur.user_id = u.user_id
                         WHERE s.token_digest = :token_digest
                           AND s.revoked_at IS NULL
                           AND s.expires_at > now()
