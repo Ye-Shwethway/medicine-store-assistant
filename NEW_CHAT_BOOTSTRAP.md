@@ -1,8 +1,6 @@
 # Medicine Store Assistant — New Chat Bootstrap
 
-Use this file for **project-development continuity and memory reconciliation** in a fresh chat.
-
-This is distinct from `NORMAL_CHAT_BOOTSTRAP.md`, which teaches normal chats how to use the published `$msa` skill.
+Use this file for project-development continuity and memory reconciliation in a fresh chat.
 
 ## Canonical repository
 
@@ -19,109 +17,61 @@ This is distinct from `NORMAL_CHAT_BOOTSTRAP.md`, which teaches normal chats how
 7. `skills/medicine-store-assistant/SKILL.md` and task-relevant references for spreadsheet work
 8. current repository/runtime evidence
 
-Treat newer verified repository/runtime evidence as authoritative over remembered chat context. Do not mutate live operational state during reconciliation unless the user explicitly authorizes that slice.
+Treat newer verified repository/runtime evidence as authoritative over remembered chat context.
 
-## Project boundary and authority
+## Authority boundary
 
-Same-repository monorepo remains active. The live Google workbook/source evidence remains authoritative until PostgreSQL is explicitly promoted after shadow/dual validation.
+The live Google workbook/source documents remain authoritative. PostgreSQL is deployed but **not canonical**.
 
 ## Deployment workflow
 
-Canonical development/deployment flow is now:
+Canonical development/deployment flow:
 
 `test -> pull request -> main -> automatic VPS deployment for relevant runtime changes`
 
-- `test` is the staging/integration branch.
-- Do not require the user to press a GitHub Actions manual deploy button for normal project continuation.
-- Git-backed skill validation is path-aware and runs only for skill/plugin/package-contract changes.
-- Backend validation is path-aware and lightweight: repository contract validation, Python compilation, and deployment-shell syntax checks for backend/deploy/workflow changes.
-- Docs-only/unrelated changes do not run the backend suite and do not deploy the VPS.
-- Relevant `main` changes under `backend/**`, `deploy/**`, or the deployment workflow automatically run on the repository-scoped self-hosted runner labelled `self-hosted`, `linux`, `msa-vps`.
-- The runner account has `docker` and `medstore` group access; no NOPASSWD sudo rule is used.
-- Runtime secrets remain on the VPS at `/opt/medicine-store-assistant/secrets/runtime.env`, readable by the runner through group permission, and are not copied into GitHub.
+- Do not require the user to run normal VPS deployment commands or press a manual Actions deploy button.
+- Backend/deploy validation is path-aware and lightweight.
+- Skill validation runs only for skill/plugin/package-contract changes.
+- Docs-only/unrelated changes do not deploy the VPS.
+- Relevant `main` runtime changes run on repository-scoped self-hosted runner `msa-vps-runner-01` (`self-hosted`, `linux`, `msa-vps`).
+- Runtime secrets stay at `/opt/medicine-store-assistant/secrets/runtime.env` on the VPS.
+- Deployment evidence is written back to `.github/backend-deploy-result` with status/source SHA/workflow run ID.
 
 ## Verified checkpoints
 
-### F0 — VPS inspection
-**Verified complete 2026-08-22.**
+- F0 VPS inspection — **verified complete 2026-08-22**
+- F1 runtime skeleton — **verified complete 2026-08-22**
+- Cloudflare public HTTPS route — **verified complete 2026-08-22**
+- F2 PostgreSQL foundation — **verified complete 2026-08-22**
+- F3 authenticated read-only API — **verified complete 2026-08-22**
+- F4 synthetic ledger foundation — **verified complete 2026-08-22**
+- F5 synthetic CMS catalogue versioning — **verified complete 2026-08-22**
+- F5.1 authenticated catalogue read API — **verified complete 2026-08-22**
 
-### F1 — Runtime skeleton
-**Verified complete 2026-08-22.** API localhost-only on `127.0.0.1:8088`; MSA PostgreSQL has no host-published port.
+Canonical F5/F5.1 evidence: `docs/operations/F5_F5_1_CATALOGUE_VERIFICATION_2026-08-22.md`.
 
-### Cloudflare public HTTPS route
-**Verified complete 2026-08-22.**
+Verified deployed source commit: `3a49c8edb63c4c3f38da8508ebf3187962224bb7`, GitHub Actions run `32546107503`.
 
-Canonical route: `https://inventory.drthorne.uk -> Cloudflare HTTPS -> existing managed Tunnel -> http://localhost:8088`.
+Runtime proof includes:
 
-### F2 — PostgreSQL schema/migration foundation
-**Verified complete 2026-08-22.**
-
-Canonical evidence: `docs/operations/F2_VPS_MIGRATION_VERIFICATION_2026-08-22.md`.
-
-### F3 — Authenticated read-only API
-**Verified complete 2026-08-22.**
-
-Canonical evidence: `docs/operations/F3_READ_API_VERIFICATION_2026-08-22.md`.
-
-Verified deployed commit: `dac1a4aa5b218d3c5eda24a636b3c3688979473b`.
-
-No live inventory import and no production stock-write endpoint exists.
-
-### F4 — Synthetic ledger foundation
-**Verified complete 2026-08-22.**
-
-Canonical evidence: `docs/operations/F4_SYNTHETIC_LEDGER_VERIFICATION_2026-08-22.md`.
-
-Verified deployed commit: `184f964a86cfb00696f4f2622e41289ab53f165a`.
-
-F4 verified migration `0002_ledger`, deterministic balance math, operation-id idempotency, normal negative-stock guard, reversal/correction linkage, rollback of synthetic fixtures, healthy `/health`, healthy `/ready`, and `database_canonical: false`.
-
-## F5 — Synthetic CMS catalogue versioning
-
-**Authorized and authored; automated VPS verification pending final evidence.**
-
-Repository contains:
-
-- migration `0003_catalogue` adding catalogue row-count/import/parser metadata, source row number, and DB-level unique source-hash protection;
-- deterministic SHA-256 catalogue content hashing;
-- identical-source idempotent import returning the prior version;
-- historical full-version storage in `cms_catalogue_versions` + `cms_catalogue_items`;
-- deterministic diff for new/removed codes and changed source fields;
-- price-only change classification;
-- identity-shift candidate detection when the same CMS code changes brand/description/form/type/class;
-- no automatic local product/lot remapping from CMS code;
-- synthetic verifier that proves hash idempotency, historical version availability, add/remove diff, price diff, and identity-shift guard;
-- verifier transaction rollback so synthetic catalogue data is not retained;
-- `deploy/apply_f5_catalogue_versioning.sh` for migration + verifier + health/readiness verification;
-- `/ready` expects `0003_catalogue` after deployment.
-
-F5 does **not** ingest a live CMS catalogue, import live Google Sheet inventory, mutate local item mappings, change production prices, create stock movement, mutate Sheets, enable Telegram/Flutter/GPT writes, or promote PostgreSQL.
-
-## Immediate next work
-
-Inspect the automatic self-hosted-runner F5 deployment evidence. F5 may be marked complete only if evidence proves:
-
-- repository validator PASS;
-- Alembic `0002_ledger -> 0003_catalogue`;
-- `F5 synthetic catalogue verification PASS`;
-- `hash_idempotency=pass version_history=pass add_remove_diff=pass price_diff=pass identity_shift_guard=pass`;
+- F5 hash idempotency, version history, add/remove diff, price diff, identity-shift guard all pass;
+- F5.1 versions/current/items/diff GET surfaces pass;
+- no catalogue write surface exists;
 - `/health` healthy with `database_canonical: false`;
-- `/ready` migration and expected migration both `0003_catalogue`.
+- `/ready` database reachable with migration and expected migration both `0003_catalogue`.
 
-If runtime evidence reveals a repository-side failure, fix the canonical repository through the `test -> main` flow rather than applying an ad-hoc VPS patch.
+## Current next slice
+
+**F6A — Shadow migration adapter foundation using synthetic/non-sensitive fixtures only.**
+
+F6A may build provenance schema, deterministic adapters, classification/reporting, and idempotent synthetic migration verification. It must not read or import the live Google workbook.
+
+A later separately authorized **F6B** would be the first read-only live-workbook snapshot import into shadow PostgreSQL.
 
 ## Safety boundary
 
-PostgreSQL is **not canonical yet**. The live Google workbook/source documents remain authoritative. Public/domain API remains read-only for real inventory.
-
-Do not begin live CMS catalogue ingestion, live Sheet shadow import, production stock writes, database promotion, Telegram writes, Flutter rollout, Google Sheet mirror conversion, or Custom GPT write Actions without explicit authorization.
+Do not begin live CMS ingestion, live Sheet import, production stock writes, database promotion, Telegram writes, Flutter rollout, Google Sheet mirror conversion, or Custom GPT write Actions without explicit authorization for that slice.
 
 ## Continuity rule
 
-After every significant architecture decision, implementation slice, deployment/migration result, or next-work change:
-
-- update `ROADMAP.md`;
-- update this file;
-- update relevant canonical architecture/operations docs.
-
-A fresh chat must recover current truth from repository evidence without relying on remembered conversation history.
+After every significant architecture decision, implementation slice, deployment/migration result, or next-work change, update `ROADMAP.md`, this file, and relevant canonical architecture/operations docs.
