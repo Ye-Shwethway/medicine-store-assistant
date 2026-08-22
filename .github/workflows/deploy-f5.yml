@@ -31,17 +31,11 @@ jobs:
           docker version
           docker compose version
           test -r /opt/medicine-store-assistant/secrets/runtime.env
-          set -a
-          source /opt/medicine-store-assistant/secrets/runtime.env
-          set +a
-          test -n "${MSA_GOOGLE_SPREADSHEET_ID:-}"
-          test -n "${MSA_GOOGLE_SERVICE_ACCOUNT_FILE:-}"
-          test -r "$MSA_GOOGLE_SERVICE_ACCOUNT_FILE"
-          echo "runner_preflight=pass google_readonly_credentials=pass"
+          echo "runner_preflight=pass"
 
       - name: Deploy and verify backend
         shell: bash
-        run: bash deploy/apply_f6b_live_shadow_snapshot.sh
+        run: bash deploy/apply_backend.sh
 
       - name: Record deployment evidence
         if: always()

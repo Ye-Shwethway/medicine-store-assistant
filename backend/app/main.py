@@ -6,6 +6,7 @@ from fastapi import FastAPI, Response, status
 
 from app.db import database_readiness
 from app.read_api import router as read_router
+from app.shadow_read_api import router as shadow_read_router
 
 SERVICE_NAME = "medicine-store-assistant-api"
 SERVICE_VERSION = os.getenv("MSA_SERVICE_VERSION", "0.1.0-dev")
@@ -17,11 +18,13 @@ app = FastAPI(
     version=SERVICE_VERSION,
     description=(
         "Typed API boundary for the Medicine Store Assistant backend. "
-        "Authenticated inventory and catalogue reads are available; canonical inventory writes remain disabled."
+        "Authenticated inventory, catalogue, and test-only shadow reads are available; "
+        "canonical inventory writes remain disabled."
     ),
 )
 
 app.include_router(read_router)
+app.include_router(shadow_read_router)
 
 
 @app.get("/health", tags=["system"], summary="Service health")

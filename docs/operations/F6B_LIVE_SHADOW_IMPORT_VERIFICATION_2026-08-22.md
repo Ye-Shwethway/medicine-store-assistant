@@ -1,10 +1,12 @@
 # F6B Live Shadow Import Verification — 2026-08-22
 
-Status: **verified complete**
+Status: **verified test-only staging exercise; not an accepted migration baseline**
 
 ## Scope
 
-F6B performed the first read-only live-workbook snapshot import from the authoritative `Medicine Store Cloud` Google workbook into shadow PostgreSQL staging. The workbook remained authoritative and PostgreSQL remained non-canonical.
+F6B proved that the `Medicine Store Cloud` workbook could be read through a Viewer-only service account and staged into shadow PostgreSQL without mutating the workbook.
+
+Project clarification after verification: the staged F6B batch is **test data for workflow/read-path validation only**. It is **not** the real migration dataset to be reconciled or promoted later. A fresh real migration dataset will be imported only after the operational workflow and user-facing management UI are ready and explicitly approved.
 
 No Google Sheet mutation, production stock write, canonical product/lot creation, canonical ledger transaction, database promotion, Telegram write, Flutter rollout, Sheet mirror conversion, or Custom GPT write Action occurred.
 
@@ -19,9 +21,9 @@ No Google Sheet mutation, production stock write, canonical product/lot creation
 - `database_canonical`: `false`
 - source authority: `google_workbook`
 
-## Live snapshot evidence
+## Test snapshot evidence
 
-The live read-only snapshot staged:
+The read-only test snapshot staged:
 
 - total rows: **1,646**
 - `SAFE`: **1,417**
@@ -30,7 +32,7 @@ The live read-only snapshot staged:
 - `CONFLICT`: **0**
 - snapshot source hash: `cfe4c24201bbe9f519189572f0c4c1988a9785e6fb0ca3e8f9630f5ca0417192`
 
-The migration batch was created successfully and retained source-sheet/source-row provenance. Real medicine-store row payloads are intentionally not published in this public repository.
+The batch retained source-sheet/source-row provenance. Real medicine-store row payloads are intentionally not published in this public repository.
 
 ## Verified controls
 
@@ -38,7 +40,7 @@ The migration batch was created successfully and retained source-sheet/source-ro
 - workbook shared to service account as Viewer;
 - credential remained on VPS outside GitHub;
 - runtime preflight confirmed credential readability without logging private key material;
-- live rows staged only in shadow migration tables;
+- rows staged only in shadow migration tables;
 - deterministic classification/reporting executed without silent repair;
 - no canonical inventory mutation occurred;
 - API restarted successfully;
@@ -47,12 +49,19 @@ The migration batch was created successfully and retained source-sheet/source-ro
 
 Transient connection resets during API recreation were followed by successful retry and healthy final probes.
 
-## Interpretation
+## Correct interpretation
 
-F6B proves that the live workbook can be read safely and staged reproducibly into the shadow migration domain. It does **not** prove that all staged rows are ready for canonical promotion. The 222 `REVIEW` rows and 7 `NEW_UNMAPPED` rows require reconciliation before any promotion decision.
+F6B proves only that the live workbook can be read safely and staged reproducibly into the shadow migration domain.
 
-`CONFLICT=0` is encouraging but is not sufficient by itself for database canonicality.
+The current 1,646-row batch must be treated as **test-only**:
 
-## Next recommended slice
+- `migration_baseline_accepted = false`;
+- it should not drive real migration reconciliation decisions;
+- its 222 `REVIEW` and 7 `NEW_UNMAPPED` rows are useful for exercising read-only inspection/reporting only;
+- a fresh migration snapshot will be taken later after the workflow and management UI are ready.
 
-F6C should reconcile and explain the staged `REVIEW` and `NEW_UNMAPPED` populations using read-only analysis and non-sensitive summary evidence. It should not silently repair source data, create canonical inventory transactions, or promote PostgreSQL.
+Normal backend deployment must not rerun the live importer. The importer remains an explicit test/migration operation only.
+
+## Next slice
+
+F6C is limited to authenticated read-only inspection of the existing test-only shadow batch: batch summaries, staged-row queries, filters, and review-reason summaries. It must expose no write/correction/promotion endpoint and must explicitly report that no migration baseline is accepted.

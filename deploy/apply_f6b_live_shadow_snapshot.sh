@@ -34,31 +34,12 @@ export COMPOSE_PROJECT_NAME="${MSA_COMPOSE_PROJECT_NAME:-deploy}"
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" config --quiet
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" build api
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d db
+
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm \
   -e MSA_GOOGLE_SPREADSHEET_ID="$MSA_GOOGLE_SPREADSHEET_ID" \
   -e MSA_GOOGLE_SERVICE_ACCOUNT_FILE=/run/secrets/msa-google-service-account.json \
   -v "$MSA_GOOGLE_SERVICE_ACCOUNT_FILE:/run/secrets/msa-google-service-account.json:ro" \
   api python -m app.live_shadow_import
 
-docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d api
-
-API_PORT="$(awk -F= '$1 == "MSA_API_HOST_PORT" {print $2}' "$ENV_FILE" | tail -n1)"
-API_PORT="${API_PORT:-8088}"
-
-wait_for_url() {
-  local url="$1"
-  for _ in $(seq 1 30); do
-    if curl --fail --silent --show-error "$url"; then
-      echo
-      return 0
-    fi
-    sleep 1
-  done
-  echo "error: endpoint did not become ready: $url" >&2
-  return 1
-}
-
-wait_for_url "http://127.0.0.1:${API_PORT}/health"
-wait_for_url "http://127.0.0.1:${API_PORT}/ready"
-
-echo "F6B live workbook shadow snapshot imported at ${CURRENT_SHA}."
+echo "F6B TEST-ONLY live workbook shadow snapshot staged at ${CURRENT_SHA}."
+echo "This command is not part of normal backend deployment and does not establish a migration baseline."

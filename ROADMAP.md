@@ -1,14 +1,16 @@
 # Medicine Store Assistant — Project Roadmap
 
-Status: **F0/F1/F2/F3/F4/F5/F5.1/F6A/F6B verified complete; PostgreSQL remains non-canonical**
+Status: **F0/F1/F2/F3/F4/F5/F5.1/F6A verified complete; F6B test-only shadow snapshot verified; PostgreSQL remains non-canonical**
 
-The live Google workbook/source documents remain operationally authoritative until shadow/dual validation and explicit database promotion.
+The live Google workbook/source documents remain operationally authoritative. The current staged F6B snapshot is **test-only** and is **not an accepted migration baseline**. A real migration dataset will be imported later only after the operational workflow and user-facing management UI are ready and explicitly approved.
 
 ## Delivery policy
 
 Canonical flow: `test -> pull request -> main -> automatic VPS deploy for relevant runtime changes`.
 
 Validation is path-aware and lightweight. Docs-only changes do not run the backend suite or deploy the VPS. Normal continuation does not require manual VPS commands or a manual Actions deploy button. Runtime secrets remain only on the VPS.
+
+Normal backend deployment must **not** read/import the live workbook. Live snapshot import is an explicit test/migration operation only.
 
 ## Verified foundation
 
@@ -21,7 +23,7 @@ Validation is path-aware and lightweight. Docs-only changes do not run the backe
 - F5 synthetic CMS catalogue versioning — verified complete 2026-08-22
 - F5.1 authenticated catalogue read API — verified complete 2026-08-22
 - F6A synthetic shadow migration adapter foundation — verified complete 2026-08-22
-- F6B first read-only live-workbook shadow snapshot — verified complete 2026-08-22
+- F6B read-only live-workbook **test snapshot** — verified as a test-only staging exercise 2026-08-22
 
 Canonical evidence:
 
@@ -30,13 +32,11 @@ Canonical evidence:
 - `docs/operations/F6A_SHADOW_MIGRATION_VERIFICATION_2026-08-22.md`
 - `docs/operations/F6B_LIVE_SHADOW_IMPORT_VERIFICATION_2026-08-22.md`
 
-## F6B verified runtime
+## F6B test-only snapshot
 
-Verified deployed source commit: `34b169c56422454b9a919936689c3088a9c4ebfc` via GitHub Actions run `32549738838`.
+Verified source commit `34b169c56422454b9a919936689c3088a9c4ebfc` via GitHub Actions run `32549738838` staged one read-only snapshot from `Medicine Store Cloud` into shadow PostgreSQL.
 
-The authoritative `Medicine Store Cloud` workbook was read through a dedicated Viewer-only service account and staged into shadow PostgreSQL without mutating the workbook.
-
-Live snapshot summary:
+Test snapshot summary:
 
 - total staged rows: **1,646**
 - `SAFE`: **1,417**
@@ -47,27 +47,28 @@ Live snapshot summary:
 - `/health`: healthy, `database_canonical:false`
 - `/ready`: database reachable, migration/expected migration `0004_shadow`
 
-Real workbook rows and credentials remain outside the public repository. F6B created no canonical product/lot/ledger records and performed no automatic repair or mapping mutation.
+This proves read-only acquisition/staging mechanics only. The batch is not approved as migration truth and should not drive canonical reconciliation or promotion decisions.
 
-## Next recommended slice — F6C
+## Current slice — F6C read-only shadow inspection
 
-**F6C — shadow reconciliation analysis** should explain the 222 `REVIEW` rows and 7 `NEW_UNMAPPED` rows before any canonical promotion discussion.
+Use the existing test-only staged data to prove read-only inspection surfaces needed by future user-facing clients.
 
-Recommended scope:
+Scope:
 
-1. group review cases by deterministic reason/category;
-2. identify whether mismatches originate from source formulas, missing identifiers, expiry/name normalization, or cross-sheet differences;
-3. analyze the 7 unmapped rows against available CMS/local identity evidence without automatic remapping;
-4. produce non-sensitive counts and reconciliation summaries;
-5. preserve all source rows unchanged;
-6. keep Google workbook authoritative and PostgreSQL non-canonical;
-7. make no production stock writes.
+1. list shadow/test batches and classification counts;
+2. inspect one batch summary;
+3. query staged rows by batch/sheet/classification/search text;
+4. summarize review/unmapped reasons;
+5. require the existing authenticated read scope;
+6. return `migration_baseline_accepted:false` and `database_canonical:false` explicitly;
+7. execute no live workbook import during normal deployment;
+8. expose no write/correction/promotion endpoint.
 
-F6C is a new reconciliation slice and should be explicitly authorized before implementation.
+A later product phase must design a user-facing management UI before any real migration baseline is imported/accepted.
 
 ## Safety boundary
 
-Do not begin production stock writes, database promotion, Telegram writes, Flutter rollout, Google Sheet mirror conversion, or Custom GPT write Actions without explicit authorization for that slice.
+Do not treat the current F6B test batch as the real migration dataset. Do not begin production stock writes, database promotion, Telegram writes, Flutter rollout, Sheet mirror conversion, or Custom GPT write Actions without explicit authorization for those slices.
 
 ## Continuity rule
 
