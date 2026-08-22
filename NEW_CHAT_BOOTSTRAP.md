@@ -13,8 +13,8 @@ Use this file for project-development continuity and memory reconciliation in a 
 3. `ROADMAP.md`
 4. `IMPLEMENTATION_PLAN.md`
 5. `docs/architecture/README.md`
-6. task-relevant architecture/operations docs
-7. skill references when spreadsheet work is involved
+6. task-relevant architecture/operations/design docs
+7. skill references when spreadsheet/UI work is involved
 8. current repository/runtime evidence
 
 Treat newer verified repository/runtime evidence as authoritative over remembered chat context.
@@ -59,11 +59,23 @@ F6C verification:
 
 Canonical evidence: `docs/operations/F6C_SHADOW_READ_API_VERIFICATION_2026-08-22.md`.
 
-## Next product direction — proposal only
+## Active product direction — Web Dashboard
 
-The next meaningful product slice should be the **user-facing management UI architecture/foundation**. Google Sheets remains the current practical human-facing interface until that UI exists.
+User-facing web management is now the active product direction. Continue using the existing F6B/F6C test dataset only for UI/read-workflow development.
 
-The future UI should safely surface inventory/lot/catalogue/shadow-review information and later explicitly authorized operations through the MSA API. Do not import/accept a real migration baseline just to continue backend work.
+UI/UX Pro Max is adopted for dashboard design intelligence, pinned for this design cycle to upstream `nextlevelbuilder/ui-ux-pro-max-skill` commit `bc826e2267a36d98a2dcf5231e16c30ff546770f`.
+
+Read before dashboard work:
+
+- `docs/design/UI_UX_PRO_MAX_INTEGRATION.md`
+- `design-system/medicine-store-assistant/MASTER.md`
+- `design-system/medicine-store-assistant/pages/dashboard.md`
+
+`scripts/bootstrap_ui_ux_pro_max.sh` materializes the pinned third-party skill locally under `.agents/skills/ui-ux-pro-max/`; that materialized bundle is intentionally Git-ignored and is not part of the production runtime.
+
+Current Figma file has a clean `Dashboard v2 — UUPM` page. The next implementation slice should build an authenticated interactive web dashboard against the existing read API and prove navigation, search/filtering, row details, loading/empty/error states, accessibility, and responsive behavior before any production write UI is added.
+
+Google Sheets remains the practical operational human-facing interface until the new dashboard is implemented and verified.
 
 ## Safety boundary
 
@@ -71,4 +83,4 @@ Do not treat F6B test data as production migration truth. Do not begin productio
 
 ## Continuity rule
 
-After significant architecture, implementation, deployment, migration, or next-work changes, update `ROADMAP.md`, this file, and relevant canonical docs.
+After significant architecture, implementation, deployment, migration, design-system, or next-work changes, update `ROADMAP.md`, this file, and relevant canonical docs.
