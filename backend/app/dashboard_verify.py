@@ -1,29 +1,27 @@
 from __future__ import annotations
 
-import app.dashboard_auth as dashboard_auth
+from app.dashboard_auth import make_password_hash, password_hash_shape_valid, require_roles, verify_password_hash
 
 
 def main() -> None:
-    original_hash = dashboard_auth.PASSWORD_HASH
-    original_secret = dashboard_auth.SESSION_SECRET
+    password = "f7-2a-verification-password"
+    password_hash = make_password_hash(password, salt=b"0123456789abcdef")
+
+    assert password_hash_shape_valid(password_hash)
+    assert verify_password_hash(password, password_hash)
+    assert not verify_password_hash("wrong-password", password_hash)
+    assert callable(require_roles("OWNER"))
+    assert callable(require_roles("ADMIN", "STAFF", "READ_ONLY"))
+
     try:
-        password = "f7-verification-password"
-        dashboard_auth.PASSWORD_HASH = dashboard_auth.make_password_hash(password, salt=b"0123456789abcdef")
-        dashboard_auth.SESSION_SECRET = "f7-verification-session-secret-with-sufficient-entropy"
+        require_roles("SUPERUSER")
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("non-canonical role unexpectedly accepted")
 
-        assert dashboard_auth.dashboard_auth_configured()
-        assert dashboard_auth.verify_password(password)
-        assert not dashboard_auth.verify_password("wrong-password")
-
-        token = dashboard_auth.create_session_token()
-        assert dashboard_auth.validate_session_token(token)
-        assert not dashboard_auth.validate_session_token(token + "tampered")
-
-        print("F7 dashboard auth foundation verification PASS")
-        print("password_hash=pass session_signature=pass tamper_guard=pass")
-    finally:
-        dashboard_auth.PASSWORD_HASH = original_hash
-        dashboard_auth.SESSION_SECRET = original_secret
+    print("F7.2A auth primitive verification PASS")
+    print("password_hash=pass role_policy_factory=pass canonical_roles=pass")
 
 
 if __name__ == "__main__":
