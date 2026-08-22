@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Implementation Plan
 
-Status: **F7.2A canonical identity/sessions, F7.2B User Management, and F7.2C Credential Lifecycle verified complete; F7.2D AI Agent Management is the next implementation slice; production inventory write authority remains unauthorized**
+Status: **F7.2A canonical identity/sessions, F7.2B User Management, and F7.2C Credential + Recovery Lifecycle verified complete; F7.2D AI Agent Management is the next implementation slice; production inventory write authority remains unauthorized**
 
 This file is the execution contract for the current Medicine Store Assistant architecture. `ROADMAP.md` remains the high-level roadmap; this plan defines implementation order, dependencies, and exit criteria.
 
@@ -17,7 +17,7 @@ This file is the execution contract for the current Medicine Store Assistant arc
 - Historical committed stock/ledger facts are corrected through reversal/correction semantics rather than silent destructive rewriting.
 - Secrets never enter Git, browser storage, application logs, prompt/audit payloads, or documentation evidence.
 - Prefer the smallest runnable slice and avoid unnecessary infrastructure.
-- Normal continuation uses connected tools, repository automation, and the self-hosted runner. Do not require the Owner to use Termux, SSH, Bamboo/Bamboo Claw, tmux, or manual GitHub Actions.
+- Normal continuation uses connected tools, repository automation, and the self-hosted runner. Do not require the Owner to use Termux, SSH, Bamboo/Bamboo Claw, tmux, or manual GitHub Actions for normal development.
 - Significant architecture, implementation, deployment, migration, or next-work changes must update `ROADMAP.md`, `NEW_CHAT_BOOTSTRAP.md`, this file, and relevant canonical docs.
 
 ## 2. Existing MSA workflow that the new architecture must preserve
@@ -36,14 +36,14 @@ For evidence-driven workflows such as CMS issue/supply papers, price updates, an
 8. record actor/operation/audit provenance;
 9. report success only after verification.
 
-Canonical reconciliation classes may retain the established skill semantics:
+Canonical reconciliation classes retain the established skill semantics:
 
 - `SAFE` — strong evidence compatibility; routine operation may proceed when its operation class is pre-authorized;
 - `REVIEW` — likely match but meaningful uncertainty; require human review before identity-sensitive mutation;
 - `CONFLICT` — contradictory/recycled/incompatible evidence; block automatic propagation;
 - `NEW_UNMAPPED` — no acceptable existing match; require the appropriate create/mapping review workflow.
 
-UI may use green/yellow/red-style visual treatment, but stored workflow state must be explicit and not depend on color alone.
+UI may use semantic visual treatment, but stored workflow state must be explicit and not depend on color alone.
 
 Owner authorization is policy-based as well as per-operation. A narrow SAFE workflow may run without asking for confirmation on every obvious row when the Owner has already granted that workflow scope. REVIEW/CONFLICT/NEW_UNMAPPED and high-risk operations remain review/approval boundaries.
 
@@ -64,50 +64,55 @@ Verified complete:
 - F7.1 — read-only Web Dashboard foundation
 - F7.2A — canonical multi-user identity and sessions
 - F7.2B — User Management and signed-in drawer profile
-- F7.2C — Credential Lifecycle and self-service Account security
+- F7.2C — Credential + Recovery Lifecycle and self-service Account security
 
 F6B remains a verified **test-only** live-workbook staging exercise, not an accepted migration baseline.
 
-F7.2A verification evidence:
+### F7.2A verification evidence
 
 - PR #36 merged as `c3aa75d65e0bc6d1836227fe8450b0b3de5b2651`;
-- automatic VPS deploy run `32586385336`, job `97063270146`, completed successfully;
-- Alembic `0004_shadow -> 0005_identity` succeeded;
-- existing F2 `users` / `roles` / `user_roles` were evolved as the canonical human identity model rather than replaced;
-- canonical Owner bootstrap used the existing password hash without plaintext exposure;
-- username/password auth, durable revocable DB session, Owner RBAC, authenticated 403, and disabled-user denial all passed runtime acceptance;
-- F6B remained row_count 1646 / SAFE 1417 / REVIEW 222 / CONFLICT 0 / NEW_UNMAPPED 7;
-- `database_canonical=false` and `migration_baseline_accepted=false` remained true boundaries;
-- deployment executed no live workbook import and no inventory mutation.
+- automatic VPS deploy run `32586385336`, job `97063270146`, success;
+- Alembic `0004_shadow -> 0005_identity`;
+- existing F2 `users` / `roles` / `user_roles` evolved as canonical human identity;
+- canonical Owner bootstrap reused the existing password hash without plaintext exposure;
+- username/password auth, durable revocable DB session, Owner RBAC, authenticated 403, and disabled-user denial passed;
+- F6B stayed row_count 1646 / SAFE 1417 / REVIEW 222 / CONFLICT 0 / NEW_UNMAPPED 7;
+- `database_canonical=false` and `migration_baseline_accepted=false` remained enforced;
+- no live workbook import and no inventory mutation.
 
-F7.2B verification evidence:
+### F7.2B verification evidence
 
 - PR #38 merged as `e4671c75ab2ece2a6f5065a78779413ef3e9f38b`;
-- automatic VPS deploy run `32588170791`, job `97067607202`, completed successfully;
-- Alembic `0005_identity -> 0006_user_management` succeeded;
-- public pending-only access request, pending-user denial, Owner list, approval, role assignment, rejection, non-Owner 403, OWNER ordinary-flow escalation guard, role-change session revocation, disable/reactivate, explicit session revocation, account-security events, and notification events all passed runtime acceptance;
-- Dashboard profile UI contract passed: drawer/sidebar profile box with circular avatar area, initials fallback, canonical username, and role;
+- automatic VPS deploy run `32588170791`, job `97067607202`, success;
+- Alembic `0005_identity -> 0006_user_management`;
+- public pending-only access request, pending-user denial, Owner list, approval, role assignment, rejection, non-Owner 403, OWNER ordinary-flow escalation guard, role-change session revocation, disable/reactivate, explicit session revocation, account-security events, and notification events passed;
+- Dashboard profile UI contract passed;
 - public anonymous User Management access remained 401;
-- F6B counts remained unchanged and `database_canonical=false` / `migration_baseline_accepted=false` remained enforced;
-- deployment executed no live workbook import and no inventory mutation.
+- no live workbook import and no inventory mutation.
 
-F7.2C verification evidence:
+### F7.2C verification evidence
+
+Base lifecycle:
 
 - PR #40 merged as `a910658efc3cbc214b30a1f5ed946fdd34ffe4a2`;
-- automatic VPS deploy run `32589571152`, job `97071112514`, completed successfully;
-- Alembic `0006_user_management -> 0007_credential_lifecycle` succeeded;
-- self-service username change with current-password re-authentication, old-session invalidation, and old-username login denial passed runtime acceptance;
-- self-service password change with current-password re-authentication, old-session invalidation, and old-password denial passed runtime acceptance;
-- forgotten-password request produced the same public response for known eligible and unknown usernames;
-- Owner reset review/issuance passed while non-Owner reset-list access returned 403;
-- reset storage retained token digest/verifier material rather than plaintext token;
-- reset completion revoked existing sessions and reset-token reuse failed;
-- credential/security and reusable reset notification events persisted;
-- Dashboard Account/Forgot/Owner-reset UI contract passed under Dashboard v2.4 + UI/UX Pro Max rules;
-- initial bootstrap username `owner` is now mutable through Account without changing stable `user_id` or the `OWNER` role;
-- F6B counts remained unchanged and `database_canonical=false` / `migration_baseline_accepted=false` remained enforced;
-- public anonymous private/User Management gates remained 401;
-- deployment executed no live workbook import and no inventory mutation.
+- automatic VPS deploy run `32589571152`, job `97071112514`, success;
+- Alembic `0006_user_management -> 0007_credential_lifecycle`;
+- self-service username/password change, current-password re-authentication, credential/session invalidation, enumeration-safe reset request, Owner reset review/issuance, digest-only token persistence, single-use reset, and security/notification events passed.
+
+Final recovery/account refinements:
+
+- PR #43 — Recovery email integrated into Account security;
+- PR #44 — recovery token cleanup/schema compatibility fixed provider-failure masking as HTTP 500;
+- PR #45 — Resend helper transport compatibility fixed Cloudflare error 1010 by using explicit API-client headers;
+- PR #46 — Forgot password accepts username or verified recovery email; password confirmation backend/UI added;
+- PR #47 — Account-security JS cache-bust for Android Chrome;
+- PR #48 — Request Access captures recovery email and sends pending-access verification;
+- PR #49 — runtime-contract compatibility hotfix;
+- final production source SHA `371936e0c7088c76f692292d31318cfd972a1a46`;
+- issue #26 reported `status=success`, deploy run `32596093790`;
+- verified recovery email and automated Resend reset delivery tested successfully;
+- `database_canonical=false`, `migration_baseline_accepted=false`, F6B test-only status, and read-only inventory boundary preserved;
+- no production inventory mutation.
 
 ## 4. Product architecture direction
 
@@ -127,168 +132,240 @@ MSA is a multi-client intelligent store-operations platform with:
 - deterministic Smart Analysis;
 - Alerts & Notifications.
 
-All clients reuse the same backend identity, authority, store-location, preference, inventory, analytics, calculator, and operation contracts.
+All clients reuse the same backend identity, authority, store-location, preference, inventory, analytics, calculator, recovery, and operation contracts.
 
 ---
 
 # F7 — Application and control-plane foundation before production writes
 
-## F7.2A — Canonical multi-user identity and sessions — **VERIFIED COMPLETE**
+## F7.2A — Canonical multi-user identity and sessions — VERIFIED COMPLETE
 
 Purpose: replace the bootstrap password-only Owner bridge with durable human accounts.
 
 ### Implemented
 
-- stable canonical UUID `user_id` using the existing F2 `users` table;
-- username login field and username + password authentication;
-- approved roles `OWNER`, `ADMIN`, `STAFF`, `READ_ONLY` through the existing `roles` / `user_roles` model;
-- account states `PENDING`, `ACTIVE`, `DISABLED`;
-- one role per canonical human user for the current static RBAC model;
-- durable user-bound `user_sessions` with opaque client token, server-side keyed digest, expiry, revocation, last-seen tracking, and credential-version binding;
-- bootstrap of the existing Owner password hash into the canonical user model without plaintext exposure;
-- normal Owner login changed from password-only to username + password;
-- backend `require_roles(...)` helper and `require_owner_session` specialization;
-- explicit authenticated `403 / Access denied` result for role denial;
-- protected-session resolution rejects disabled users immediately;
-- deployment acceptance exercises a temporary auth-only READ_ONLY user and removes it afterward;
-- inventory/dashboard data access remains read-only.
+- stable canonical UUID `user_id` using existing F2 `users`;
+- username + password authentication;
+- roles `OWNER`, `ADMIN`, `STAFF`, `READ_ONLY`;
+- states `PENDING`, `ACTIVE`, `DISABLED`;
+- one current static role per human user;
+- durable user-bound `user_sessions` with opaque client token, server-side digest, expiry, revocation, last-seen, and credential-version binding;
+- Owner migration without plaintext password exposure;
+- backend role-policy helpers and explicit 403 behavior;
+- disabled users fail protected-session resolution;
+- inventory/dashboard remains read-only.
 
-### Verified exit criteria
+### Exit criteria — pass
 
-- Owner authenticates through the canonical username/password model — pass;
-- session resolves to stable `user_id` + `OWNER` role — pass;
-- disabled user loses protected access with an existing session — pass;
-- server-side role denial returns authenticated 403 / `Access denied` — pass;
-- anonymous private dashboard access remains 401 — pass;
-- PostgreSQL remains non-canonical and F6B remains test-only — pass;
-- no inventory mutation was introduced — pass.
+- Owner canonical login/session;
+- stable `user_id` + OWNER role;
+- disabled-user denial;
+- authenticated 403 role denial;
+- anonymous dashboard denial;
+- non-canonical/test-only authority flags;
+- no inventory mutation.
 
-Compatibility note: F7.2A preserved the already-deployed bootstrap PBKDF2 password hash specifically so the Owner could migrate without plaintext access. F7.2C now owns normal credential maintenance through product UI.
-
-## F7.2B — User Management — **VERIFIED COMPLETE**
+## F7.2B — User Management — VERIFIED COMPLETE
 
 Purpose: durable human account/access workflow, separate from Audit and AI Agent Management.
 
 ### Implemented
 
-- dedicated Owner-only `User Management` surface;
-- `Request access` creates a pending account/request only;
-- pending users receive no role/private inventory access and cannot authenticate to protected inventory;
-- Owner sees pending requests and may approve/reject/assign `ADMIN`, `STAFF`, or `READ_ONLY`;
-- current deployed F7.2B does not delegate User Management to ADMIN;
-- ordinary User Management cannot assign/promote/mutate an existing `OWNER`; Owner creation/promotion remains a separate high-risk future flow;
-- active non-Owner role changes revoke existing sessions;
-- disable/reactivate and explicit session-revoke flows;
-- account-security events for request/approval/rejection/role/state/session changes;
-- reusable notification-event contract for future Telegram/Flutter approval mirrors;
-- explicit authenticated Access Denied state;
-- account/security history remains separate from operational F7.3 Audit.
+- dedicated Owner-only User Management;
+- Request Access creates pending account/request only;
+- pending users receive no role/private access;
+- Owner approve/reject/assign `ADMIN`, `STAFF`, `READ_ONLY`;
+- current F7.2B does not delegate User Management to ADMIN;
+- ordinary User Management cannot create/promote/mutate `OWNER`;
+- role change revokes sessions;
+- disable/reactivate/session revoke;
+- account-security events;
+- reusable notification-event contract;
+- explicit Access Denied state;
+- account/security history separate from operational F7.3 Audit.
 
-### UI/UX implementation
+### UI/UX
 
-The Web implementation follows the pinned UI/UX Pro Max skill together with the locked Dashboard v2.4 design system.
+Follows pinned UI/UX Pro Max + locked Dashboard v2.4 design system.
 
-- login page has a progressively disclosed `Request access` flow;
-- drawer/sidebar top section below product branding and above navigation has a signed-in profile box;
-- profile box shows circular avatar area, deterministic initials fallback, canonical username, and current role;
-- profile identity comes from the authenticated backend session rather than browser-side profile storage;
-- User Management shows textual `PENDING` / `ACTIVE` / `DISABLED` states and does not rely on color alone;
-- controls are responsive and preserve the read-only inventory UI boundary.
+- login Request Access progressive disclosure;
+- drawer/sidebar signed-in profile box;
+- circular avatar area with deterministic initials fallback;
+- canonical username + role from authenticated backend session;
+- textual account states, no color-only meaning;
+- responsive touch/keyboard behavior;
+- read-only inventory boundary preserved.
 
-Profile-image upload/editing remains separately deferred.
+Profile-image upload/edit remains deferred.
 
-### Verified exit criteria
+### Exit criteria — pass
 
-- pending/rejected users cannot access protected inventory — pass;
-- Owner can list/review pending users — pass;
-- approved users receive the exact assigned role — pass;
-- non-Owner User Management access returns 403 — pass;
-- ordinary OWNER mutation/escalation is backend-blocked — pass;
-- role changes revoke prior sessions — pass;
-- disabled users lose protected sessions — pass;
-- reactivation works for approved non-Owner accounts — pass;
-- explicit session revocation works — pass;
-- account-security and notification events persist — pass;
-- User Management remains separate from operational Audit and AI Agent Management — pass;
-- drawer profile UI contract — pass;
-- no inventory mutation was introduced — pass.
+- pending/rejected protected-access denial;
+- Owner list/review;
+- exact role assignment;
+- non-Owner User Management 403;
+- OWNER mutation guard;
+- role/session revocation;
+- disable/reactivate;
+- explicit session revoke;
+- account-security/notification events;
+- separate User Management/Audit;
+- profile UI contract;
+- no inventory mutation.
 
-## F7.2C — Credential lifecycle — **VERIFIED COMPLETE**
+## F7.2C — Credential + Recovery Lifecycle — VERIFIED COMPLETE
 
-Purpose: normal username/password maintenance and assisted recovery without VPS/terminal intervention.
+Purpose: product-native username/password/recovery maintenance without routine VPS/terminal intervention.
 
-### Implemented
+Canonical design: `docs/design/F7_2C_CREDENTIAL_LIFECYCLE_DESIGN.md`.
 
-- authenticated username change with current-password re-authentication;
-- existing 3–64 character username contract and case-insensitive uniqueness;
-- stable `user_id`, role, and state preserved across username change;
-- initial bootstrap username `owner` may be replaced through product UI without changing the `OWNER` role;
-- authenticated password change with current-password re-authentication;
-- new password stored only as a one-way hash;
-- credential-version increment and old-session invalidation after username/password change;
-- public forgotten-password request that does not reveal whether a username exists;
-- durable pending reset request grants no access;
-- Owner-assisted reset review/issuance;
-- cryptographically random short-lived single-use reset token/link;
-- persistent storage retains only keyed reset-token digest/verifier material;
-- reset link uses `/dashboard/login#reset=<token>` so plaintext token is not sent in ordinary HTTP request URLs;
-- reset completion validates expiry/one-use state, replaces the password hash, increments credential version, revokes sessions, consumes the reset, and records security/account events;
-- reusable reset notification events;
-- signed-in `Account` page with separate Change username / Change password cards;
-- login-page `Forgot password?` and one-time reset completion UI;
-- Owner User Management reset queue and copyable issuance-only reset link;
-- UI follows Dashboard v2.4 + pinned UI/UX Pro Max rules.
+Final checkpoint: `docs/checkpoints/F7_2C_FINAL_RECOVERY_2026-08-23.md`.
 
-### Verified exit criteria
+### Username maintenance
 
-- username change works through product UI and requires the correct current password — pass;
-- old username and prior session fail after username change — pass;
-- new username authenticates with unchanged password — pass;
-- password change works through product UI and requires the correct current password — pass;
-- old password and prior session fail after password change — pass;
-- reset request is enumeration-safe — pass;
-- non-Owner cannot list reset requests — pass;
-- Owner can review and issue an eligible reset — pass;
-- reset verifier persists as digest, not plaintext token — pass;
-- reset flow is short-lived and one-use — pass;
-- token reuse fails — pass;
-- old sessions fail after reset — pass;
-- successful reset permits login only with the new credential — pass;
-- security/account and reusable notification events are verified — pass;
-- normal credential maintenance requires no VPS/terminal intervention — pass;
-- inventory authority flags/read-only boundary remain unchanged — pass.
+- authenticated current-password re-authentication;
+- existing 3–64 username contract;
+- case-insensitive uniqueness;
+- stable `user_id`, role, state preserved;
+- `credential_version` increment;
+- prior-session invalidation;
+- `USERNAME_CHANGED` security event;
+- initial bootstrap username `owner` can be replaced through Account without changing `OWNER` role.
 
-### Planned automated recovery delivery — provider-neutral
+### Password maintenance
 
-The deployed Owner-assisted link issuance remains a valid **fallback**, but it is not the intended long-term normal recovery workflow. Routine forgotten-password recovery should not require the Owner to manually copy and deliver every reset link.
+- authenticated current-password re-authentication;
+- New password + Confirm new password;
+- mismatch rejected in UI and backend;
+- one-way password hash only;
+- credential-version increment;
+- prior-session invalidation;
+- outstanding reset cancellation;
+- `PASSWORD_CHANGED` security event.
 
-Future recovery delivery must reuse the verified F7.2C token/security lifecycle and add delivery transports around it rather than moving credential authority into Telegram or an email provider.
+### Recovery email
 
-Planned recovery channels:
+- Account has Recovery email card with `Not set` / `Unverified` / `Verified` state;
+- adding/changing address requires current-password re-authentication;
+- verification token is cryptographically random, short-lived, single-use, digest-only at rest;
+- current verified address remains active until replacement is verified;
+- verification completion records security events;
+- recovery email never changes role/account authority.
 
-1. **Verified email** — a user may register and verify a recovery email address. An eligible forgot-password request may automatically issue the existing short-lived single-use reset token and deliver the reset link through a configured transactional-email adapter.
-2. **Linked Telegram account** — after the Telegram client exists, a user may securely link a Telegram identity to the same canonical `user_id`. An eligible forgot-password request may automatically deliver the reset link or an equivalent one-time recovery action through the MSA Telegram bot.
-3. **Owner-assisted issuance** — retained as a fallback for users with no usable verified recovery channel, delivery failure, or exceptional recovery cases.
+### Resend adapter — deployed
 
-Security rules for automated recovery:
+Dedicated domain:
 
-- public forgot-password responses remain enumeration-safe;
-- email addresses must be verified before they can become recovery destinations;
-- Telegram linking must use an authenticated pairing/challenge flow; users must not gain recovery authority merely by typing an arbitrary Telegram ID;
-- reset tokens remain cryptographically random, short-lived, single-use, digest-only at rest, and governed by the MSA backend;
-- delivery providers receive only the minimum information needed to send the recovery message and never receive password hashes, database credentials, roles, or inventory authority;
-- rate limiting, retry/backoff, abuse protection, delivery-state events, and security events must be deterministic backend behavior;
-- delivery failure must not silently weaken recovery security; the user sees a generic response and fallback policy applies;
-- provider credentials remain runtime secrets and never enter Git/browser storage;
-- email/Telegram transports are replaceable adapters, not sources of account truth.
+`msamail.drthorne.uk`
 
-Provider-selection note: do **not** hard-code a vendor into the canonical architecture. At implementation time, choose a transactional provider based on current pricing, deliverability, domain-verification support, API/SMTP reliability, and data-handling requirements. Low-volume free tiers may be sufficient for MSA, but provider quotas/pricing are operational configuration rather than durable architecture.
+Sender:
 
-Suggested implementation placement: delivery adapters and recovery-channel verification can be introduced with the F7.8 Alerts & Notifications/event-delivery layer or as a narrow prerequisite when Telegram account linking is implemented. The current Owner-assisted F7.2C recovery remains operational until an automated channel is verified end-to-end.
+`no-reply@msamail.drthorne.uk`
 
-F7.2C did not include profile-image upload/editing, F7.2D Agent Management, F7.3 operational Audit, or inventory writes.
+Runtime variables:
 
-## F7.2D — AI Agent Management & delegated authority — **NEXT**
+- `RESEND_API_KEY`
+- `MSA_RECOVERY_EMAIL_FROM`
+
+Secrets remain in protected VPS runtime environment and are mapped through canonical `deploy/docker-compose.yml`.
+
+The Resend domain is verified. DKIM/SPF/Return-Path records are deployed under the dedicated mail namespace. Parent-domain DMARC was not added merely for this slice because the suggested `_dmarc` entry would affect the parent-domain policy boundary.
+
+The helper sends explicit `Accept: application/json` and an application User-Agent because Cloudflare in front of Resend rejected the default Python urllib fingerprint with error 1010.
+
+### Forgot password — deployed automated recovery
+
+Public UI offers:
+
+- Username
+- Verified recovery email
+
+Public responses remain enumeration-safe.
+
+Email mode resolves only a unique eligible active account with that verified address. Ambiguous matches do not select a user.
+
+Eligible automated flow:
+
+1. request recovery;
+2. create/issue short-lived single-use reset token;
+3. persist only token digest/verifier material;
+4. send reset link through Resend;
+5. user opens `/dashboard/login#reset=<token>`;
+6. backend validates state/expiry/one-use;
+7. replace password hash;
+8. increment credential version;
+9. revoke prior sessions;
+10. consume/reset verifier state;
+11. record security/notification events.
+
+Owner-assisted reset issuance remains an **operational fallback**, not the normal recovery path, for exceptional cases/no usable verified channel/delivery failure.
+
+### Request Access email verification
+
+Request Access now collects:
+
+- Display name
+- Username
+- Recovery email
+- Password
+- Confirm password
+
+A new request remains `PENDING` and unassigned until Owner approval.
+
+The email may be verified while account is `PENDING`. Verification only activates recovery-email proof; it never grants a role or protected access.
+
+If Owner approval occurs first, the same valid verification link may still complete for the active account. If the account is rejected/disabled before verification, the pending verification is not eligible to activate access.
+
+If initial delivery fails, the access request may remain pending with unverified email; after approval the user can verify/change email from Account security.
+
+### Security rules
+
+- public forgot responses enumeration-safe;
+- recovery email requires proof of control;
+- reset/verification tokens short-lived, single-use, digest-only at rest;
+- provider credentials never enter Git/browser storage;
+- provider failure never grants/reduces account authority;
+- email provider is transport only, not account authority;
+- account-security history remains separate from operational Audit;
+- no inventory authority changes.
+
+### Verified exit criteria — pass
+
+- username change current-password gate;
+- old username/session invalid after change;
+- new username login;
+- password change current-password + confirmation gate;
+- old password/session invalid after change;
+- verified recovery email activation;
+- automated Resend delivery;
+- username-mode Forgot password;
+- recovery-email-mode Forgot password;
+- generic public response;
+- digest-only reset token storage;
+- single-use reset/reuse denial;
+- old-session denial after reset;
+- Owner fallback reset review/issuance;
+- Request Access recovery email deployed without bypassing `PENDING`/Owner approval;
+- runtime health/readiness green;
+- no inventory mutation;
+- authority flags unchanged.
+
+### Explicit non-scope
+
+- profile-image upload/editing;
+- Owner creation/promotion flow;
+- F7.2D AI Agent Management;
+- global Settings;
+- operational/store Audit implementation;
+- inventory writes or AI inventory writes;
+- transfers or Smart Calculator deductions;
+- Telegram/Flutter stock mutation;
+- Sheet mirror conversion;
+- PostgreSQL canonical promotion.
+
+Telegram recovery is future work after secure Telegram identity linking. It must reuse canonical `user_id`, recovery policy, token lifecycle, and notification events rather than becoming a second credential authority.
+
+## F7.2D — AI Agent Management & delegated authority — NEXT
 
 Purpose: create the Owner-only control plane for named AI/service principals while preserving the low-friction `$msa` workflow.
 
@@ -303,10 +380,10 @@ Each agent may have:
 - stable `agent_id`;
 - active/disabled state;
 - typed capability allowlist;
-- location scope: Main Store, selected Sub Stores, all active stores, or read-only analytical scope as configured;
+- location scope: Main Store, selected Sub Stores, all active stores, or read-only analytical scope;
 - authority ceiling;
 - delegated vs autonomous execution policy;
-- confirmation policy such as read-only, propose-only, confirm-before-write, or autonomous-within-preauthorized-scope;
+- confirmation policy: read-only, propose-only, confirm-before-write, or autonomous-within-preauthorized-scope;
 - revocable service/client credential where applicable.
 
 ### Owner-only control plane
@@ -323,28 +400,28 @@ For a human-delegated AI action:
 
 `effective_authority = human_authority ∩ agent_capability_scope ∩ location_scope ∩ operation_policy`
 
-This means:
+Consequences:
 
-- the Owner may explicitly grant an agent Main Store reads and, in later authorized write phases, Main Store typed writes;
+- Owner may grant Main Store reads and, only in later separately authorized write phases, Main Store typed writes;
 - agents are **not** Sub-Store-only;
-- Staff/Admin users may use AI Chat only when the Owner enables that feature for them;
+- Staff/Admin may use AI Chat only if Owner enables it;
 - AI Chat cannot expand a user's normal role/location authority;
-- an Owner-invoked agent still cannot execute capabilities that the Owner did not grant to that agent.
+- even Owner-invoked agent cannot execute capabilities not granted to that agent.
 
 ### MSA workflow parity
 
-- SAFE operations inside a pre-authorized workflow may execute without per-row confirmation once production writes for that operation are separately authorized;
-- REVIEW/CONFLICT/NEW_UNMAPPED and material/high-risk cases require human review/approval;
-- all writes require deterministic validation, idempotency where applicable, atomic commit, actor-aware audit, and read-back verification;
-- Main Store workflows such as future CMS price reconciliation/batch operations may be delegated to AI if Owner capability policy allows them.
+- SAFE operations inside a pre-authorized workflow may later execute without per-row confirmation once corresponding production writes are separately authorized;
+- REVIEW/CONFLICT/NEW_UNMAPPED and material/high-risk cases require human review;
+- writes require deterministic validation, idempotency where applicable, atomic commit, actor-aware audit, and read-back verification;
+- future Main Store CMS price/reconciliation workflows may be delegated only when Owner capability policy and later write authorization both allow them.
 
 ### Exit criteria
 
-- Owner can manage agent principals and scopes from product UI/control plane;
-- non-Owner users cannot access Agent Management or global Settings;
-- an agent cannot self-escalate;
-- capability/location intersection is testable and deterministic;
-- no inventory write tool is enabled merely by creating an agent.
+- Owner can manage agent principals/scopes from product control plane;
+- non-Owner users cannot access Agent Management/global Settings;
+- agent cannot self-escalate;
+- capability/location intersection deterministic/testable;
+- no inventory write tool enabled merely by creating agent.
 
 ## F7.3 — Actor-aware Audit & Operation Ledger
 
@@ -363,11 +440,11 @@ Required provenance, as applicable:
 - idempotency key;
 - actor type/id;
 - `authorized_by_user_id` for delegated AI/service action;
-- autonomous policy reference where there is no live human delegate;
+- autonomous policy reference;
 - client/source: Web, Telegram, Flutter, Internal AI, Custom GPT, system job, integration;
 - typed action name;
 - location/target references;
-- reconciliation class where operationally relevant;
+- reconciliation class where relevant;
 - validation/approval result;
 - timestamp/outcome;
 - before/after or stock-ledger references;
@@ -376,7 +453,7 @@ Required provenance, as applicable:
 
 Rules:
 
-- Audit is store/database operational history, not User Management or Agent Management;
+- Audit is operational history, not User Management or Agent Management;
 - AI agents are never invisible superusers;
 - secrets, credentials, tokens, and unrestricted prompt transcripts are not stored in operational audit;
 - committed history is not silently edited/deleted.
@@ -403,7 +480,7 @@ Purpose: create location-aware inventory and persistent cross-client operational
 - `MAIN_STORE_ONLY` — initial/default;
 - `TOTAL_ACTIVE_STOCK` — Main Store + all active Sub Stores.
 
-The Owner may switch the backend policy from Settings without code/formula changes.
+Owner may switch backend policy from Settings without code/formula changes.
 
 ### Preferences
 
@@ -411,48 +488,48 @@ Backend user preferences may include default location/Calculator Sub Store, allo
 
 ### Exit criteria
 
-- one-Main constraint is deterministic;
-- unlimited Sub Store representation works without duplicating product identity;
-- location balances read deterministically;
-- reorder basis switches through one Owner setting;
-- preference contract is reusable across Web/Flutter/other clients;
-- no stock mutation is enabled yet.
+- deterministic one-Main constraint;
+- unlimited Sub Store representation without duplicating product identity;
+- deterministic location balance reads;
+- reorder basis controlled through one Owner setting;
+- reusable cross-client preference contract;
+- no stock mutation enabled yet.
 
 ## F7.5 — Smart Calculator & Receipts — calculation-only first
 
-Purpose: restore the useful local Flutter calculator workflow as a backend-backed feature without Excel re-upload or stock mutation.
+Purpose: backend-backed calculator workflow without Excel re-upload or stock mutation.
 
 ### Normal data source
 
-Calculator searches backend product/lot/location records directly. Normal use does not ask for Excel column mapping. Owner batch-intake/import mapping remains a separate ingestion workflow.
+Calculator searches backend product/lot/location records directly. Normal use does not ask for Excel column mapping. Owner batch-intake/import mapping remains separate.
 
 ### Capabilities
 
 - item search and same-name disambiguation;
-- quantity and effective/reference price;
+- quantity/effective price;
 - multiple items;
-- extra-fee presets/ad-hoc allowed fees;
+- fee presets/ad-hoc allowed fees;
 - receiver/customer, issuer, note;
 - subtotal/fees/total;
 - saved calculation sessions;
 - receipt identity/history;
 - print-friendly Web receipt;
-- PDF/export/share contract reusable by Flutter later.
+- PDF/export/share reusable by Flutter later.
 
 Modes:
 
 - `CALCULATE_ONLY` — no stock mutation;
-- future `DISPENSE_FROM_SUB_STORE` — selected/default Sub Store, activated only in a later controlled-write slice.
+- future `DISPENSE_FROM_SUB_STORE` — later controlled-write slice only.
 
 AI/photo scan may build a calculation draft after typed candidate matching; ambiguity requires human selection and OCR/LLM interpretation alone never commits stock.
 
 ### Exit criteria
 
-- DB/API-backed Calculator works without Excel remapping;
-- similar items are explicitly distinguishable;
-- calculations/fees/receipts are deterministic;
-- Web can save/print/export;
-- stock quantity remains unchanged.
+- DB/API-backed Calculator without Excel remapping;
+- explicit similar-item disambiguation;
+- deterministic calculations/fees/receipts;
+- Web save/print/export;
+- stock unchanged.
 
 ## F7.6 — Smart Analysis
 
@@ -478,11 +555,11 @@ Initial mode remains read-only.
 - identifiable `AI_AGENT` principal;
 - tools for stock/lot/location lookup, analytics, comparison, expiry/reorder risk, data quality, Calculator draft/reference lookup, and audit summaries;
 - signed-in user role/location scope remains part of effective authority;
-- Owner may enable AI Chat for Staff/Admin users;
+- Owner may enable AI Chat for Staff/Admin;
 - no arbitrary SQL;
 - no write tools yet.
 
-Future write tools reuse F7.2D policy and F7.3 audit rather than inventing a separate AI authority path.
+Future write tools reuse F7.2D policy and F7.3 audit rather than inventing separate AI authority.
 
 ## F7.8 — Alerts & Notifications
 
@@ -490,15 +567,15 @@ Deterministic event generation first; optional AI explanation/prioritization sec
 
 Initial candidates include low stock/days-of-stock, Sub Store refill pressure, expiry, unusual transfer/dispense patterns, data-quality issues, sync failures, access/reset requests, scheduled analysis results, and credential-recovery delivery events.
 
-One backend event contract is reusable across Web, Telegram, Flutter, email, and future clients. Channel adapters must remain transport-only: they deliver backend-issued notifications/recovery links but do not become account-authority or inventory-authority systems.
+One backend event contract is reusable across Web, Telegram, Flutter, email, and future clients. Channel adapters remain transport-only and never become account/inventory authority.
 
-Recovery-related F7.8 work should support verified-email and securely linked Telegram destinations, provider-neutral email delivery, delivery status/retry events, abuse/rate controls, and Owner-assisted fallback when automated delivery is unavailable.
+Resend email delivery is already proven for credential recovery and may be reused for broader email notifications later. Telegram delivery requires secure account linking/pairing before it can be a recovery or notification destination.
 
 ---
 
 # F8 — External / Custom GPT read-only integration
 
-Reuse approved typed read/analytics interfaces with scoped/revocable service or delegated auth. External AI principals must be Owner-registered in the Agent Management model where applicable. No DB/Sheet credentials and no writes.
+Reuse approved typed read/analytics interfaces with scoped/revocable service or delegated auth. External AI principals must be Owner-registered in Agent Management where applicable. No DB/Sheet credentials and no writes.
 
 # F9 — Controlled typed write foundation
 
@@ -527,11 +604,11 @@ For AI-agent writes, preserve `$msa` semantics: pre-authorized SAFE workflow cla
 - import a fresh migration candidate only when authorized;
 - reinterpret supported historical `Daily Usage` as Stock Transfer evidence without inventing unknown destinations;
 - compare real Sheet workflow against backend shadow operations;
-- validate the existing `$msa` reconciliation/approval/read-back behavior against typed DB operations;
+- validate existing `$msa` reconciliation/approval/read-back behavior against typed DB operations;
 - define backend-owned Google Sheet mirror/sync;
-- clients/AI never bypass the backend to mutate Sheets in the canonical architecture;
-- retry/idempotency/reconciliation failures are observable;
-- mismatches are reported rather than silently repaired.
+- clients/AI never bypass backend to mutate Sheets in canonical architecture;
+- retry/idempotency/reconciliation failures observable;
+- mismatches reported rather than silently repaired.
 
 No automatic cutover.
 
@@ -548,13 +625,13 @@ Requires explicit Owner approval plus:
 - Sheet mirror/rebuild/reconciliation confidence;
 - rollback/cutback procedure.
 
-Only after approved promotion may PostgreSQL become the operational source of truth for the promoted scope.
+Only after approved promotion may PostgreSQL become operational source of truth for promoted scope.
 
 # Later client rollout
 
 Telegram and Flutter are clients over the same backend contracts, not separate inventory truths.
 
-Telegram account linking must bind a verified/pairing-confirmed Telegram identity to the canonical `user_id`; once implemented, the linked bot channel may be used for recovery-link delivery and other notifications without making Telegram a source of account authority.
+Telegram account linking must bind a verified/pairing-confirmed Telegram identity to canonical `user_id`; once implemented, linked bot channel may deliver recovery links/notifications without becoming account authority.
 
 Flutter may provide mobile-optimized card/table views, Smart Calculator, receipt/share/print, preferences, alerts, and offline-tolerant caching; local cache never becomes a second canonical inventory store.
 
@@ -562,14 +639,14 @@ Flutter may provide mobile-optimized card/table views, Smart Calculator, receipt
 
 1. **F7.2A — Canonical multi-user identity** — verified complete
 2. **F7.2B — User Management** — verified complete
-3. **F7.2C — Credential lifecycle** — verified complete
+3. **F7.2C — Credential + Recovery Lifecycle** — verified complete
 4. **F7.2D — AI Agent Management & delegated authority** — next
 5. **F7.3 — Actor-aware Audit / operation ledger**
 6. **F7.4 — Inventory Locations, Store Policy & Preferences**
 7. **F7.5 — Smart Calculator / receipts, calculation-only**
 8. **F7.6 — Smart Analysis**
 9. **F7.7 — Internal read-only AI Assistant**
-10. **F7.8 — Alerts & Notifications, including automated recovery delivery**
+10. **F7.8 — Alerts & Notifications**
 11. **F8 — External/Custom GPT read-only integration**
 12. **F9 — Controlled typed writes**
 13. **F10 — Real workflow + fresh migration + Sheet sync validation**
@@ -578,4 +655,8 @@ Flutter may provide mobile-optimized card/table views, Smart Calculator, receipt
 
 ## Immediate work boundary
 
-The next authorized slice is **F7.2D AI Agent Management & delegated authority**. Reuse the verified F7.2A canonical human identity/session/RBAC foundation, F7.2B User Management/security-event foundation, and F7.2C credential lifecycle. Do not implement F7.3 operational Audit, production inventory writes, AI inventory writes, store transfers, Calculator deduction, Telegram/Flutter mutation, Sheet mirror conversion, or canonical promotion as part of this slice unless a strict prerequisite is separately authorized.
+The next authorized slice is **F7.2D AI Agent Management & delegated authority**.
+
+Reuse the verified F7.2A human identity/session/RBAC foundation, F7.2B User Management/security-event foundation, and final F7.2C username/password/recovery-email lifecycle.
+
+Do not implement F7.3 operational Audit, production inventory writes, AI inventory writes, store transfers, Calculator deduction, Telegram/Flutter mutation, Sheet mirror conversion, or canonical promotion as part of F7.2D unless a strict prerequisite is separately authorized.

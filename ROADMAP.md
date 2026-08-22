@@ -39,7 +39,7 @@ The new architecture preserves the useful `$msa` workflow: source evidence is re
 - F7.2 temporary bootstrap Owner credential bridge — superseded by F7.2A
 - F7.2A canonical multi-user identity and sessions — verified complete 2026-08-22 via PR #36, merge `c3aa75d65e0bc6d1836227fe8450b0b3de5b2651`, deploy run `32586385336`
 - F7.2B User Management and signed-in drawer profile — verified complete 2026-08-22 via PR #38, merge `e4671c75ab2ece2a6f5065a78779413ef3e9f38b`, deploy run `32588170791`, job `97067607202`
-- F7.2C Credential Lifecycle and self-service account security — verified complete 2026-08-23 via PR #40, merge `a910658efc3cbc214b30a1f5ed946fdd34ffe4a2`, deploy run `32589571152`, job `97071112514`
+- F7.2C Credential Lifecycle and self-service account/recovery security — verified complete 2026-08-23; base PR #40 plus final recovery refinements through PR #49; final verified runtime SHA `371936e0c7088c76f692292d31318cfd972a1a46`
 
 ## F7.2A verified result
 
@@ -81,18 +81,29 @@ The new architecture preserves the useful `$msa` workflow: source evidence is re
 
 ## F7.2C verified result
 
-- Alembic upgraded `0006_user_management -> 0007_credential_lifecycle`;
-- all active human roles have an authenticated `Account` surface for self-service username and password maintenance;
+- Alembic upgraded `0006_user_management -> 0007_credential_lifecycle`, with later recovery-email schema refinements preserving the same human identity model;
+- all active human roles have an authenticated `Account` surface for self-service username, password, and recovery-email maintenance;
 - username is mutable while stable canonical `user_id`, role, and account state remain unchanged;
 - the bootstrap username `owner` is not a permanent visible identity requirement and the existing Owner can replace it through the Account page while retaining the `OWNER` role;
 - username change requires current-password re-authentication, case-insensitive uniqueness, credential-version increment, session revocation, and a `USERNAME_CHANGED` security event;
-- password change requires current-password re-authentication, one-way hash replacement, credential-version increment, session revocation, outstanding reset cancellation, and a `PASSWORD_CHANGED` security event;
-- public forgotten-password requests are enumeration-safe and grant no access;
-- Owner-only User Management can review pending reset requests and issue a cryptographically random, short-lived, single-use reset link;
-- persistent reset storage retains only keyed token digest/verifier material; plaintext reset token is returned only at issuance;
+- password change requires current-password re-authentication, explicit Confirm new password, one-way hash replacement, credential-version increment, session revocation, outstanding reset cancellation, and a `PASSWORD_CHANGED` security event;
+- recovery email can be added/changed from Account and becomes active only after inbox verification;
+- current verified recovery email remains active until a replacement email is successfully verified;
+- Resend is configured as the transactional recovery-mail adapter using verified sending domain `msamail.drthorne.uk` and sender `no-reply@msamail.drthorne.uk`;
+- runtime Resend secrets stay on the VPS and are mapped by canonical `deploy/docker-compose.yml`;
+- the Resend helper uses explicit API-client headers after Cloudflare error 1010 blocked the default Python urllib fingerprint;
+- public forgotten-password recovery supports either username or verified recovery email while preserving enumeration-safe generic responses;
+- eligible verified-email recovery automatically issues/sends the existing short-lived single-use reset link;
+- email-mode recovery requires a unique eligible verified-address match and never chooses an arbitrary account when ambiguous;
+- Owner-only User Management assisted reset issuance remains a fallback path;
+- persistent reset/verification storage retains only keyed token digest/verifier material; plaintext token material is not stored after issuance boundaries;
 - reset links use `/dashboard/login#reset=<token>` so plaintext token material is not sent in ordinary HTTP request URLs;
 - successful reset changes only the password credential, increments credential version, revokes sessions, consumes the reset, and records security/notification events;
-- runtime verification proved username change, password change, wrong-current-password denial, enumeration-safe forgot request, Owner reset review/issuance, digest-only token persistence, one-use reset, old-session denial, and new-credential authentication;
+- `Request access` now collects Display name, Username, Recovery email, Password, and Confirm password;
+- a new access request remains `PENDING` and unassigned until Owner approval, even when its recovery email has already been verified;
+- pending-access email verification does not grant protected access or a role;
+- Account recovery-email placement, recovery cleanup error handling, password confirmation, username-or-email reset, Android asset cache behavior, and Request Access email verification were all finalized through PRs #43–#49;
+- final deployment issue #26 reported `status=success` for source SHA `371936e0c7088c76f692292d31318cfd972a1a46`;
 - UI work follows Dashboard v2.4 and the pinned UI/UX Pro Max skill;
 - profile-image upload/editing remains separately deferred;
 - public anonymous private/User Management gates remain 401;
@@ -116,6 +127,7 @@ The new architecture preserves the useful `$msa` workflow: source evidence is re
 - `docs/architecture/F7_WEB_DASHBOARD.md`
 - `docs/design/F7_2_AUTH_RBAC_DESIGN.md`
 - `docs/design/F7_2C_CREDENTIAL_LIFECYCLE_DESIGN.md`
+- `docs/checkpoints/F7_2C_FINAL_RECOVERY_2026-08-23.md`
 - `docs/architecture/F7_2D_AI_AGENT_MANAGEMENT.md`
 - `docs/architecture/F7_3_ACTOR_AUDIT_AND_OPERATION_LEDGER.md`
 - `docs/architecture/F7_4_F7_8_STORE_AND_INTELLIGENCE_ARCHITECTURE.md`
@@ -134,9 +146,9 @@ Dedicated human-account surface with pending access requests, Owner approval/rej
 
 ### F7.2C — Credential lifecycle — **VERIFIED COMPLETE**
 
-Self-service username change and password change, both protected by current-password re-authentication; enumeration-safe forgotten-password request; Owner-assisted short-lived single-use reset; digest-only reset-token persistence; credential-version/session invalidation; security/notification events; and Web product UI are deployed and runtime-verified.
+Self-service username/password/recovery-email maintenance, password confirmation, verified-email recovery, automated Resend reset delivery, username-or-email Forgot password, Owner-assisted fallback reset, pending-access email verification, digest-only token persistence, credential/session invalidation, security/notification events, and Web product UI are deployed and verified.
 
-The Owner may now replace the initial bootstrap username `owner` through the Account surface without changing the canonical `OWNER` role or stable `user_id`. Profile-image upload/edit remains separately deferred.
+The Owner may replace the initial bootstrap username `owner` through Account without changing the canonical `OWNER` role or stable `user_id`. Profile-image upload/edit remains separately deferred.
 
 ### F7.2D — AI Agent Management & delegated authority — **NEXT**
 
@@ -199,6 +211,8 @@ Read-only first-party AI Chat grounded in typed backend tools. The Owner may ena
 
 Deterministic event generation first, optional AI explanation second. Examples: low stock, Sub Store refill pressure, expiry, unusual transfer/dispense patterns, data-quality problems, sync failures, and access/reset requests. One backend event is reusable across Web/Telegram/Flutter.
 
+Resend email delivery is already proven for credential recovery. F7.8 may reuse the same event/delivery foundation for broader alerts, while Telegram delivery remains future work after secure account linking.
+
 ## F8 — External / Custom GPT read-only integration
 
 Reuse approved typed reads/analytics with scoped/revocable agent/service identity. No raw DB/Sheet credentials and no writes.
@@ -228,6 +242,8 @@ Only after promotion may PostgreSQL become operational SOT for the approved scop
 ## Later client rollout
 
 Telegram and Flutter reuse the same backend contracts and never become separate inventory truths. Flutter may use offline-tolerant caching for usability only.
+
+Telegram account linking may later add recovery/notification delivery, but Telegram does not become account authority merely by carrying a message.
 
 ## Recommended execution order
 
