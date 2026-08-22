@@ -6,6 +6,7 @@ from fastapi import FastAPI, Request, Response, status
 from fastapi.responses import RedirectResponse
 
 from app.access_request_confirmed import router as access_request_confirmed_router
+from app.account_password_confirmed import router as account_password_confirmed_router
 from app.credential_lifecycle import router as credential_lifecycle_router
 from app.dashboard import router as dashboard_router
 from app.dashboard_auth import SESSION_COOKIE, validate_session_token
@@ -14,6 +15,7 @@ from app.db import database_readiness
 from app.email_recovery import router as email_recovery_router
 from app.email_recovery_page import router as email_recovery_page_router
 from app.read_api import router as read_router
+from app.recovery_identifier import router as recovery_identifier_router
 from app.shadow_read_api import router as shadow_read_router
 from app.user_management import router as user_management_router
 
@@ -53,7 +55,9 @@ app.include_router(email_recovery_page_router)
 app.include_router(user_management_router)
 app.include_router(access_request_confirmed_router)
 app.include_router(credential_lifecycle_router)
+app.include_router(account_password_confirmed_router)
 app.include_router(email_recovery_router)
+app.include_router(recovery_identifier_router)
 app.include_router(read_router)
 app.include_router(shadow_read_router)
 
