@@ -37,31 +37,30 @@ Canonical flow: `test -> pull request -> main -> automatic VPS deployment for re
 - Runtime secrets stay on the VPS.
 - `.github/backend-deploy-result` records deployment status, source SHA, and workflow run ID.
 - Normal backend deploy does **not** read/import the live Google workbook.
-- The F6B importer is retained only as an explicit test/migration tool.
+- Dashboard deploy verification now checks both localhost and `https://inventory.drthorne.uk` public HTTPS paths.
 
 ## Verified checkpoints
 
-F0, F1, Cloudflare HTTPS route, F2, F3, F4, F5, F5.1, F6A, and **F6C** are verified foundation/read-path checkpoints.
+F0, F1, Cloudflare HTTPS route, F2, F3, F4, F5, F5.1, F6A, F6C, and **F7.1** are verified complete.
 
-F6B is a verified **test-only** snapshot/staging exercise, not a migration baseline.
+F6B remains a verified **test-only** snapshot/staging exercise, not a migration baseline.
 
-F6C verification:
+Current test batch:
 
-- source commit `9f706da4832c08f10b1a8d694273f8f48412570a`;
-- GitHub Actions run `32550437296`;
-- existing test batch verified at `1646` rows (`SAFE=1417`, `REVIEW=222`, `CONFLICT=0`, `NEW_UNMAPPED=7`);
-- `migration_baseline_accepted=false`;
-- `database_canonical=false`;
-- shadow read routes registered for batches, one-batch summary, rows, and review reasons;
-- anonymous shadow read returns HTTP 401;
-- `/health` and `/ready` green at `0004_shadow`;
-- deployment log explicitly confirmed that **no live workbook import executed**.
+- batch ID `be13d127-5045-4284-a088-0a0b9b024d76`
+- rows 1646
+- SAFE 1417
+- REVIEW 222
+- CONFLICT 0
+- NEW_UNMAPPED 7
+- `migration_baseline_accepted=false`
+- `database_canonical=false`
 
-Canonical evidence: `docs/operations/F6C_SHADOW_READ_API_VERIFICATION_2026-08-22.md`.
+Canonical F7.1 evidence:
 
-## Active product direction — F7 Web Dashboard
+`docs/operations/F7_1_WEB_DASHBOARD_FOUNDATION_VERIFICATION_2026-08-22.md`
 
-User-facing web management is now authorized and under implementation. Continue using the existing F6B/F6C test dataset only for UI/read-workflow development.
+## F7 Web Dashboard
 
 Read before dashboard work:
 
@@ -72,27 +71,59 @@ Read before dashboard work:
 
 UI/UX Pro Max is pinned for this design cycle to upstream `nextlevelbuilder/ui-ux-pro-max-skill` commit `bc826e2267a36d98a2dcf5231e16c30ff546770f`.
 
-The owner approved **Dashboard v2.4** as the locked visual/interaction baseline. Preserve the responsive sidebar/mobile drawer, visual sun/moon Light-Dark toggle, spreadsheet gridlines, Inventory→Overview path, row detail drawer, full-table focus mode, TEST DATA / DB NON-CANONICAL badges, and read-only boundary.
+Dashboard v2.4 is the locked visual/interaction baseline. Preserve responsive sidebar/mobile drawer, visual sun/moon Light-Dark toggle, spreadsheet gridlines, Inventory→Overview path, row detail drawer, full-table focus mode, TEST DATA / DB NON-CANONICAL badges, and the read-only boundary.
 
-### Current F7.1 implementation on `test`
+### F7.1 verified deployment
 
-- FastAPI serves `/dashboard`; `/` redirects there.
-- Dashboard is plain HTML/CSS/vanilla JS; no new frontend framework/runtime.
-- Browser-facing BFF routes: `/dashboard/api/overview`, `/dashboard/api/rows`, `/dashboard/api/review-reasons`.
-- Dashboard owner session uses PBKDF2-SHA256 password hash and HMAC-signed HttpOnly + Secure + SameSite=Strict cookie.
-- Raw F3 Bearer service credential is not exposed to browser code/storage.
-- If `MSA_DASHBOARD_OWNER_PASSWORD_HASH` or `MSA_DASHBOARD_SESSION_SECRET` is missing, private BFF routes fail closed with no private row disclosure.
-- CI checks Python compile, dashboard JavaScript syntax, and deploy-shell syntax.
-- deployment verifies dashboard auth primitives, shell/session route, and private BFF gate.
-- no inventory writes and no live workbook import are added.
+Implementation PR #14:
 
-F7.1 is **implementation-active, not yet verified complete** until PR validation, main merge, automatic VPS deploy, and public HTTPS checks are green.
+- merge SHA `99b41c32c55d59e4acaafd44be77b78d93ed5889`
+- deploy run `32568177813`
 
-### Next after F7.1 deploy
+Public-route verification PR #15:
 
-F7.2: provision dashboard owner password hash + session secret in the protected VPS runtime env, then live-verify owner login and real F6C test-only overview/row/review reads through the dashboard. Do not weaken existing root-owned API credential files just to make the browser work.
+- merge SHA `e114ce9abcde30f727315eea0c4314a5047f1c29`
+- deploy run `32568305770`
+- deploy job `97020051556`
+- evidence marker `0f9401baed9f950b1fb6abd507cc285f150f1c8b`
 
-Google Sheets remains the operational source of truth throughout this phase.
+Verified runtime facts:
+
+- `/dashboard` is deployed;
+- dashboard session route is deployed;
+- private dashboard BFF is fail-closed;
+- public `https://inventory.drthorne.uk/dashboard` path verified by the VPS runner;
+- public unauthenticated `/dashboard/api/overview` returned HTTP 503 because owner auth is intentionally unprovisioned;
+- dashboard auth password/session/tamper verifier passed;
+- F6C shadow verifier passed;
+- no live workbook import executed;
+- no inventory write routes were added.
+
+## Next authorized slice — F7.2
+
+Provision dashboard owner authentication in the protected VPS runtime environment, then verify authenticated public dashboard reads against the existing F6C test-only dataset.
+
+Runtime-only values:
+
+- `MSA_DASHBOARD_OWNER_PASSWORD_HASH`
+- `MSA_DASHBOARD_SESSION_SECRET`
+
+Do not put these in Git or browser code. Do not weaken the existing root-owned F3 token boundary.
+
+After provisioning, verify:
+
+- public owner sign-in;
+- real overview metrics from the test-only batch;
+- inventory rows through the dashboard BFF;
+- search/classification/source-sheet filters;
+- detail drawer;
+- expanded table mode;
+- Light/Dark theme;
+- responsive navigation;
+- logout;
+- unauthenticated private-route rejection.
+
+F7.2 remains read-only. Google Sheets remains the operational source of truth.
 
 ## Safety boundary
 
