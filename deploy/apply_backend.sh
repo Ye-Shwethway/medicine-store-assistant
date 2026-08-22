@@ -27,9 +27,6 @@ docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm \
   api python -m app.dashboard_verify
 
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm \
-  api python -m app.dashboard_login_verify
-
-docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm \
   api python -m app.shadow_read_verify
 
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d api
@@ -66,6 +63,10 @@ for route in \
   '/dashboard/api/review-reasons'; do
   grep -Fq "\"${route}\"" <<<"$OPENAPI"
 done
+
+LOGIN_BODY="$(curl --fail --silent --show-error "http://127.0.0.1:${API_PORT}/dashboard/login")"
+grep -Fq 'Secure dashboard access' <<<"$LOGIN_BODY"
+grep -Fq 'Owner password' <<<"$LOGIN_BODY"
 
 ANON_STATUS="$(curl --silent --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:${API_PORT}/v1/shadow/batches")"
 if [[ "$ANON_STATUS" != "401" ]]; then
