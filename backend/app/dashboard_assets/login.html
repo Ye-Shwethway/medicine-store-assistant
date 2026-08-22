@@ -5,17 +5,14 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="light dark">
   <title>Sign in — Medicine Store Assistant</title>
-  <link rel="stylesheet" href="/dashboard/login.css?v=f72b-1">
+  <link rel="stylesheet" href="/dashboard/login.css?v=f72c-1">
 </head>
 <body>
   <main class="login-shell" id="loginRoot" data-theme="light">
     <section class="login-panel" aria-labelledby="loginTitle">
       <div class="brand-row">
         <div class="brand-mark">MS</div>
-        <div>
-          <strong>Medicine Store</strong>
-          <span>Assistant</span>
-        </div>
+        <div><strong>Medicine Store</strong><span>Assistant</span></div>
       </div>
 
       <div id="signInPanel">
@@ -24,7 +21,6 @@
           <h1 id="loginTitle">Sign in</h1>
           <p>Use your Medicine Store Assistant username and password to continue.</p>
         </div>
-
         <form id="loginForm" novalidate>
           <label for="username">Username</label>
           <input id="username" name="username" type="text" autocomplete="username" maxlength="64" required autofocus>
@@ -33,20 +29,15 @@
           <p class="form-error" id="loginError" role="alert" aria-live="polite"></p>
           <button class="primary-submit" type="submit" id="submitButton">Sign in</button>
         </form>
-
         <div class="access-request-entry">
-          <span>Need an account?</span>
+          <button class="text-action" id="forgotOpen" type="button">Forgot password?</button>
+          <span aria-hidden="true">·</span>
           <button class="text-action" id="requestOpen" type="button">Request access</button>
         </div>
       </div>
 
       <section id="requestPanel" hidden aria-labelledby="requestTitle">
-        <div class="login-heading request-heading">
-          <p class="eyebrow">Owner-reviewed access</p>
-          <h1 id="requestTitle">Request access</h1>
-          <p>Your request stays pending until the Owner approves it and assigns a role.</p>
-        </div>
-
+        <div class="login-heading request-heading"><p class="eyebrow">Owner-reviewed access</p><h1 id="requestTitle">Request access</h1><p>Your request stays pending until the Owner approves it and assigns a role.</p></div>
         <form id="requestForm" novalidate>
           <label for="requestDisplayName">Display name</label>
           <input id="requestDisplayName" name="display_name" type="text" autocomplete="name" maxlength="160" required>
@@ -63,14 +54,35 @@
         </form>
       </section>
 
-      <div class="authority-note">
-        <span class="status-dot"></span>
-        <p><strong>Read-only inventory phase</strong><br>Google Sheet remains operationally authoritative. PostgreSQL is non-canonical.</p>
-      </div>
+      <section id="forgotPanel" hidden aria-labelledby="forgotTitle">
+        <div class="login-heading request-heading"><p class="eyebrow">Assisted recovery</p><h1 id="forgotTitle">Forgot password</h1><p>Submit your username. The response is intentionally generic; an eligible request waits for Owner review.</p></div>
+        <form id="forgotForm" novalidate>
+          <label for="forgotUsername">Username</label>
+          <input id="forgotUsername" name="username" type="text" autocomplete="username" maxlength="64" required>
+          <p class="form-error" id="forgotError" role="alert" aria-live="polite"></p>
+          <p class="form-success" id="forgotSuccess" role="status" aria-live="polite"></p>
+          <button class="primary-submit" type="submit" id="forgotSubmit">Request reset</button>
+          <button class="secondary-submit" id="forgotCancel" type="button">Back to sign in</button>
+        </form>
+      </section>
 
+      <section id="resetPanel" hidden aria-labelledby="resetTitle">
+        <div class="login-heading request-heading"><p class="eyebrow">One-time reset</p><h1 id="resetTitle">Set a new password</h1><p>This link is short-lived and can be used only once.</p></div>
+        <form id="resetForm" novalidate>
+          <label for="resetPassword">New password</label>
+          <input id="resetPassword" name="new_password" type="password" autocomplete="new-password" minlength="10" maxlength="256" required>
+          <p class="field-help">Use at least 10 characters.</p>
+          <p class="form-error" id="resetError" role="alert" aria-live="polite"></p>
+          <p class="form-success" id="resetSuccess" role="status" aria-live="polite"></p>
+          <button class="primary-submit" type="submit" id="resetSubmit">Reset password</button>
+          <button class="secondary-submit" id="resetCancel" type="button">Back to sign in</button>
+        </form>
+      </section>
+
+      <div class="authority-note"><span class="status-dot"></span><p><strong>Read-only inventory phase</strong><br>Google Sheet remains operationally authoritative. PostgreSQL is non-canonical.</p></div>
       <button class="theme-toggle" id="themeToggle" type="button" aria-label="Switch theme">☀︎ / ☾</button>
     </section>
   </main>
-  <script src="/dashboard/login.js?v=f72b-1" defer></script>
+  <script src="/dashboard/login.js?v=f72c-1" defer></script>
 </body>
 </html>
