@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Project Roadmap
 
-Status: **F0/F1/F2/F3/F4/F5/F5.1/F6A/F6C verified complete; F6B remains test-only; Web Dashboard design foundation active; PostgreSQL remains non-canonical**
+Status: **F0/F1/F2/F3/F4/F5/F5.1/F6A/F6C verified complete; F6B remains test-only; F7 Web Dashboard implementation active; PostgreSQL remains non-canonical**
 
 The live Google workbook/source documents remain operationally authoritative. The current staged F6B snapshot is **test-only** and is **not an accepted migration baseline**. A fresh real migration dataset will be imported later only after the operational workflow and user-facing management UI are ready and explicitly approved.
 
@@ -62,24 +62,49 @@ Verified behavior:
 - `GET /v1/shadow/rows` registered;
 - `GET /v1/shadow/review-reasons` registered;
 - anonymous shadow access returns HTTP 401;
-- API responses are designed to state `migration_baseline_accepted:false` and `database_canonical:false`;
+- API responses state `migration_baseline_accepted:false` and `database_canonical:false`;
 - `/health` and `/ready` green at migration `0004_shadow`.
 
-## Active product direction — Web Dashboard
+## F7 — Web Dashboard
 
-User-facing web management is now the active product direction. The current F6B/F6C test data will be used only as the dashboard test dataset while the workflow is designed.
+User-facing web management is now the active implementation direction. The existing F6B/F6C test dataset remains the only dataset used for dashboard workflow development.
 
-UI/UX Pro Max has been adopted as the dashboard design-intelligence reference, pinned for this design cycle to upstream commit `bc826e2267a36d98a2dcf5231e16c30ff546770f` from `nextlevelbuilder/ui-ux-pro-max-skill`.
+UI/UX Pro Max is the design-intelligence reference, pinned for this design cycle to upstream commit `bc826e2267a36d98a2dcf5231e16c30ff546770f` from `nextlevelbuilder/ui-ux-pro-max-skill`.
 
-Canonical design docs:
+Canonical dashboard docs:
 
+- `docs/architecture/F7_WEB_DASHBOARD.md`
 - `docs/design/UI_UX_PRO_MAX_INTEGRATION.md`
 - `design-system/medicine-store-assistant/MASTER.md`
 - `design-system/medicine-store-assistant/pages/dashboard.md`
 
-A developer bootstrap script at `scripts/bootstrap_ui_ux_pro_max.sh` materializes the pinned third-party skill locally under `.agents/skills/ui-ux-pro-max/`. The materialized third-party bundle is ignored by Git and is not a production runtime dependency.
+The owner approved **Dashboard v2.4** as the locked implementation baseline. Required behaviors include responsive sidebar/mobile drawer navigation, Light/Dark visual sun-moon toggle, spreadsheet-style table gridlines, Inventory→Overview return path, item detail drawer, full-table focus mode, persistent TEST DATA / DB NON-CANONICAL indicators, and no write affordances.
 
-Current Figma work contains a clean `Dashboard v2 — UUPM` page built from the adopted design principles. The next implementation slice should turn the approved design into an authenticated interactive web dashboard that consumes the existing read API. Major interactions to prove before production writes include navigation, search/filtering, row detail, loading/empty/error states, keyboard/touch accessibility, and responsive behavior.
+### F7.1 — Read-only dashboard foundation — implementation active
+
+Current implementation on `test` includes:
+
+- FastAPI-served dashboard shell at `/dashboard` with `/` redirect;
+- HTML/CSS/vanilla-JS implementation of the approved v2.4 interaction model;
+- server-side dashboard BFF routes for overview, rows, and review reasons;
+- fail-closed owner authentication using PBKDF2-SHA256 password hash + HMAC-signed HttpOnly/Secure/SameSite session cookie;
+- no browser exposure of the existing F3 Bearer service credential;
+- dashboard auth disabled automatically when required runtime secrets are absent;
+- deterministic dashboard auth verification in deployment;
+- dashboard shell/session/private-gate checks in automatic VPS deployment;
+- CI JavaScript syntax validation;
+- no live workbook import and no inventory write routes.
+
+F7.1 is **not verified complete until PR validation, main merge, automatic VPS deploy, public HTTPS shell verification, and private data-gate verification are green**.
+
+### F7.2 — Owner credential provisioning + authenticated live read verification
+
+After F7.1 is deployed, provision these values only in the protected VPS runtime environment:
+
+- `MSA_DASHBOARD_OWNER_PASSWORD_HASH`
+- `MSA_DASHBOARD_SESSION_SECRET`
+
+Then verify browser owner sign-in, real test-only F6C overview/rows/review data, search/filter, drawer behavior, full-table mode, theme switching, responsive navigation, logout, and private-route rejection without a valid session.
 
 Do not import/accept a real migration baseline merely to continue UI development.
 
