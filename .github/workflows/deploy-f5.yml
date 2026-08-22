@@ -35,7 +35,7 @@ jobs:
 
       - name: Deploy and verify backend
         shell: bash
-        run: bash deploy/apply_f5_catalogue_versioning.sh
+        run: bash deploy/apply_f6a_shadow_migration_foundation.sh
 
       - name: Record deployment evidence
         if: always()
