@@ -1,12 +1,12 @@
 # F7.2 — Authentication, RBAC & User Management Design
 
-Status: **F7.2A and F7.2B verified complete; F7.2C Credential Lifecycle is next; F7.2D remains later**
+Status: **F7.2A, F7.2B, and F7.2C verified complete; F7.2D AI Agent Management is next**
 
 ## Goal
 
 Replace the temporary Owner-only password bridge with durable multi-user authentication and role-based access while preserving the locked Dashboard v2.4 visual system and the current read-only inventory boundary.
 
-F7.2A/B/C answers human identity and account-management questions. AI/service principals are handled by the companion F7.2D design:
+F7.2A/B/C answer human identity, account-management, and credential-lifecycle questions. AI/service principals are handled by the companion F7.2D design:
 
 `docs/architecture/F7_2D_AI_AGENT_MANAGEMENT.md`
 
@@ -41,9 +41,9 @@ The deployed implementation reuses and evolves the existing F2 human-identity fo
 
 The former runtime-only password bridge has been superseded for normal login.
 
-F7.2A materialized the existing Owner password hash into the canonical F2 `users` model and assigned the canonical `OWNER` role without exposing plaintext credentials. Normal Owner sign-in is now **username + password**; the deployed bootstrap username is `owner` unless explicitly overridden by protected runtime configuration.
+F7.2A materialized the existing Owner password hash into the canonical F2 `users` model and assigned the canonical `OWNER` role without exposing plaintext credentials. Normal Owner sign-in is username + password. The initial deployed bootstrap username was `owner`.
 
-Compatibility boundary: the already-deployed Owner PBKDF2 hash was preserved specifically to permit plaintext-free migration. New password-change/reset/hash-upgrade policy belongs to F7.2C.
+F7.2C supersedes the assumption that `owner` is a permanent product identity: username is now a mutable credential/display label while stable `user_id` and `OWNER` role remain authoritative. The Owner can replace `owner` through the signed-in Account page after current-password re-authentication.
 
 Verified implementation evidence:
 
@@ -80,6 +80,8 @@ Rules:
 - passwords, service credentials, and signing secrets never enter browser storage.
 
 F7.2B adds a progressively disclosed `Request access` flow. Submitting it creates only a pending canonical account/request; it does not grant private inventory access.
+
+F7.2C adds `Forgot password?` with an enumeration-safe acknowledgement and a one-time reset-completion surface activated by an Owner-issued `#reset=<token>` link.
 
 ## Backend authorization contract
 
@@ -123,7 +125,9 @@ Owner-only F7.2B supports:
 - revoke sessions;
 - inspect basic active-session state.
 
-Current F7.2B does not delegate User Management to ADMIN. Future ADMIN delegation, if desired, must be explicitly designed and can never grant/promote OWNER.
+F7.2C adds Owner review/issuance of password-reset requests inside the same User Management product area without turning credential recovery into an ordinary role mutation.
+
+Current User Management does not delegate to ADMIN. Future ADMIN delegation, if desired, must be explicitly designed and can never grant/promote OWNER.
 
 ### Grant/escalation boundaries
 
@@ -144,22 +148,24 @@ Current F7.2B does not delegate User Management to ADMIN. Future ADMIN delegatio
 
 ### Account/security history vs operational Audit
 
-F7.2B introduces minimum durable `account_security_events` and reusable `notification_events` required for human-account administration. These do **not** replace or implement the later F7.3 actor-aware operational/store Audit ledger.
+F7.2B/F7.2C maintain minimum durable `account_security_events` and reusable `notification_events` required for human-account administration and credential recovery. These do **not** replace or implement the later F7.3 actor-aware operational/store Audit ledger.
 
 ## Signed-in drawer profile — **VERIFIED F7.2B**
 
-Dashboard v2.4 now shows a signed-in identity box below product branding and above primary navigation in the sidebar/drawer.
+Dashboard v2.4 shows a signed-in identity box below product branding and above primary navigation in the sidebar/drawer.
 
 Required/deployed representation:
 
 - circular profile avatar area;
 - deterministic initials fallback while no managed profile image exists;
-- canonical username as primary identity label;
+- current canonical username as primary identity label;
 - current role as secondary metadata;
 - safe truncation/responsive drawer behavior;
 - identity sourced from authenticated backend session, not a browser-side profile store.
 
-The F7.2B profile card is informational. Actual profile-image upload/change is deferred until separately authorized and must not be silently mixed into F7.2C.
+The profile card remains informational. Profile-image upload/change is deferred until separately authorized.
+
+Username itself is managed through F7.2C `Account`, not by editing the drawer card. After username change and re-login, the profile card reflects the new canonical username.
 
 Web UI implementation follows the pinned UI/UX Pro Max skill and the existing MSA `MASTER.md` / Dashboard v2.4 design system: semantic surfaces, keyboard/focus affordances, responsive behavior, readable textual state, and no color-only meaning.
 
@@ -169,6 +175,7 @@ Web UI implementation follows the pinned UI/UX Pro Max skill and the existing MS
 
 - full ordinary navigation visibility;
 - User Management visible;
+- Account credential management visible;
 - AI Agent Management visible only when F7.2D is implemented;
 - global Settings visible only when its authorized slice is implemented;
 - later high-risk/canonical actions remain separately gated.
@@ -176,19 +183,22 @@ Web UI implementation follows the pinned UI/UX Pro Max skill and the existing MS
 ### ADMIN
 
 - operational/admin surfaces allowed by backend policy;
-- no current F7.2B User Management access;
+- Account credential management visible for own username/password;
+- no current User Management access;
 - no Owner escalation;
 - no AI Agent Management/global Settings.
 
 ### STAFF
 
 - inventory and approved routine operational surfaces;
+- Account credential management visible for own username/password;
 - no User Management, Agent Management, global Settings, migration promotion, or privileged historical correction.
 
 ### READ_ONLY
 
-- read surfaces only;
-- no write/edit/save/approve controls;
+- read surfaces only for inventory/business data;
+- Account credential management remains available for the user's own sign-in credential;
+- no inventory write/edit/save/approve controls;
 - management routes return access-denied behavior.
 
 ## Access denied
@@ -202,24 +212,69 @@ Use a first-class `403 / Access denied` state that:
 
 Backend 403 and the User Management visual denied state are verified.
 
-## F7.2C — Credential lifecycle — **NEXT**
+## F7.2C — Credential lifecycle — **VERIFIED COMPLETE**
 
-- logged-in user changes password only after current-password re-authentication;
-- forgotten-password request must not reveal whether username exists;
-- reset request grants no access;
-- Owner-assisted workflow approves/issues a cryptographically random short-lived one-time reset;
-- store only reset-token digest/verifier material after issuance boundary;
-- reset token expires and is single-use;
-- successful password change/reset increments credential version and invalidates old sessions;
-- password change/reset become account-security events;
-- reusable notification events support Owner review/delivery;
-- normal credential maintenance is accessible through product UI without VPS/terminal intervention.
+Deployed via PR #40, merge `a910658efc3cbc214b30a1f5ed946fdd34ffe4a2`, deploy run `32589571152`, job `97071112514`.
+
+Alembic upgraded `0006_user_management -> 0007_credential_lifecycle`.
+
+### Self-service username change
+
+- available to every active signed-in human role through `Account`;
+- requires current-password re-authentication;
+- enforces the existing 3–64 character username format and case-insensitive uniqueness;
+- changes username only, not stable `user_id`, role, or state;
+- increments credential version and revokes prior sessions;
+- records `USERNAME_CHANGED` account-security event;
+- requires sign-in again with the new username;
+- initial bootstrap username `owner` is therefore not a permanent visible identity requirement.
+
+### Self-service password change
+
+- requires current-password re-authentication;
+- validates the new password and rejects reusing the current password;
+- stores only a one-way hash;
+- increments credential version and revokes prior sessions;
+- cancels outstanding reset requests/tokens;
+- records `PASSWORD_CHANGED` account-security event;
+- requires sign-in again with the new password.
+
+### Forgotten-password / Owner-assisted reset
+
+- public request accepts username but returns the same generic accepted response for unknown and eligible users;
+- a durable pending reset grants no access;
+- eligible reset requests are Owner-reviewable in User Management;
+- only Owner may issue a cryptographically random short-lived one-time reset;
+- reset lifetime defaults to 30 minutes with bounded runtime configuration;
+- persistent storage contains only a keyed reset-token digest/verifier;
+- plaintext token is returned only at issuance;
+- link uses `/dashboard/login#reset=<token>` so plaintext token is not transmitted in ordinary HTTP request URLs;
+- completion checks issued state, expiry, active target state, token verifier, and new-password policy;
+- success increments credential version, revokes sessions, consumes the reset, removes verifier material, and records `PASSWORD_RESET_COMPLETED`;
+- request/issuance also create reusable notification events.
+
+### Verified acceptance
+
+- username current-password re-authentication — pass;
+- username change / old-session revoke / old-username denial / new-username login — pass;
+- password current-password re-authentication — pass;
+- password change / old-session revoke / old-password denial / new-password login — pass;
+- enumeration-safe reset request — pass;
+- non-Owner reset-list 403 — pass;
+- Owner reset review/issuance — pass;
+- digest-only token persistence — pass;
+- reset single use — pass;
+- reset session revoke — pass;
+- credential/security events — pass;
+- reset notifications — pass;
+- Account/Forgot/Owner-reset UI contract — pass;
+- inventory authority flags and read-only boundary — unchanged.
 
 Verified-email recovery may be added later only if real email infrastructure is deliberately introduced.
 
-Profile-image upload/edit remains outside F7.2C unless separately authorized.
+Profile-image upload/edit remains outside F7.2C and separately deferred.
 
-## F7.2D companion — AI Agent Management
+## F7.2D companion — AI Agent Management — **NEXT**
 
 AI agents are **not** human accounts assigned `OWNER/ADMIN/STAFF/READ_ONLY` roles. They are separately registered `AI_AGENT` principals with capability-based authority.
 
@@ -233,9 +288,10 @@ AI Chat never becomes a permission bypass. An Owner may later grant an AI agent 
 
 ## Surface separation
 
-- `User Management` — human accounts, roles, state, session administration.
-- credential lifecycle — F7.2C password/change/reset workflow.
-- `AI Agent Management` — later Owner-only F7.2D control plane.
+- `User Management` — human accounts, roles, state, session administration, and Owner-assisted reset review.
+- `Account` — self-service F7.2C username/password maintenance.
+- credential recovery — public forgot request plus Owner-issued reset link.
+- `AI Agent Management` — Owner-only F7.2D control plane.
 - `Settings` — Owner-only global policy in later authorized slices.
 - `Audit` — F7.3 store/database operational history, not account/agent management.
 
@@ -268,9 +324,21 @@ AI Chat never becomes a permission bypass. An Owner may later grant an AI agent 
 12. User Management separate from operational Audit — pass;
 13. no inventory mutation — pass.
 
-### Remaining human-account work
+### F7.2C — complete
 
-F7.2C must separately verify change-password/reset lifecycle, token expiry/single use, and credential/session invalidation. F7.2D remains a subsequent companion slice and must not be conflated with human-account implementation.
+1. authenticated username change with current-password re-authentication — pass;
+2. username change preserves stable identity/role/state and revokes old sessions — pass;
+3. authenticated password change with current-password re-authentication — pass;
+4. forgotten-password request is enumeration-safe — pass;
+5. Owner-assisted reset issuance — pass;
+6. digest-only persistent reset verifier — pass;
+7. reset expiry/one-use contract — pass;
+8. credential/session invalidation after change/reset — pass;
+9. account-security + notification events — pass;
+10. product UI requires no VPS/terminal intervention — pass;
+11. no inventory mutation — pass.
+
+Human identity/User Management/credential lifecycle are now verified. F7.2D is the next separate companion slice and must not be conflated with human-account implementation.
 
 ## Safety boundary
 
