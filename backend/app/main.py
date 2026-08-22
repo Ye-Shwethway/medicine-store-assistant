@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import os
 
-from fastapi import FastAPI, Response, status
+from fastapi import FastAPI, Request, Response, status
+from fastapi.responses import RedirectResponse
 
 from app.dashboard import router as dashboard_router
+from app.dashboard_auth import SESSION_COOKIE, validate_session_token
+from app.dashboard_login import router as dashboard_login_router
 from app.db import database_readiness
 from app.read_api import router as read_router
 from app.shadow_read_api import router as shadow_read_router
@@ -24,6 +27,22 @@ app = FastAPI(
     ),
 )
 
+
+@app.middleware("http")
+async def dashboard_login_gate(request: Request, call_next):
+    path = request.url.path.rstrip("/") or "/"
+    token = request.cookies.get(SESSION_COOKIE)
+    authenticated = validate_session_token(token)
+
+    if path == "/dashboard" and not authenticated:
+        return RedirectResponse(url="/dashboard/login", status_code=status.HTTP_307_TEMPORARY_REDIRECT)
+    if path == "/dashboard/login" and authenticated:
+        return RedirectResponse(url="/dashboard", status_code=status.HTTP_307_TEMPORARY_REDIRECT)
+
+    return await call_next(request)
+
+
+app.include_router(dashboard_login_router)
 app.include_router(dashboard_router)
 app.include_router(read_router)
 app.include_router(shadow_read_router)
