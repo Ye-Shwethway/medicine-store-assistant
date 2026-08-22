@@ -10,6 +10,13 @@ Canonical flow: `test -> pull request -> main -> automatic VPS deploy for releva
 
 Validation is path-aware and lightweight. Docs-only changes do not deploy the VPS. Normal continuation does not require manual VPS commands or a manual Actions deploy button. Runtime secrets remain only on the VPS. Normal backend deployment must **not** read/import the live workbook.
 
+Owner-interaction policy is now explicit:
+
+- Bamboo/Bamboo Claw is **not part of the normal MSA implementation, deployment, verification, or continuity workflow** unless the owner explicitly re-authorizes it.
+- Do not require the owner to use Termux, SSH, tmux, shell commands, or manual GitHub Actions for normal project continuation.
+- Prefer connected tools, repository automation, the existing self-hosted runner, and durable application-native/browser admin flows.
+- If privileged runtime setup cannot be completed through the automated path, build a safe browser/admin mechanism instead of repeated ad-hoc terminal steps.
+
 ## Verified foundation
 
 - F0 VPS inspection — verified complete 2026-08-22
@@ -84,7 +91,7 @@ Verified:
 
 ### F7.2 — next authorized slice: Authentication & Role-Based Access
 
-F7.2 is now explicitly broader than owner-password provisioning.
+F7.2 is explicitly broader than owner-password provisioning.
 
 Design decisions are locked in `docs/design/F7_2_AUTH_RBAC_DESIGN.md`:
 
@@ -98,7 +105,9 @@ Design decisions are locked in `docs/design/F7_2_AUTH_RBAC_DESIGN.md`:
 - stable backend `user_id` remains canonical human identity;
 - deactivate/revoke accounts rather than delete historical actors.
 
-The existing runtime values remain a **bootstrap Owner bridge** for the first protected deployment verification:
+The bootstrap Owner runtime credentials have now been provisioned successfully on the protected VPS runtime. The temporary setup mechanism completed and was removed. Application restart and owner-login verification were then initiated; canonical completion evidence must still come from the normal repository/runtime verification path before marking the whole F7.2 bootstrap verification complete.
+
+The existing runtime values remain a **bootstrap Owner bridge**:
 
 - `MSA_DASHBOARD_OWNER_PASSWORD_HASH`
 - `MSA_DASHBOARD_SESSION_SECRET`
@@ -108,8 +117,8 @@ They are not the final multi-user credential store.
 Implementation sequence:
 
 1. auth/RBAC design and continuity docs;
-2. securely provision bootstrap Owner runtime secrets on VPS;
-3. verify authenticated Owner read path against the existing test-only F6C dataset;
+2. bootstrap Owner runtime secret provisioning — completed;
+3. authenticated Owner public dashboard read verification — in verification;
 4. implement dedicated login UX and canonical user/session/RBAC foundation;
 5. verify role behavior and access-denied states.
 
