@@ -23,7 +23,7 @@ Treat newer verified repository/runtime evidence as authoritative over remembere
 
 The live Google workbook/source documents remain authoritative. PostgreSQL is deployed but **not canonical**.
 
-The F6B staged batch is **test-only**. It is not an accepted migration baseline and must not be treated as the real dataset to be promoted later. A fresh real migration dataset will be imported only after the operational workflow and user-facing management UI are ready and explicitly approved.
+The F6B staged batch is **test-only**. It is not an accepted migration baseline and must not be treated as the real dataset to promote later. A fresh real migration dataset will be imported only after the operational workflow and user-facing management UI are ready and explicitly approved.
 
 ## Deployment workflow
 
@@ -36,40 +36,34 @@ Canonical flow: `test -> pull request -> main -> automatic VPS deployment for re
 - Relevant runtime changes use repository-scoped self-hosted runner `msa-vps-runner-01`.
 - Runtime secrets stay on the VPS.
 - `.github/backend-deploy-result` records deployment status, source SHA, and workflow run ID.
-- Normal backend deploy must not read/import the live Google workbook.
-- The F6B live importer is retained only as an explicit test/migration tool.
+- Normal backend deploy does **not** read/import the live Google workbook.
+- The F6B importer is retained only as an explicit test/migration tool.
 
 ## Verified checkpoints
 
-F0, F1, Cloudflare HTTPS route, F2, F3, F4, F5, F5.1, and F6A are verified foundation checkpoints.
+F0, F1, Cloudflare HTTPS route, F2, F3, F4, F5, F5.1, F6A, and **F6C** are verified foundation/read-path checkpoints.
 
-F6B verified a **test-only** read-only snapshot/staging exercise:
+F6B is a verified **test-only** snapshot/staging exercise, not a migration baseline.
 
-- source commit `34b169c56422454b9a919936689c3088a9c4ebfc`;
-- GitHub Actions run `32549738838`;
-- total rows `1646`;
-- `SAFE=1417`, `REVIEW=222`, `NEW_UNMAPPED=7`, `CONFLICT=0`;
-- snapshot hash `cfe4c24201bbe9f519189572f0c4c1988a9785e6fb0ca3e8f9630f5ca0417192`;
-- no Google Sheet mutation;
-- no canonical product/lot/ledger mutation;
-- `/health` healthy with `database_canonical:false`;
-- `/ready` database reachable with migration/expected migration `0004_shadow`.
+F6C verification:
 
-This snapshot is useful for read-path testing only. Do not use its REVIEW/NEW_UNMAPPED population as a real migration reconciliation workload.
+- source commit `9f706da4832c08f10b1a8d694273f8f48412570a`;
+- GitHub Actions run `32550437296`;
+- existing test batch verified at `1646` rows (`SAFE=1417`, `REVIEW=222`, `CONFLICT=0`, `NEW_UNMAPPED=7`);
+- `migration_baseline_accepted=false`;
+- `database_canonical=false`;
+- shadow read routes registered for batches, one-batch summary, rows, and review reasons;
+- anonymous shadow read returns HTTP 401;
+- `/health` and `/ready` green at `0004_shadow`;
+- deployment log explicitly confirmed that **no live workbook import executed**.
 
-## Current slice — F6C read-only shadow inspection
+Canonical evidence: `docs/operations/F6C_SHADOW_READ_API_VERIFICATION_2026-08-22.md`.
 
-Build and verify authenticated read-only inspection endpoints over the existing test-only shadow batch:
+## Next product direction — proposal only
 
-- batch list and classification counts;
-- one-batch summary;
-- staged-row query/filter/search;
-- review/unmapped reason summaries;
-- explicit `migration_baseline_accepted:false` and `database_canonical:false` responses;
-- no live workbook import during deployment;
-- no write/correction/promotion endpoint.
+The next meaningful product slice should be the **user-facing management UI architecture/foundation**. Google Sheets remains the current practical human-facing interface until that UI exists.
 
-The user-facing management UI remains a required later product slice before a real migration baseline is imported and accepted.
+The future UI should safely surface inventory/lot/catalogue/shadow-review information and later explicitly authorized operations through the MSA API. Do not import/accept a real migration baseline just to continue backend work.
 
 ## Safety boundary
 

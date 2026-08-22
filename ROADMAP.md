@@ -1,8 +1,8 @@
 # Medicine Store Assistant — Project Roadmap
 
-Status: **F0/F1/F2/F3/F4/F5/F5.1/F6A verified complete; F6B test-only shadow snapshot verified; PostgreSQL remains non-canonical**
+Status: **F0/F1/F2/F3/F4/F5/F5.1/F6A/F6C verified complete; F6B remains test-only; PostgreSQL remains non-canonical**
 
-The live Google workbook/source documents remain operationally authoritative. The current staged F6B snapshot is **test-only** and is **not an accepted migration baseline**. A real migration dataset will be imported later only after the operational workflow and user-facing management UI are ready and explicitly approved.
+The live Google workbook/source documents remain operationally authoritative. The current staged F6B snapshot is **test-only** and is **not an accepted migration baseline**. A fresh real migration dataset will be imported later only after the operational workflow and user-facing management UI are ready and explicitly approved.
 
 ## Delivery policy
 
@@ -23,7 +23,8 @@ Normal backend deployment must **not** read/import the live workbook. Live snaps
 - F5 synthetic CMS catalogue versioning — verified complete 2026-08-22
 - F5.1 authenticated catalogue read API — verified complete 2026-08-22
 - F6A synthetic shadow migration adapter foundation — verified complete 2026-08-22
-- F6B read-only live-workbook **test snapshot** — verified as a test-only staging exercise 2026-08-22
+- F6B read-only live-workbook test snapshot — verified staging exercise only; not a migration baseline
+- F6C authenticated shadow read API — verified complete 2026-08-22
 
 Canonical evidence:
 
@@ -31,44 +32,50 @@ Canonical evidence:
 - `docs/operations/F5_F5_1_CATALOGUE_VERIFICATION_2026-08-22.md`
 - `docs/operations/F6A_SHADOW_MIGRATION_VERIFICATION_2026-08-22.md`
 - `docs/operations/F6B_LIVE_SHADOW_IMPORT_VERIFICATION_2026-08-22.md`
+- `docs/operations/F6C_SHADOW_READ_API_VERIFICATION_2026-08-22.md`
 
-## F6B test-only snapshot
+## Test-only F6B snapshot
 
 Verified source commit `34b169c56422454b9a919936689c3088a9c4ebfc` via GitHub Actions run `32549738838` staged one read-only snapshot from `Medicine Store Cloud` into shadow PostgreSQL.
 
 Test snapshot summary:
 
-- total staged rows: **1,646**
+- rows: **1,646**
 - `SAFE`: **1,417**
 - `REVIEW`: **222**
 - `NEW_UNMAPPED`: **7**
 - `CONFLICT`: **0**
-- source snapshot hash: `cfe4c24201bbe9f519189572f0c4c1988a9785e6fb0ca3e8f9630f5ca0417192`
-- `/health`: healthy, `database_canonical:false`
-- `/ready`: database reachable, migration/expected migration `0004_shadow`
+- source hash: `cfe4c24201bbe9f519189572f0c4c1988a9785e6fb0ca3e8f9630f5ca0417192`
 
-This proves read-only acquisition/staging mechanics only. The batch is not approved as migration truth and should not drive canonical reconciliation or promotion decisions.
+This batch is for read-path testing only. It must not drive canonical reconciliation or promotion decisions.
 
-## Current slice — F6C read-only shadow inspection
+## F6C verified read-only inspection
 
-Use the existing test-only staged data to prove read-only inspection surfaces needed by future user-facing clients.
+Verified deployed source commit: `9f706da4832c08f10b1a8d694273f8f48412570a` via GitHub Actions run `32550437296`.
 
-Scope:
+Verified behavior:
 
-1. list shadow/test batches and classification counts;
-2. inspect one batch summary;
-3. query staged rows by batch/sheet/classification/search text;
-4. summarize review/unmapped reasons;
-5. require the existing authenticated read scope;
-6. return `migration_baseline_accepted:false` and `database_canonical:false` explicitly;
-7. execute no live workbook import during normal deployment;
-8. expose no write/correction/promotion endpoint.
+- normal backend deploy executed with **no live workbook import**;
+- existing test-only batch provenance/classification summary verified;
+- `GET /v1/shadow/batches` registered;
+- `GET /v1/shadow/batches/{migration_batch_id}` registered;
+- `GET /v1/shadow/rows` registered;
+- `GET /v1/shadow/review-reasons` registered;
+- anonymous shadow access returns HTTP 401;
+- API responses are designed to state `migration_baseline_accepted:false` and `database_canonical:false`;
+- `/health` and `/ready` green at migration `0004_shadow`.
 
-A later product phase must design a user-facing management UI before any real migration baseline is imported/accepted.
+## Next product slice — proposal only
+
+The next meaningful product work should be **user-facing management UI architecture/foundation**, not real migration reconciliation.
+
+The UI should eventually let the owner safely browse/manage inventory, lots, catalogue mappings, shadow/import review state, and later authorized operations without relying on raw API calls or database access. Google Sheets remains the practical human-facing source today until this UI is ready.
+
+Do not import/accept a real migration baseline merely to continue backend development.
 
 ## Safety boundary
 
-Do not treat the current F6B test batch as the real migration dataset. Do not begin production stock writes, database promotion, Telegram writes, Flutter rollout, Sheet mirror conversion, or Custom GPT write Actions without explicit authorization for those slices.
+Do not treat the current F6B test batch as real migration truth. Do not begin production stock writes, database promotion, Telegram writes, Flutter rollout, Sheet mirror conversion, or Custom GPT write Actions without explicit authorization for those slices.
 
 ## Continuity rule
 
