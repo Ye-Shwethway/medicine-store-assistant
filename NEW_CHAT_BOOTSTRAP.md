@@ -25,15 +25,18 @@ The live Google workbook/source documents remain authoritative. PostgreSQL is de
 
 The F6B staged batch is **test-only**. It is not an accepted migration baseline and must not be treated as the real dataset to promote later. A fresh real migration dataset will be imported only after the operational workflow and user-facing management UI are ready and explicitly approved.
 
-## Deployment workflow
+## Deployment and owner-interaction workflow
 
 Canonical flow: `test -> pull request -> main -> automatic VPS deployment for relevant runtime changes`.
 
-- No normal manual VPS deployment command is required from the user.
+- No normal manual VPS deployment command is required from the owner.
 - No normal manual GitHub Actions deploy button is required.
+- Do not require the owner to use Termux, SSH, tmux, shell commands, or other terminal steps for normal continuation.
+- Bamboo/Bamboo Claw is not part of the normal MSA implementation, deployment, verification, or continuity workflow unless the owner explicitly re-authorizes it.
+- Prefer connected tools, repository automation, repo-scoped self-hosted runner `msa-vps-runner-01`, and durable application-native/browser admin mechanisms.
+- If a privileged VPS/runtime task cannot be completed through the normal automated path, design a safe product/admin/browser flow rather than falling back to repeated ad-hoc terminal instructions.
 - Backend validation is path-aware and lightweight.
 - Docs-only/unrelated changes do not deploy the VPS.
-- Relevant runtime changes use repository-scoped self-hosted runner `msa-vps-runner-01`.
 - Runtime secrets stay on the VPS.
 - `.github/backend-deploy-result` records deployment status, source SHA, and workflow run ID.
 - Normal backend deploy does **not** read/import the live Google workbook.
@@ -95,7 +98,6 @@ Verified runtime facts:
 - dashboard session route is deployed;
 - private dashboard BFF is fail-closed;
 - public `https://inventory.drthorne.uk/dashboard` path verified by the VPS runner;
-- public unauthenticated `/dashboard/api/overview` returned HTTP 503 because bootstrap Owner auth is intentionally unprovisioned;
 - dashboard auth password/session/tamper verifier passed;
 - F6C shadow verifier passed;
 - no live workbook import executed;
@@ -103,7 +105,7 @@ Verified runtime facts:
 
 ## Next authorized slice — F7.2 Authentication & Role-Based Access
 
-F7.2 is now explicitly an authentication/RBAC slice, not credential provisioning alone.
+F7.2 is explicitly an authentication/RBAC slice, not credential provisioning alone.
 
 Locked design direction:
 
@@ -118,7 +120,9 @@ Locked design direction:
 - disable/revoke accounts rather than delete historical actors;
 - session expiry/sign-out return to login without exposing private data.
 
-The existing runtime-only values are retained as a bootstrap Owner bridge for the first protected read verification:
+Bootstrap Owner secrets are now provisioned successfully on the protected VPS runtime. The temporary setup server and temporary files were removed after success. API restart completed and `/dashboard/api/session` reported `configured=true`; unauthenticated private dashboard reads returned HTTP 401. Owner login submission was captured for final verification. Do not mark the bootstrap public read path complete until normal runtime evidence confirms authenticated overview/rows/review reads, logout, and post-logout 401.
+
+Runtime-only bootstrap values:
 
 - `MSA_DASHBOARD_OWNER_PASSWORD_HASH`
 - `MSA_DASHBOARD_SESSION_SECRET`
@@ -128,8 +132,8 @@ They are not the final multi-user credential store. Do not put them, the plainte
 Authorized implementation order:
 
 1. auth/RBAC canonical design + continuity docs;
-2. secure bootstrap Owner secret provisioning on VPS;
-3. authenticated Owner public dashboard read verification against the existing test-only dataset;
+2. secure bootstrap Owner secret provisioning — completed;
+3. authenticated Owner public dashboard read verification — final verification pending;
 4. dedicated login + canonical user/session/RBAC implementation;
 5. OWNER / ADMIN / STAFF / READ_ONLY authorization verification.
 
