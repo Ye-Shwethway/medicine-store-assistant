@@ -20,6 +20,59 @@
     return data;
   }
 
+  function ensurePasswordConfirmation(){
+    const passwordForm=$('#passwordChangeForm');
+    const newPassword=$('#accountNewPassword');
+    if(!passwordForm||!newPassword||$('#accountConfirmPassword'))return;
+    const oldHelp=newPassword.nextElementSibling;
+    const label=document.createElement('label');
+    label.htmlFor='accountConfirmPassword';
+    label.textContent='Confirm new password';
+    const confirm=document.createElement('input');
+    confirm.id='accountConfirmPassword';
+    confirm.name='confirm_password';
+    confirm.type='password';
+    confirm.autocomplete='new-password';
+    confirm.minLength=10;
+    confirm.maxLength=256;
+    confirm.required=true;
+    const help=document.createElement('p');
+    help.className='field-help';
+    help.textContent='Re-enter the new password to prevent accidental lockout.';
+    if(oldHelp){oldHelp.insertAdjacentElement('afterend',label)}else{newPassword.insertAdjacentElement('afterend',label)}
+    label.insertAdjacentElement('afterend',confirm);
+    confirm.insertAdjacentElement('afterend',help);
+  }
+
+  async function submitConfirmedPasswordChange(event){
+    const passwordForm=event.target.closest('#passwordChangeForm');
+    if(!passwordForm)return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const current=$('#accountCurrentPassword');
+    const next=$('#accountNewPassword');
+    const confirm=$('#accountConfirmPassword');
+    const error=$('#passwordChangeError');
+    const button=$('#passwordChangeSubmit');
+    error.textContent='';
+    if(!confirm||next.value!==confirm.value){
+      error.textContent='New passwords do not match.';
+      confirm?.focus();
+      return;
+    }
+    button.disabled=true;
+    button.textContent='Changing password…';
+    try{
+      await api('/dashboard/api/account/password-confirmed',{method:'POST',body:JSON.stringify({current_password:current.value,new_password:next.value,confirm_password:confirm.value})});
+      current.value='';next.value='';confirm.value='';
+      location.replace('/dashboard/login');
+    }catch(err){
+      error.textContent=err.message;
+      button.disabled=false;
+      button.textContent='Change password';
+    }
+  }
+
   function renderState(data){
     const email=data.email||'';
     emailInput.value=email;
@@ -63,10 +116,12 @@
     }catch(err){errorEl.textContent=err.message;submit.disabled=false;submit.textContent=original}
   });
 
+  root.addEventListener('submit',submitConfirmedPasswordChange,true);
   root.addEventListener('click',event=>{
     const button=event.target.closest('.nav-btn[data-view="account"]');
     if(button)setTimeout(load,0);
   });
 
+  ensurePasswordConfirmation();
   load();
 })();
