@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Architecture Index
 
-Status: **F7.2A canonical human identity/sessions, F7.2B User Management, and F7.2C Credential Lifecycle verified; F7.2D AI Agent Management next with MCP-first connectivity proof; PostgreSQL remains non-canonical**
+Status: **F7.2A canonical human identity/sessions, F7.2B User Management, and F7.2C Credential Lifecycle verified; F7.2D AI Agent Management next with MCP-first full-capability foundation; PostgreSQL remains non-canonical**
 
 This directory defines the future canonical architecture for Medicine Store Assistant beyond the current spreadsheet-operating skill.
 
@@ -8,55 +8,46 @@ The existing Git-backed skill remains canonical at:
 
 `skills/medicine-store-assistant/`
 
-The architecture here must preserve the useful skill workflow while moving authority into durable typed backend contracts.
-
 ## Core decision
 
 MSA evolves toward a ledger-backed multi-client inventory system in which:
 
-- PostgreSQL on the VPS is the planned future canonical operational datastore, but is **not canonical yet**;
-- the Inventory API/typed backend services are the only normal mutation boundary once DB writes are authorized;
-- Google Sheets remains operationally authoritative until explicit promotion, then becomes a human-facing mirror/reconciliation surface for the promoted scope;
-- Excel remains a compatible export/archive/report surface;
-- Web, custom MCP clients, Telegram, Flutter, optional Custom GPT Actions, internal AI, and other clients use typed application contracts rather than direct DB writes;
-- canonical human identities and separately managed AI/service/external-client principals provide durable actor attribution;
-- AI interprets evidence, reconciles candidates, prepares proposals, and may later execute only Owner-authorized typed capabilities;
-- deterministic backend code owns arithmetic, constraints, authorization/delegation, idempotency, transactions, derived state, and read-back verification;
-- actor-aware Audit records who/what acted, under whose authority, through which client/location, and with what outcome;
-- the current Google-Sheets-first workflow remains authoritative until migration/shadow-validation explicitly promotes the database.
+- PostgreSQL is planned future canonical operational storage but is **not canonical yet**;
+- Google Sheets remains operationally authoritative until explicit promotion;
+- Web, custom MCP, Telegram, Flutter, optional Custom GPT Actions, internal AI and other clients use typed application contracts rather than direct DB writes;
+- human identities and AI/service/external-client principals are separate;
+- deterministic backend code owns authorization/delegation, validation, idempotency, transactions and read-back verification;
+- AI interprets/reconciles/proposes and may later execute only Owner-authorized typed capabilities;
+- actor-aware Audit records who/what acted, under whose authority, through which client/location and with what outcome.
 
 ## Current F7 architecture
 
-F7.2A is deployed and runtime-verified. Human accounts use the existing F2 canonical `users` / `roles` / `user_roles` foundation with stable UUID `user_id`, username + password, `PENDING` / `ACTIVE` / `DISABLED` state, durable DB-bound revocable sessions, backend role helpers, explicit authenticated 403 behavior, and disabled-user enforcement.
+F7.2A/B/C are deployed and runtime-verified. F7.2C includes self-service username/password/recovery-email maintenance, password confirmation, verified-email recovery, automated Resend delivery, username-or-email Forgot password, Owner-assisted fallback reset and pending-access email verification. PostgreSQL remains non-canonical and inventory remains read-only.
 
-F7.2B is deployed and runtime-verified. It adds pending-only access requests, Owner-only human User Management, approval/rejection and `ADMIN` / `STAFF` / `READ_ONLY` assignment, non-Owner role changes with session revocation, disable/reactivate/session revoke, OWNER ordinary-flow escalation protection, account-security events, reusable notification events, and a signed-in drawer/sidebar profile card with circular avatar area, deterministic initials fallback, canonical username, and role. User Management remains separate from operational Audit.
+F7.2D is locked to an **MCP-first external-access strategy**. ChatGPT Developer Mode will first connect to a custom remote MSA MCP service hosted on the VPS.
 
-F7.2C is deployed and runtime-verified. Username is a mutable sign-in/display credential while stable `user_id`, role, and state remain authoritative. Active users can change username/password from Account after current-password re-authentication. Password change includes explicit confirmation and revokes prior sessions. Recovery email is product-native: users can verify/change a recovery address through Account, Forgot password accepts either username or verified recovery email, and automated reset links are sent through the verified Resend domain `msamail.drthorne.uk`. Owner-assisted reset issuance remains a fallback. Request Access collects a recovery email and can verify it while the account remains `PENDING`; email verification never grants a role or protected access. The final verified production source SHA is `371936e0c7088c76f692292d31318cfd972a1a46`.
+The MCP direction is now **full-capability schema first** rather than read-only-server-first:
 
-F7.2D is now locked to an **MCP-first external connectivity strategy**. ChatGPT Developer Mode will first be tested against a custom remote MSA MCP service hosted on the VPS. MCP is an external runtime/access path, not a provider. If MCP proves sufficient, Custom GPT Actions may remain optional. Provider Registry still supports built-in OpenAI/Gemini/OpenRouter/NanoGPT adapters plus generic OpenAI-compatible custom providers, but provider/model work follows the MCP connectivity proof rather than preceding it.
+- the durable server/tool catalog is designed once for read, proposal, future typed write, User Management, Agent Management, Provider Registry, Audit and typed Settings capabilities;
+- the initial external MCP principal receives only currently authorized read grants;
+- discoverable tools do not imply execution permission;
+- future capabilities are enabled through backend policy and project-slice gates rather than reconnecting/rebuilding the MCP app;
+- raw SQL, arbitrary table/column mutation, SSH, filesystem, plaintext secrets and generic HTTP proxying remain forbidden.
 
-Current direction continues with:
+Current researched MCP/OpenAI direction as of 2026-08-23 includes stateless MCP core, remote HTTPS/Streamable-HTTP-compatible deployment, JSON Schema 2020-12 tool definitions, tool annotations and standards-based authorization/protected-resource discovery where OAuth is used. ChatGPT write/modify availability may still depend on plan/workspace/product rollout; client limitations do not change the server architecture.
 
-- F7.2D0 custom MCP read-only connectivity proof first;
-- F7.2D Owner-only AI Agent/external-client control plane after MCP proof;
-- Provider Registry/model catalog and internal model assignment after the principal/control-plane foundation;
-- optional Custom GPT Action proof only if MCP is insufficient or a standalone GPT is specifically needed;
-- F7.3 actor-aware operational Audit after F7.2D;
-- exactly one Main Store plus Owner-created Sub Stores later in F7.4;
-- Owner-only global Settings in its later authorized slice;
-- Owner-configurable reorder basis (`MAIN_STORE_ONLY` initially, later optional `TOTAL_ACTIVE_STOCK`);
-- human User Management separate from Owner-only AI Agent Management;
-- AI agents may be granted Main Store and/or Sub Store capabilities; they are not inherently Sub-Store-only;
-- shared AI Chat may be enabled for Staff/Admin users, but effective authority remains the intersection of human authority, agent capability, location scope, and operation policy;
-- Smart Calculator is DB-backed and calculation-only first;
-- Smart Analysis is deterministic first, AI-assisted second;
-- Alerts/Notifications reuse backend events across clients.
+Provider Registry remains separate from MCP. Built-in provider presets are OpenAI, Google Gemini, OpenRouter and NanoGPT, plus generic `OPENAI_COMPATIBLE` custom providers. Provider/model work follows the MCP connectivity proof.
 
-Verified F7.2A anchor: PR #36, merge `c3aa75d65e0bc6d1836227fe8450b0b3de5b2651`, deploy run `32586385336`.
+## Immediate F7.2D order
 
-Verified F7.2B anchor: PR #38, merge `e4671c75ab2ece2a6f5065a78779413ef3e9f38b`, deploy run `32588170791`, job `97067607202`.
+1. **F7.2D0 — full-capability MCP transport/schema + initial read-grant connectivity proof**.
+2. F7.2D2 — AI agent/external-client principal control plane.
+3. F7.2D3 — Provider Registry + model catalog.
+4. F7.2D4 — internal model assignment/fallbacks.
+5. Optional F7.2D1 — Custom GPT Action proof only if MCP is insufficient or a standalone GPT is needed.
+6. F7.3 — actor-aware operational Audit.
 
-Verified F7.2C base anchor: PR #40, merge `a910658efc3cbc214b30a1f5ed946fdd34ffe4a2`, deploy run `32589571152`, job `97071112514`. Final recovery/account refinements are recorded in `../design/F7_2C_CREDENTIAL_LIFECYCLE_DESIGN.md`; the final runtime source SHA `371936e0c7088c76f692292d31318cfd972a1a46` deployed successfully through issue #26. The final state includes verified recovery email, Resend delivery, username-or-email reset, password confirmation, pending-access email verification, and the same read-only/non-canonical boundaries.
+No production inventory write becomes authorized merely because write-capable MCP tools exist in the schema.
 
 ## Documents
 
@@ -70,28 +61,30 @@ Verified F7.2C base anchor: PR #40, merge `a910658efc3cbc214b30a1f5ed946fdd34ffe
 8. [USER_ACCESS_AND_AUTHORIZATION.md](USER_ACCESS_AND_AUTHORIZATION.md) — canonical identity/access foundation.
 9. [MIGRATION_AND_SHADOW_VALIDATION.md](MIGRATION_AND_SHADOW_VALIDATION.md) — migration and canonical-promotion safety.
 10. [DECISIONS_AND_OPEN_QUESTIONS.md](DECISIONS_AND_OPEN_QUESTIONS.md) — locked direction and unresolved gates.
-11. [F7_WEB_DASHBOARD.md](F7_WEB_DASHBOARD.md) — locked Dashboard v2.4 read-only foundation.
-12. `../design/F7_2_AUTH_RBAC_DESIGN.md` — canonical human identity/RBAC design and verified account lifecycle.
-13. `../design/F7_2C_CREDENTIAL_LIFECYCLE_DESIGN.md` — verified username/password/recovery-email lifecycle, Resend delivery, automated reset, and access-request email verification.
-14. [F7_2D_AI_AGENT_MANAGEMENT.md](F7_2D_AI_AGENT_MANAGEMENT.md) — Owner-only AI/service/external-client principal management, MCP access, Provider Registry, capabilities, delegation, and model assignment.
-15. [F7_2D0_CUSTOM_MCP_CONNECTIVITY_PROOF.md](F7_2D0_CUSTOM_MCP_CONNECTIVITY_PROOF.md) — first F7.2D implementation proof: remote MCP on the VPS, ChatGPT Developer Mode connection, typed read tools, capability denial, and revocation.
-16. [F7_2D1_CUSTOM_GPT_ACTION_PROOF.md](F7_2D1_CUSTOM_GPT_ACTION_PROOF.md) — optional secondary Custom GPT Action proof if MCP is insufficient or a standalone GPT is later required.
-17. [F7_3_ACTOR_AUDIT_AND_OPERATION_LEDGER.md](F7_3_ACTOR_AUDIT_AND_OPERATION_LEDGER.md) — human/AI/system/integration provenance and operation ledger.
-18. [F7_4_F7_8_STORE_AND_INTELLIGENCE_ARCHITECTURE.md](F7_4_F7_8_STORE_AND_INTELLIGENCE_ARCHITECTURE.md) — Main/Sub locations, Settings/preferences, Smart Calculator, Smart Analysis, AI Chat, Alerts.
+11. [F7_WEB_DASHBOARD.md](F7_WEB_DASHBOARD.md) — locked Dashboard v2.4 foundation.
+12. `../design/F7_2_AUTH_RBAC_DESIGN.md` — human identity/RBAC design.
+13. `../design/F7_2C_CREDENTIAL_LIFECYCLE_DESIGN.md` — verified credential/recovery lifecycle.
+14. [F7_2D_AI_AGENT_MANAGEMENT.md](F7_2D_AI_AGENT_MANAGEMENT.md) — AI/service/external-client principals, MCP access, Provider Registry and delegated authority.
+15. [F7_2D0_MCP_FULL_CAPABILITY_SCHEMA.md](F7_2D0_MCP_FULL_CAPABILITY_SCHEMA.md) — durable full MCP tool namespaces, auth, policy gates, tool annotations, write contract and activation model.
+16. [F7_2D0_CUSTOM_MCP_CONNECTIVITY_PROOF.md](F7_2D0_CUSTOM_MCP_CONNECTIVITY_PROOF.md) — first implementation proof using the full schema but only current read grants.
+17. [F7_2D1_CUSTOM_GPT_ACTION_PROOF.md](F7_2D1_CUSTOM_GPT_ACTION_PROOF.md) — optional secondary Action path.
+18. [F7_3_ACTOR_AUDIT_AND_OPERATION_LEDGER.md](F7_3_ACTOR_AUDIT_AND_OPERATION_LEDGER.md) — operation provenance/audit.
+19. [F7_4_F7_8_STORE_AND_INTELLIGENCE_ARCHITECTURE.md](F7_4_F7_8_STORE_AND_INTELLIGENCE_ARCHITECTURE.md) — locations/settings/calculator/analysis/AI/alerts.
 
-Relevant checkpoint: `../checkpoints/F7_2D_MCP_FIRST_DECISION_2026-08-23.md`.
+Relevant checkpoints:
 
-`F7_4_F7_6_INTELLIGENCE_ARCHITECTURE.md` is superseded and retained only as a historical pointer.
+- `../checkpoints/F7_2D_MCP_FIRST_DECISION_2026-08-23.md`
+- `../checkpoints/F7_2D_MCP_FULL_CAPABILITY_DECISION_2026-08-23.md`
 
 ## Repository boundary
 
 ```text
 medicine-store-assistant/
-├── skills/medicine-store-assistant/   # published Git-backed skill; preserve
-├── docs/architecture/                 # canonical system design
-├── backend/                           # deterministic API + DB + dashboard runtime
-├── integrations/                      # MCP/GPT/Sheets/Telegram/Flutter adapters
-├── deploy/                            # VPS deployment assets
+├── skills/medicine-store-assistant/
+├── docs/architecture/
+├── backend/
+├── integrations/
+├── deploy/
 ├── AGENTS.md
 ├── NEW_CHAT_BOOTSTRAP.md
 ├── NORMAL_CHAT_BOOTSTRAP.md
@@ -100,6 +93,4 @@ medicine-store-assistant/
 
 ## Design rule
 
-Do not implement from one document in isolation. `AGENTS.md`, `NEW_CHAT_BOOTSTRAP.md`, `ROADMAP.md`, `IMPLEMENTATION_PLAN.md`, the active F7 architecture/design docs, and current repository/runtime evidence form the current implementation contract.
-
-Before implementing a slice, resolve only the questions that actually gate that slice. Do not block safe current work on later-phase choices.
+Do not implement from one document in isolation. `AGENTS.md`, `NEW_CHAT_BOOTSTRAP.md`, `ROADMAP.md`, `IMPLEMENTATION_PLAN.md`, the active F7 architecture/design docs and current repository/runtime evidence together form the implementation contract.
