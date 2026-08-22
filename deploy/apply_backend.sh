@@ -86,6 +86,12 @@ if [[ "$DASHBOARD_PRIVATE_STATUS" != "401" && "$DASHBOARD_PRIVATE_STATUS" != "50
   exit 1
 fi
 
+# Exercise the authenticated dashboard BFF with a short-lived server-generated session token.
+# This proves the test-only batch is not merely present in PostgreSQL but is actually readable
+# through the same dashboard endpoints used by the browser. No Owner password is read or logged.
+docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T api \
+  python -m app.dashboard_runtime_verify
+
 wait_for_url "${PUBLIC_BASE_URL}/health"
 wait_for_url "${PUBLIC_BASE_URL}/dashboard/login"
 wait_for_url "${PUBLIC_BASE_URL}/dashboard/api/session"
@@ -101,6 +107,6 @@ if [[ "$PUBLIC_PRIVATE_STATUS" != "401" && "$PUBLIC_PRIVATE_STATUS" != "503" ]];
 fi
 
 echo "shadow_routes=pass shadow_test_batch=pass anonymous_auth_guard=pass"
-echo "dashboard_auth_foundation=pass dedicated_login=pass dashboard_private_gate=pass:${DASHBOARD_PRIVATE_STATUS}"
+echo "dashboard_auth_foundation=pass dedicated_login=pass authenticated_dashboard_data=pass dashboard_private_gate=pass:${DASHBOARD_PRIVATE_STATUS}"
 echo "dashboard_public_route=pass dashboard_public_private_gate=pass:${PUBLIC_PRIVATE_STATUS} public_base=${PUBLIC_BASE_URL}"
 echo "MSA backend deployed at ${CURRENT_SHA}; no live workbook import executed."
