@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Project Roadmap
 
-Status: **F0/F1/F2/F3/F4/F5/F5.1/F6A/F6C verified complete; F6B remains test-only; F7 Web Dashboard implementation active; PostgreSQL remains non-canonical**
+Status: **F0/F1/F2/F3/F4/F5/F5.1/F6A/F6C/F7.1 verified complete; F6B remains test-only; F7.2 next; PostgreSQL remains non-canonical**
 
 The live Google workbook/source documents remain operationally authoritative. The current staged F6B snapshot is **test-only** and is **not an accepted migration baseline**. A fresh real migration dataset will be imported later only after the operational workflow and user-facing management UI are ready and explicitly approved.
 
@@ -8,9 +8,7 @@ The live Google workbook/source documents remain operationally authoritative. Th
 
 Canonical flow: `test -> pull request -> main -> automatic VPS deploy for relevant runtime changes`.
 
-Validation is path-aware and lightweight. Docs-only changes do not run the backend suite or deploy the VPS. Normal continuation does not require manual VPS commands or a manual Actions deploy button. Runtime secrets remain only on the VPS.
-
-Normal backend deployment must **not** read/import the live workbook. Live snapshot import is an explicit test/migration operation only.
+Validation is path-aware and lightweight. Docs-only changes do not deploy the VPS. Normal continuation does not require manual VPS commands or a manual Actions deploy button. Runtime secrets remain only on the VPS. Normal backend deployment must **not** read/import the live workbook.
 
 ## Verified foundation
 
@@ -25,6 +23,7 @@ Normal backend deployment must **not** read/import the live workbook. Live snaps
 - F6A synthetic shadow migration adapter foundation — verified complete 2026-08-22
 - F6B read-only live-workbook test snapshot — verified staging exercise only; not a migration baseline
 - F6C authenticated shadow read API — verified complete 2026-08-22
+- **F7.1 read-only Web Dashboard foundation — verified complete 2026-08-22**
 
 Canonical evidence:
 
@@ -33,43 +32,26 @@ Canonical evidence:
 - `docs/operations/F6A_SHADOW_MIGRATION_VERIFICATION_2026-08-22.md`
 - `docs/operations/F6B_LIVE_SHADOW_IMPORT_VERIFICATION_2026-08-22.md`
 - `docs/operations/F6C_SHADOW_READ_API_VERIFICATION_2026-08-22.md`
+- `docs/operations/F7_1_WEB_DASHBOARD_FOUNDATION_VERIFICATION_2026-08-22.md`
 
 ## Test-only F6B snapshot
 
-Verified source commit `34b169c56422454b9a919936689c3088a9c4ebfc` via GitHub Actions run `32549738838` staged one read-only snapshot from `Medicine Store Cloud` into shadow PostgreSQL.
+Current test dataset remains unchanged:
 
-Test snapshot summary:
+- batch ID `be13d127-5045-4284-a088-0a0b9b024d76`
+- rows **1,646**
+- SAFE **1,417**
+- REVIEW **222**
+- NEW_UNMAPPED **7**
+- CONFLICT **0**
+- `migration_baseline_accepted=false`
+- `database_canonical=false`
 
-- rows: **1,646**
-- `SAFE`: **1,417**
-- `REVIEW`: **222**
-- `NEW_UNMAPPED`: **7**
-- `CONFLICT`: **0**
-- source hash: `cfe4c24201bbe9f519189572f0c4c1988a9785e6fb0ca3e8f9630f5ca0417192`
-
-This batch is for read-path testing only. It must not drive canonical reconciliation or promotion decisions.
-
-## F6C verified read-only inspection
-
-Verified deployed source commit: `9f706da4832c08f10b1a8d694273f8f48412570a` via GitHub Actions run `32550437296`.
-
-Verified behavior:
-
-- normal backend deploy executed with **no live workbook import**;
-- existing test-only batch provenance/classification summary verified;
-- `GET /v1/shadow/batches` registered;
-- `GET /v1/shadow/batches/{migration_batch_id}` registered;
-- `GET /v1/shadow/rows` registered;
-- `GET /v1/shadow/review-reasons` registered;
-- anonymous shadow access returns HTTP 401;
-- API responses state `migration_baseline_accepted:false` and `database_canonical:false`;
-- `/health` and `/ready` green at migration `0004_shadow`.
+This batch is for read-path/UI testing only. It must not drive canonical reconciliation or promotion decisions.
 
 ## F7 — Web Dashboard
 
-User-facing web management is now the active implementation direction. The existing F6B/F6C test dataset remains the only dataset used for dashboard workflow development.
-
-UI/UX Pro Max is the design-intelligence reference, pinned for this design cycle to upstream commit `bc826e2267a36d98a2dcf5231e16c30ff546770f` from `nextlevelbuilder/ui-ux-pro-max-skill`.
+UI/UX Pro Max remains the design-intelligence reference, pinned for this design cycle to upstream `bc826e2267a36d98a2dcf5231e16c30ff546770f`.
 
 Canonical dashboard docs:
 
@@ -78,39 +60,43 @@ Canonical dashboard docs:
 - `design-system/medicine-store-assistant/MASTER.md`
 - `design-system/medicine-store-assistant/pages/dashboard.md`
 
-The owner approved **Dashboard v2.4** as the locked implementation baseline. Required behaviors include responsive sidebar/mobile drawer navigation, Light/Dark visual sun-moon toggle, spreadsheet-style table gridlines, Inventory→Overview return path, item detail drawer, full-table focus mode, persistent TEST DATA / DB NON-CANONICAL indicators, and no write affordances.
+Dashboard v2.4 is the locked implementation baseline: responsive sidebar/mobile drawer, visual sun/moon Light-Dark toggle, spreadsheet gridlines, Inventory→Overview return path, item detail drawer, full-table focus mode, TEST DATA / DB NON-CANONICAL indicators, and no write affordances.
 
-### F7.1 — Read-only dashboard foundation — implementation active
+### F7.1 — verified complete
 
-Current implementation on `test` includes:
+Implementation PR #14 merged at `99b41c32c55d59e4acaafd44be77b78d93ed5889`; automatic deploy run `32568177813` succeeded.
 
-- FastAPI-served dashboard shell at `/dashboard` with `/` redirect;
-- HTML/CSS/vanilla-JS implementation of the approved v2.4 interaction model;
-- server-side dashboard BFF routes for overview, rows, and review reasons;
-- fail-closed owner authentication using PBKDF2-SHA256 password hash + HMAC-signed HttpOnly/Secure/SameSite session cookie;
-- no browser exposure of the existing F3 Bearer service credential;
-- dashboard auth disabled automatically when required runtime secrets are absent;
-- deterministic dashboard auth verification in deployment;
-- dashboard shell/session/private-gate checks in automatic VPS deployment;
-- CI JavaScript syntax validation;
-- no live workbook import and no inventory write routes.
+Public verification PR #15 merged at `e114ce9abcde30f727315eea0c4314a5047f1c29`; automatic deploy run `32568305770` succeeded. Deployment marker: `0f9401baed9f950b1fb6abd507cc285f150f1c8b`.
 
-F7.1 is **not verified complete until PR validation, main merge, automatic VPS deploy, public HTTPS shell verification, and private data-gate verification are green**.
+Verified:
 
-### F7.2 — Owner credential provisioning + authenticated live read verification
+- FastAPI dashboard shell at `/dashboard` and `/` redirect;
+- server-side BFF routes for overview, rows, review reasons;
+- fail-closed owner session architecture;
+- no browser exposure of the F3 Bearer credential;
+- dashboard auth primitive/tamper checks PASS;
+- local dashboard/session/private gate PASS;
+- public Cloudflare route `https://inventory.drthorne.uk` dashboard/session checks PASS;
+- unauthenticated public private-data read returns fail-closed HTTP 503 while owner credentials are unprovisioned;
+- F6C test-only data remained unchanged;
+- no live Google workbook import executed.
 
-After F7.1 is deployed, provision these values only in the protected VPS runtime environment:
+### F7.2 — next authorized slice
+
+Provision dashboard owner authentication only in the protected VPS runtime environment, then verify authenticated public dashboard reads against the existing F6C test-only dataset.
+
+Required runtime values:
 
 - `MSA_DASHBOARD_OWNER_PASSWORD_HASH`
 - `MSA_DASHBOARD_SESSION_SECRET`
 
-Then verify browser owner sign-in, real test-only F6C overview/rows/review data, search/filter, drawer behavior, full-table mode, theme switching, responsive navigation, logout, and private-route rejection without a valid session.
+Then verify owner sign-in, overview/rows/review data, search/filter, detail drawer, full-table mode, Light/Dark theme, responsive navigation, logout, and unauthenticated rejection.
 
-Do not import/accept a real migration baseline merely to continue UI development.
+F7.2 remains **read-only** and does not authorize inventory writes, Sheet mutation, or database promotion.
 
 ## Safety boundary
 
-Do not treat the current F6B test batch as real migration truth. Do not begin production stock writes, database promotion, Telegram writes, Flutter rollout, Sheet mirror conversion, or Custom GPT write Actions without explicit authorization for those slices.
+Do not treat F6B test data as production migration truth. Do not begin production stock writes, database promotion, Telegram writes, Flutter rollout, Sheet mirror conversion, or Custom GPT write Actions without explicit authorization for those slices.
 
 ## Continuity rule
 
