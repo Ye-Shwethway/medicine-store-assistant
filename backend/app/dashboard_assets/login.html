@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Sign in — Medicine Store Assistant</title>
+  <link rel="stylesheet" href="/dashboard/login.css">
+</head>
+<body>
+  <main class="login-shell" id="loginRoot" data-theme="light">
+    <section class="login-panel" aria-labelledby="loginTitle">
+      <div class="brand-row">
+        <div class="brand-mark">MS</div>
+        <div>
+          <strong>Medicine Store</strong>
+          <span>Assistant</span>
+        </div>
+      </div>
+
+      <div class="login-heading">
+        <p class="eyebrow">Secure dashboard access</p>
+        <h1 id="loginTitle">Sign in</h1>
+        <p>Use your Medicine Store Assistant Owner credential to continue.</p>
+      </div>
+
+      <form id="loginForm" novalidate>
+        <label for="password">Owner password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required autofocus>
+        <p class="form-error" id="loginError" role="alert" aria-live="polite"></p>
+        <button type="submit" id="submitButton">Sign in</button>
+      </form>
+
+      <div class="authority-note">
+        <span class="status-dot"></span>
+        <p><strong>Read-only phase</strong><br>Google Sheet remains operationally authoritative. PostgreSQL is test/shadow only.</p>
+      </div>
+
+      <button class="theme-toggle" id="themeToggle" type="button" aria-label="Switch theme">☀︎ / ☾</button>
+    </section>
+  </main>
+  <script src="/dashboard/login.js" defer></script>
+</body>
+</html>
