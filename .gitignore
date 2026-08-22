@@ -31,6 +31,9 @@ operational-data/
 *.csv
 *.tsv
 
+# Local third-party agent skills materialized by bootstrap scripts
+.agents/skills/ui-ux-pro-max/
+
 # Local tooling / editor
 .DS_Store
 .idea/
