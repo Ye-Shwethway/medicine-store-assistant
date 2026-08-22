@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="light dark">
   <title>Medicine Store Assistant</title>
-  <link rel="stylesheet" href="/dashboard/assets/dashboard.css?v=f72b-1">
-  <link rel="stylesheet" href="/dashboard/assets/dashboard_users.css?v=f72b-1">
+  <link rel="stylesheet" href="/dashboard/assets/dashboard.css?v=f72c-1">
+  <link rel="stylesheet" href="/dashboard/assets/dashboard_users.css?v=f72c-1">
 </head>
 <body>
 <div id="msa" data-theme="light">
@@ -38,6 +38,7 @@
         <button class="nav-btn" data-view="shadow" type="button">Shadow Inspection</button>
         <button class="nav-btn" data-view="catalogue" type="button">Catalogue</button>
         <button class="nav-btn owner-only" data-view="users" type="button" hidden>User Management</button>
+        <button class="nav-btn" data-view="account" type="button">Account</button>
         <button class="nav-btn" data-view="audit" type="button">Audit</button>
       </nav>
       <div class="authority"><b>Current authority</b><p>Google Sheet remains the operational source of truth.</p><small>Database is read-only test/shadow.</small></div>
@@ -76,7 +77,7 @@
 
         <section class="view" data-panel="users">
           <div class="management-head">
-            <div><h2>User Management</h2><p>Owner-only human accounts, access requests, roles, and account state.</p></div>
+            <div><h2>User Management</h2><p>Owner-only human accounts, access requests, roles, account state, and assisted password reset.</p></div>
             <button class="secondary" id="usersRefresh" type="button">Refresh</button>
           </div>
           <div id="usersDenied" class="access-denied" hidden><strong>Access denied</strong><p>Your signed-in role does not have permission to manage human accounts.</p><button class="secondary" id="deniedOverview" type="button">Return to Overview</button></div>
@@ -87,10 +88,44 @@
               <article class="card metric"><label>Disabled</label><strong id="uDisabled">—</strong><small>Protected access blocked</small></article>
             </div>
             <article class="card panel users-panel"><div class="users-panel-head"><div><h2>Human accounts</h2><p class="sub">OWNER promotion and Owner-account disable are intentionally outside this ordinary management flow.</p></div></div><div class="user-list" id="userList"><div class="empty-copy">Loading users…</div></div></article>
+            <article class="card panel users-panel"><div class="users-panel-head"><div><h2>Password reset requests</h2><p class="sub">Issue a short-lived single-use link only after confirming the request through your normal staff process.</p></div></div><div id="resetIssuedBox" class="reset-issued" hidden><label for="resetIssuedLink">One-time reset link</label><div class="copy-row"><input id="resetIssuedLink" type="text" readonly><button id="copyResetLink" type="button">Copy link</button></div><p id="resetIssuedMeta" class="sub"></p></div><div class="reset-list" id="resetRequestList"><div class="empty-copy">Loading password reset requests…</div></div></article>
           </div>
         </section>
 
-        <section class="view" data-panel="audit"><article class="card panel"><h2>Audit</h2><p class="sub">Operational Audit remains a separate later slice.</p><p class="muted">F7.2B account/security events are retained separately and do not turn this surface into User Management.</p></article></section>
+        <section class="view" data-panel="account">
+          <div class="management-head"><div><h2>Account security</h2><p>Manage your sign-in identity without VPS or terminal access.</p></div></div>
+          <div class="account-security-grid">
+            <article class="card panel credential-card">
+              <h2>Change username</h2>
+              <p class="sub">Your role and account stay the same. You will sign in again with the new username.</p>
+              <form id="usernameChangeForm" novalidate>
+                <label for="accountNewUsername">New username</label>
+                <input id="accountNewUsername" name="new_username" type="text" autocomplete="username" maxlength="64" pattern="[A-Za-z0-9._-]{3,64}" required>
+                <p class="field-help">3–64 letters, numbers, dots, dashes, or underscores.</p>
+                <label for="usernameCurrentPassword">Current password</label>
+                <input id="usernameCurrentPassword" name="current_password" type="password" autocomplete="current-password" required>
+                <p class="form-error" id="usernameChangeError" role="alert" aria-live="polite"></p>
+                <button class="primary" id="usernameChangeSubmit" type="submit">Change username</button>
+              </form>
+            </article>
+            <article class="card panel credential-card">
+              <h2>Change password</h2>
+              <p class="sub">Changing your password signs out existing sessions for security.</p>
+              <form id="passwordChangeForm" novalidate>
+                <label for="accountCurrentPassword">Current password</label>
+                <input id="accountCurrentPassword" name="current_password" type="password" autocomplete="current-password" required>
+                <label for="accountNewPassword">New password</label>
+                <input id="accountNewPassword" name="new_password" type="password" autocomplete="new-password" minlength="10" maxlength="256" required>
+                <p class="field-help">Use at least 10 characters.</p>
+                <p class="form-error" id="passwordChangeError" role="alert" aria-live="polite"></p>
+                <button class="primary" id="passwordChangeSubmit" type="submit">Change password</button>
+              </form>
+            </article>
+          </div>
+          <div class="security-note"><strong>Security behavior</strong><p>Successful username or password changes invalidate previous sessions and return you to sign in. Passwords are stored only as one-way hashes.</p></div>
+        </section>
+
+        <section class="view" data-panel="audit"><article class="card panel"><h2>Audit</h2><p class="sub">Operational Audit remains a separate later slice.</p><p class="muted">F7.2 account/security events are retained separately and do not turn this surface into User Management.</p></article></section>
       </section>
     </main>
   </div>
@@ -99,6 +134,6 @@
   <div class="modal-back" id="loginModal" role="dialog" aria-modal="true" aria-labelledby="loginTitle"><form class="login-card" id="loginForm"><h2 id="loginTitle">Sign in</h2><p>Use the dedicated sign-in page to authenticate.</p><div class="form-error" id="loginError"></div><div class="login-actions"><button class="secondary" id="loginCancel" type="button">Cancel</button><button class="primary" type="submit">Open sign in</button></div></form></div>
   <div id="live" class="sr-only" aria-live="polite"></div>
 </div>
-<script src="/dashboard/assets/dashboard.js?v=f72b-1" defer></script>
+<script src="/dashboard/assets/dashboard.js?v=f72c-1" defer></script>
 </body>
 </html>
