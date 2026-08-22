@@ -27,7 +27,7 @@ router = APIRouter(prefix="/dashboard/api", tags=["user-management"])
 class ConfirmedAccessRequestCreate(BaseModel):
     display_name: str
     username: str
-    email: str
+    email: str = ""
     password: str
     confirm_password: str
 
