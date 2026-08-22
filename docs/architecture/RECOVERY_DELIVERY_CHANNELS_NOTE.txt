@@ -1,1 +1,0 @@
-Planning note only. Canonical detail lives in RECOVERY_DELIVERY_CHANNELS.md.
