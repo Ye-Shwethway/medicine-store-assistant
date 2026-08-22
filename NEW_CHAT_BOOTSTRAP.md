@@ -51,17 +51,36 @@ Verified F6A deployment:
 - `/health` healthy with `database_canonical: false`;
 - `/ready` database reachable with migration/expected migration both `0004_shadow`.
 
-F6A did **not** read or import the live Google workbook.
+## Current slice — F6B
 
-## Next gated slice
+**Authorized. Implementation is authored on `test`; runtime credential bootstrap is the current gate before merge.**
 
-**F6B — first read-only live-workbook snapshot import into shadow PostgreSQL.**
+The authoritative workbook was identified through connected Google Drive as `Medicine Store Cloud`. Read-only inspection confirmed the live `Main Stock` and `Daily Usage` structures.
 
-F6B crosses the live-source boundary and must not begin without explicit authorization. If authorized, it must preserve exact snapshot provenance, stage/classify before any promotion, surface SAFE/REVIEW/CONFLICT/NEW-UNMAPPED results, remain idempotent, and keep PostgreSQL non-canonical.
+F6B code now provides:
+
+- Google Sheets read-only service-account access;
+- exact source-sheet/source-row provenance;
+- deterministic full-snapshot and row hashing;
+- raw shadow staging in F6A migration tables only;
+- `SAFE`, `REVIEW`, `CONFLICT`, `NEW_UNMAPPED` classification;
+- Main Stock balance-math checks;
+- Daily Usage day-sum and balance-math checks;
+- Main Stock versus Daily Usage monthly usage/current balance consistency checks;
+- no silent correction/remap;
+- no canonical product/lot/ledger creation.
+
+Canonical plan: `docs/operations/F6B_LIVE_SHADOW_IMPORT_PLAN.md`.
+
+### Current runtime prerequisite
+
+Before merging F6B to `main`, create a dedicated Google service account, share `Medicine Store Cloud` to its email as Viewer only, and place its JSON key outside the repository at `/opt/medicine-store-assistant/secrets/google-service-account.json` with runner-readable `root:medstore` permissions. `runtime.env` must contain `MSA_GOOGLE_SPREADSHEET_ID` and `MSA_GOOGLE_SERVICE_ACCOUNT_FILE`.
+
+Do not print the credential or commit it to GitHub. Once this prerequisite is verified, normal `test -> main` merge will automatically execute the live read-only shadow snapshot import and verification.
 
 ## Safety boundary
 
-Do not begin live Sheet import, production stock writes, database promotion, Telegram writes, Flutter rollout, Google Sheet mirror conversion, or Custom GPT write Actions without explicit authorization for that slice.
+F6B authorizes read-only live Sheet access and shadow staging only. It does not authorize production stock writes, database promotion, Telegram writes, Flutter rollout, Google Sheet mirror conversion, or Custom GPT write Actions.
 
 ## Continuity rule
 
