@@ -37,50 +37,37 @@ Canonical flow: `test -> pull request -> main -> automatic VPS deployment for re
 
 ## Verified checkpoints
 
-F0, F1, Cloudflare HTTPS route, F2, F3, F4, F5, F5.1, and **F6A** are verified complete as of 2026-08-22.
+F0, F1, Cloudflare HTTPS route, F2, F3, F4, F5, F5.1, F6A, and **F6B** are verified complete as of 2026-08-22.
 
-F6A canonical evidence: `docs/operations/F6A_SHADOW_MIGRATION_VERIFICATION_2026-08-22.md`.
+Canonical F6B evidence: `docs/operations/F6B_LIVE_SHADOW_IMPORT_VERIFICATION_2026-08-22.md`.
 
-Verified F6A deployment:
+Verified F6B deployment:
 
-- source commit `bab03f1f5ad14e0707cbde51217c6d951b05d66f`;
-- GitHub Actions run `32546294049`;
-- Alembic migration `0004_shadow`;
-- batch idempotency, provenance, classification, review reporting, and no-canonical-mutation all pass;
-- synthetic staging fixtures rolled back;
-- `/health` healthy with `database_canonical: false`;
-- `/ready` database reachable with migration/expected migration both `0004_shadow`.
+- source commit `34b169c56422454b9a919936689c3088a9c4ebfc`;
+- GitHub Actions run `32549738838`;
+- dedicated Google service account shared to `Medicine Store Cloud` as Viewer only;
+- live read-only snapshot staged into shadow PostgreSQL;
+- total rows `1646`;
+- `SAFE=1417`, `REVIEW=222`, `NEW_UNMAPPED=7`, `CONFLICT=0`;
+- snapshot hash `cfe4c24201bbe9f519189572f0c4c1988a9785e6fb0ca3e8f9630f5ca0417192`;
+- no Google Sheet mutation;
+- no canonical product/lot/ledger mutation;
+- `/health` healthy with `database_canonical:false`;
+- `/ready` database reachable with migration/expected migration `0004_shadow`.
 
-## Current slice — F6B
+Real medicine-store rows and credentials are not published in the public repository.
 
-**Authorized. Implementation is authored on `test`; runtime credential bootstrap is the current gate before merge.**
+## Next gated slice
 
-The authoritative workbook was identified through connected Google Drive as `Medicine Store Cloud`. Read-only inspection confirmed the live `Main Stock` and `Daily Usage` structures.
+**F6C — shadow reconciliation analysis.**
 
-F6B code now provides:
+F6C should explain and group the 222 `REVIEW` rows and 7 `NEW_UNMAPPED` rows using read-only analysis. It may compare staged provenance against current workbook/CMS/local identity evidence, but must not silently repair source data, create canonical inventory transactions, mutate mappings, or promote PostgreSQL.
 
-- Google Sheets read-only service-account access;
-- exact source-sheet/source-row provenance;
-- deterministic full-snapshot and row hashing;
-- raw shadow staging in F6A migration tables only;
-- `SAFE`, `REVIEW`, `CONFLICT`, `NEW_UNMAPPED` classification;
-- Main Stock balance-math checks;
-- Daily Usage day-sum and balance-math checks;
-- Main Stock versus Daily Usage monthly usage/current balance consistency checks;
-- no silent correction/remap;
-- no canonical product/lot/ledger creation.
-
-Canonical plan: `docs/operations/F6B_LIVE_SHADOW_IMPORT_PLAN.md`.
-
-### Current runtime prerequisite
-
-Before merging F6B to `main`, create a dedicated Google service account, share `Medicine Store Cloud` to its email as Viewer only, and place its JSON key outside the repository at `/opt/medicine-store-assistant/secrets/google-service-account.json` with runner-readable `root:medstore` permissions. `runtime.env` must contain `MSA_GOOGLE_SPREADSHEET_ID` and `MSA_GOOGLE_SERVICE_ACCOUNT_FILE`.
-
-Do not print the credential or commit it to GitHub. Once this prerequisite is verified, normal `test -> main` merge will automatically execute the live read-only shadow snapshot import and verification.
+F6C requires explicit authorization before implementation.
 
 ## Safety boundary
 
-F6B authorizes read-only live Sheet access and shadow staging only. It does not authorize production stock writes, database promotion, Telegram writes, Flutter rollout, Google Sheet mirror conversion, or Custom GPT write Actions.
+Do not begin production stock writes, database promotion, Telegram writes, Flutter rollout, Google Sheet mirror conversion, or Custom GPT write Actions without explicit authorization for that slice.
 
 ## Continuity rule
 

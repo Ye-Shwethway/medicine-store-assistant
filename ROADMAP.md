@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Project Roadmap
 
-Status: **F0/F1/F2/F3/F4/F5/F5.1/F6A verified complete; F6B authorized and authored on test; PostgreSQL remains non-canonical**
+Status: **F0/F1/F2/F3/F4/F5/F5.1/F6A/F6B verified complete; PostgreSQL remains non-canonical**
 
 The live Google workbook/source documents remain operationally authoritative until shadow/dual validation and explicit database promotion.
 
@@ -21,63 +21,53 @@ Validation is path-aware and lightweight. Docs-only changes do not run the backe
 - F5 synthetic CMS catalogue versioning — verified complete 2026-08-22
 - F5.1 authenticated catalogue read API — verified complete 2026-08-22
 - F6A synthetic shadow migration adapter foundation — verified complete 2026-08-22
+- F6B first read-only live-workbook shadow snapshot — verified complete 2026-08-22
 
 Canonical evidence:
 
 - `docs/operations/F4_SYNTHETIC_LEDGER_VERIFICATION_2026-08-22.md`
 - `docs/operations/F5_F5_1_CATALOGUE_VERIFICATION_2026-08-22.md`
 - `docs/operations/F6A_SHADOW_MIGRATION_VERIFICATION_2026-08-22.md`
+- `docs/operations/F6B_LIVE_SHADOW_IMPORT_VERIFICATION_2026-08-22.md`
 
-F6A verified source commit `bab03f1f5ad14e0707cbde51217c6d951b05d66f` through GitHub Actions run `32546294049`.
+## F6B verified runtime
 
-Verified F6A runtime:
+Verified deployed source commit: `34b169c56422454b9a919936689c3088a9c4ebfc` via GitHub Actions run `32549738838`.
 
-- Alembic `0003_catalogue -> 0004_shadow`;
-- batch idempotency pass;
-- provenance pass;
-- deterministic classification pass;
-- explicit review reporting pass;
-- no canonical product/ledger mutation pass;
-- synthetic fixtures rolled back;
-- `/health` healthy with `database_canonical: false`;
-- `/ready` database reachable with migration/expected migration both `0004_shadow`.
+The authoritative `Medicine Store Cloud` workbook was read through a dedicated Viewer-only service account and staged into shadow PostgreSQL without mutating the workbook.
 
-## F6B — read-only live-workbook shadow snapshot
+Live snapshot summary:
 
-Status: **authorized; implementation authored on `test`; runtime credential bootstrap pending before merge**.
+- total staged rows: **1,646**
+- `SAFE`: **1,417**
+- `REVIEW`: **222**
+- `NEW_UNMAPPED`: **7**
+- `CONFLICT`: **0**
+- source snapshot hash: `cfe4c24201bbe9f519189572f0c4c1988a9785e6fb0ca3e8f9630f5ca0417192`
+- `/health`: healthy, `database_canonical:false`
+- `/ready`: database reachable, migration/expected migration `0004_shadow`
 
-The authoritative workbook was identified as `Medicine Store Cloud`. Read-only inspection confirmed the live `Main Stock` and `Daily Usage` column contracts.
+Real workbook rows and credentials remain outside the public repository. F6B created no canonical product/lot/ledger records and performed no automatic repair or mapping mutation.
 
-F6B authored behavior:
+## Next recommended slice — F6C
 
-1. use Google Sheets read-only OAuth scope only;
-2. read `Main Stock` and `Daily Usage` without mutating the workbook;
-3. preserve exact source sheet/row provenance and deterministic source hashes;
-4. stage live rows only in F6A shadow migration tables;
-5. classify `SAFE`, `REVIEW`, `CONFLICT`, and `NEW_UNMAPPED` cases;
-6. validate Main Stock and Daily Usage balance formulas and cross-sheet monthly usage/current balance consistency;
-7. perform no automatic identity repair/remapping;
-8. create no canonical products/lots/ledger transactions;
-9. keep PostgreSQL non-canonical and the Google workbook authoritative;
-10. keep all live workbook rows and Google credentials out of the public repository.
+**F6C — shadow reconciliation analysis** should explain the 222 `REVIEW` rows and 7 `NEW_UNMAPPED` rows before any canonical promotion discussion.
 
-Canonical plan: `docs/operations/F6B_LIVE_SHADOW_IMPORT_PLAN.md`.
+Recommended scope:
 
-### Current gate
+1. group review cases by deterministic reason/category;
+2. identify whether mismatches originate from source formulas, missing identifiers, expiry/name normalization, or cross-sheet differences;
+3. analyze the 7 unmapped rows against available CMS/local identity evidence without automatic remapping;
+4. produce non-sensitive counts and reconciliation summaries;
+5. preserve all source rows unchanged;
+6. keep Google workbook authoritative and PostgreSQL non-canonical;
+7. make no production stock writes.
 
-The self-hosted VPS runner does not yet have a dedicated Google service-account credential. Do not merge the F6B runtime path to `main` until:
-
-- a dedicated service account exists;
-- its email is shared to `Medicine Store Cloud` as Viewer only;
-- its JSON key is stored outside the repository at `/opt/medicine-store-assistant/secrets/google-service-account.json`;
-- `runtime.env` contains `MSA_GOOGLE_SPREADSHEET_ID` and `MSA_GOOGLE_SERVICE_ACCOUNT_FILE`;
-- `msa-runner` can read the credential through the existing `medstore` group boundary without printing it.
-
-After that one-time credential bootstrap, F6B promotion remains automatic: `test -> PR -> main -> self-hosted deploy/import/verify`.
+F6C is a new reconciliation slice and should be explicitly authorized before implementation.
 
 ## Safety boundary
 
-F6B is authorized only for read-only source access and shadow staging. It does not authorize production stock writes, database promotion, Telegram writes, Flutter rollout, Google Sheet mirror conversion, or Custom GPT write Actions.
+Do not begin production stock writes, database promotion, Telegram writes, Flutter rollout, Google Sheet mirror conversion, or Custom GPT write Actions without explicit authorization for that slice.
 
 ## Continuity rule
 
