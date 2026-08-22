@@ -87,6 +87,8 @@ def _send_resend_email(*, to: str, subject: str, html_body: str, idempotency_key
         headers={
             "Authorization": f"Bearer {_resend_api_key()}",
             "Content-Type": "application/json",
+            "Accept": "application/json",
+            "User-Agent": "MedicineStoreAssistant/1.0 (+https://inventory.drthorne.uk)",
             "Idempotency-Key": idempotency_key,
         },
     )
