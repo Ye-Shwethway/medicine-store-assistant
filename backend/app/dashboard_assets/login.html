@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="light dark">
   <title>Sign in — Medicine Store Assistant</title>
-  <link rel="stylesheet" href="/dashboard/login.css?v=f72c-1">
+  <link rel="stylesheet" href="/dashboard/login.css?v=f72c1-1">
 </head>
 <body>
   <main class="login-shell" id="loginRoot" data-theme="light">
@@ -47,6 +47,9 @@
           <label for="requestPassword">Password</label>
           <input id="requestPassword" name="password" type="password" autocomplete="new-password" minlength="10" required>
           <p class="field-help">At least 10 characters. This password is stored only as a one-way hash.</p>
+          <label for="requestConfirmPassword">Confirm password</label>
+          <input id="requestConfirmPassword" name="confirm_password" type="password" autocomplete="new-password" minlength="10" required>
+          <p class="field-help">Re-enter the same password to prevent accidental account lockout.</p>
           <p class="form-error" id="requestError" role="alert" aria-live="polite"></p>
           <p class="form-success" id="requestSuccess" role="status" aria-live="polite"></p>
           <button class="primary-submit" type="submit" id="requestSubmit">Submit request</button>
@@ -55,13 +58,13 @@
       </section>
 
       <section id="forgotPanel" hidden aria-labelledby="forgotTitle">
-        <div class="login-heading request-heading"><p class="eyebrow">Assisted recovery</p><h1 id="forgotTitle">Forgot password</h1><p>Submit your username. The response is intentionally generic; an eligible request waits for Owner review.</p></div>
+        <div class="login-heading request-heading"><p class="eyebrow">Secure recovery</p><h1 id="forgotTitle">Forgot password</h1><p>Submit your username. If a verified recovery email is available, reset instructions are sent automatically. The response stays generic for account privacy.</p></div>
         <form id="forgotForm" novalidate>
           <label for="forgotUsername">Username</label>
           <input id="forgotUsername" name="username" type="text" autocomplete="username" maxlength="64" required>
           <p class="form-error" id="forgotError" role="alert" aria-live="polite"></p>
           <p class="form-success" id="forgotSuccess" role="status" aria-live="polite"></p>
-          <button class="primary-submit" type="submit" id="forgotSubmit">Request reset</button>
+          <button class="primary-submit" type="submit" id="forgotSubmit">Send recovery instructions</button>
           <button class="secondary-submit" id="forgotCancel" type="button">Back to sign in</button>
         </form>
       </section>
@@ -79,10 +82,17 @@
         </form>
       </section>
 
+      <section id="verifyEmailPanel" hidden aria-labelledby="verifyEmailTitle">
+        <div class="login-heading request-heading"><p class="eyebrow">Recovery email</p><h1 id="verifyEmailTitle">Verify recovery email</h1><p id="verifyEmailCopy">Confirming this address as your password-recovery destination.</p></div>
+        <p class="form-error" id="verifyEmailError" role="alert" aria-live="polite"></p>
+        <p class="form-success" id="verifyEmailSuccess" role="status" aria-live="polite"></p>
+        <button class="secondary-submit" id="verifyEmailBack" type="button">Continue to sign in</button>
+      </section>
+
       <div class="authority-note"><span class="status-dot"></span><p><strong>Read-only inventory phase</strong><br>Google Sheet remains operationally authoritative. PostgreSQL is non-canonical.</p></div>
       <button class="theme-toggle" id="themeToggle" type="button" aria-label="Switch theme">☀︎ / ☾</button>
     </section>
   </main>
-  <script src="/dashboard/login.js?v=f72c-1" defer></script>
+  <script src="/dashboard/login.js?v=f72c1-1" defer></script>
 </body>
 </html>
