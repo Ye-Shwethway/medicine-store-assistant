@@ -9,7 +9,7 @@ on:
       - '.github/workflows/deploy-f5.yml'
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: msa-vps-deploy
@@ -22,9 +22,13 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
+        with:
+          path: source
+          persist-credentials: false
 
       - name: Preflight runner access
         shell: bash
+        working-directory: source
         run: |
           set -euo pipefail
           id
@@ -35,36 +39,13 @@ jobs:
 
       - name: Deploy and verify backend
         shell: bash
+        working-directory: source
         run: bash deploy/apply_backend.sh
 
-      - name: Record deployment evidence
+      - name: Report deployment result
         if: always()
-        continue-on-error: true
         shell: bash
-        env:
-          DEPLOY_STATUS: ${{ job.status }}
         run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          for attempt in 1 2 3; do
-            git fetch origin main
-            git checkout -B deployment-evidence origin/main
-            printf 'status=%s\nsource_sha=%s\nworkflow_run_id=%s\n' "$DEPLOY_STATUS" "$GITHUB_SHA" "$GITHUB_RUN_ID" > .github/backend-deploy-result
-            git add .github/backend-deploy-result
-
-            if git diff --cached --quiet; then
-              exit 0
-            fi
-
-            git commit -m "Record MSA backend deployment result"
-            if git push origin HEAD:main; then
-              exit 0
-            fi
-
-            sleep $((attempt * 2))
-          done
-
-          echo "warning: deployment evidence marker could not be pushed after retries" >&2
-          exit 1
+          echo "source_sha=${GITHUB_SHA}"
+          echo "workflow_run_id=${GITHUB_RUN_ID}"
+          echo "workflow_job_status=${{ job.status }}"
