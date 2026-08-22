@@ -80,19 +80,44 @@ Show:
 
 Avoid exposing internal secrets or raw credential paths.
 
-## Authentication UX
+## Authentication & access UX — F7.2
 
-The dashboard shell may load publicly, but private inventory/shadow data must remain behind the server-side owner session gate.
+Primary authentication is a dedicated `/dashboard/login` page, not the temporary in-dashboard owner modal.
 
-- Never ask the browser to store the F3 Bearer service credential.
-- If dashboard owner credentials are not provisioned, state that clearly and keep private data unavailable.
-- Login errors belong next to the login form.
-- Logout must clear the owner session without affecting backend service credentials.
+Reuse the existing v2.4 visual system. The sign-in page must stay simple and operational: product identity, username, password, `Sign in`, inline generic errors, theme support, and a clear unavailable state when authentication is not provisioned. There is no public sign-up, social login, or password-reset email flow in v1.
+
+Unauthenticated access to protected dashboard pages redirects to sign-in. Successful sign-in returns to the intended protected view when safe. Authenticated visits to the sign-in page redirect to the dashboard. Session expiry and explicit sign-out return to sign-in without revealing private data.
+
+Never ask the browser to store the F3 Bearer service credential, plaintext passwords, session signing secrets, or password hashes.
+
+### Role-aware states
+
+Use the locked F2 roles:
+
+- `OWNER` — full dashboard/access visibility and future user-management entry points.
+- `ADMIN` — operational administration without implicit Owner authority.
+- `STAFF` — routine inventory/approved operational surfaces; no user management or privileged correction/configuration.
+- `READ_ONLY` — read surfaces only; no write/edit/save/approve controls.
+
+UI visibility is convenience only. Backend policy must authorize every protected operation independently.
+
+`Audit & Access` is the future account/role-management surface for authorized roles. Public self-registration is prohibited. Disabled/revoked users with audit history are retained rather than deleted.
+
+### Access denied
+
+Provide an explicit authenticated `403 / Access denied` state for valid users who lack permission. Show the signed-in role, a concise explanation, and a safe return to Overview. Do not treat authorization failure as a bad-password problem.
+
+Detailed design contract: `docs/design/F7_2_AUTH_RBAC_DESIGN.md`.
 
 ## Interaction regression checklist
 
 Every implementation/refinement must preserve and verify:
 
+- dedicated sign-in flow and unauthenticated redirect;
+- authenticated redirect away from sign-in;
+- role-aware navigation/control visibility;
+- access-denied state;
+- session expiry and sign-out;
 - Overview ↔ Inventory navigation;
 - sidebar navigation at desktop widths;
 - slide-out navigation at narrow widths;
