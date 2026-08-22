@@ -8,17 +8,21 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.auth import require_read_scope
+from app.catalogue import diff_versions
 from app.db import normalize_database_url
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 router = APIRouter(prefix="/v1", tags=["read-only"], dependencies=[Depends(require_read_scope)])
 
 
-def _query(sql: str, params: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+def _engine():
     if not DATABASE_URL:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
+    return create_engine(normalize_database_url(DATABASE_URL), pool_pre_ping=True)
 
-    engine = create_engine(normalize_database_url(DATABASE_URL), pool_pre_ping=True)
+
+def _query(sql: str, params: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    engine = _engine()
     try:
         with engine.connect() as connection:
             rows = connection.execute(text(sql), params or {}).mappings().all()
@@ -105,18 +109,50 @@ def list_catalogue_versions(limit: int = Query(default=50, ge=1, le=200)) -> dic
         SELECT cv.catalogue_version_id::text AS catalogue_version_id,
                cv.effective_date,
                cv.source_label,
+               cv.source_hash,
+               cv.row_count,
+               cv.import_status,
+               cv.parser_version,
                cv.imported_at,
                COUNT(ci.catalogue_item_id) AS item_count
         FROM cms_catalogue_versions cv
         LEFT JOIN cms_catalogue_items ci
           ON ci.catalogue_version_id = cv.catalogue_version_id
-        GROUP BY cv.catalogue_version_id, cv.effective_date, cv.source_label, cv.imported_at
+        GROUP BY cv.catalogue_version_id, cv.effective_date, cv.source_label, cv.source_hash,
+                 cv.row_count, cv.import_status, cv.parser_version, cv.imported_at
         ORDER BY cv.imported_at DESC, cv.catalogue_version_id DESC
         LIMIT :limit
         """,
         {"limit": limit},
     )
     return {"items": rows, "count": len(rows), "limit": limit}
+
+
+@router.get("/catalogue/current", summary="Read current CMS catalogue diagnostics")
+def current_catalogue() -> dict[str, Any]:
+    rows = _query(
+        """
+        SELECT cv.catalogue_version_id::text AS catalogue_version_id,
+               cv.effective_date,
+               cv.source_label,
+               cv.source_hash,
+               cv.row_count,
+               cv.import_status,
+               cv.parser_version,
+               cv.imported_at,
+               COUNT(ci.catalogue_item_id) AS item_count
+        FROM cms_catalogue_versions cv
+        LEFT JOIN cms_catalogue_items ci
+          ON ci.catalogue_version_id = cv.catalogue_version_id
+        GROUP BY cv.catalogue_version_id, cv.effective_date, cv.source_label, cv.source_hash,
+                 cv.row_count, cv.import_status, cv.parser_version, cv.imported_at
+        ORDER BY cv.effective_date DESC NULLS LAST, cv.imported_at DESC, cv.catalogue_version_id DESC
+        LIMIT 1
+        """
+    )
+    if not rows:
+        return {"current": None}
+    return {"current": rows[0]}
 
 
 @router.get("/catalogue/items", summary="List CMS catalogue items")
@@ -136,7 +172,8 @@ def list_catalogue_items(
                form,
                type,
                class_name,
-               selling_price
+               selling_price,
+               source_row_no
         FROM cms_catalogue_items
         WHERE catalogue_version_id::text = :catalogue_version_id
           AND (
@@ -145,12 +182,43 @@ def list_catalogue_items(
             OR COALESCE(brand_name, '') ILIKE '%' || :q || '%'
             OR COALESCE(description, '') ILIKE '%' || :q || '%'
           )
-        ORDER BY cms_code, catalogue_item_id
+        ORDER BY source_row_no NULLS LAST, cms_code, catalogue_item_id
         LIMIT :limit OFFSET :offset
         """,
         {"catalogue_version_id": catalogue_version_id, "q": q, "limit": limit, "offset": offset},
     )
     return {"items": rows, "count": len(rows), "limit": limit, "offset": offset}
+
+
+@router.get("/catalogue/diff", summary="Diff two CMS catalogue versions")
+def catalogue_diff(old_version_id: str, new_version_id: str) -> dict[str, Any]:
+    engine = _engine()
+    try:
+        with engine.connect() as connection:
+            existing = connection.execute(
+                text(
+                    """
+                    SELECT catalogue_version_id::text
+                    FROM cms_catalogue_versions
+                    WHERE catalogue_version_id::text IN (:old_version_id, :new_version_id)
+                    """
+                ),
+                {"old_version_id": old_version_id, "new_version_id": new_version_id},
+            ).scalars().all()
+            if len(set(existing)) != len({old_version_id, new_version_id}):
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Catalogue version not found")
+            result = diff_versions(connection, old_version_id, new_version_id)
+            return {
+                "old_version_id": old_version_id,
+                "new_version_id": new_version_id,
+                **result,
+            }
+    except HTTPException:
+        raise
+    except SQLAlchemyError as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database read failed") from exc
+    finally:
+        engine.dispose()
 
 
 @router.get("/access/summary", summary="Read safe access-control summary")
