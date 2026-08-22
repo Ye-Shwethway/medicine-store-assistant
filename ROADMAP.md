@@ -1,8 +1,8 @@
 # Medicine Store Assistant — Project Roadmap
 
-Status: **F0/F1/F2/F3/F4/F5/F5.1/F6A/F6C/F7.1 verified complete; F6B remains test-only; F7.2 bootstrap Owner read path verified; F7.2A canonical multi-user identity next; PostgreSQL remains non-canonical**
+Status: **F0/F1/F2/F3/F4/F5/F5.1/F6A/F6C/F7.1 verified complete; F6B remains test-only; bootstrap Owner login/read/logout verified; F7.2A canonical multi-user identity is next; PostgreSQL remains non-canonical**
 
-The live Google workbook/source documents remain operationally authoritative. The current staged F6B snapshot is **test-only** and is **not an accepted migration baseline**. A fresh real migration dataset will be imported later only after the operational workflow and user-facing management UI are ready and explicitly approved.
+The live Google workbook/source documents remain operationally authoritative. The current staged F6B snapshot is **test-only** and is not an accepted migration baseline. A fresh real migration dataset will be imported later only after the operational workflow, location model, and user-facing management surfaces are ready and explicitly approved.
 
 ## Delivery policy
 
@@ -10,22 +10,25 @@ Canonical flow: `test -> pull request -> main -> automatic VPS deploy for releva
 
 Normal continuation does not require manual VPS commands, Termux/SSH/tmux, Bamboo/Bamboo Claw, or a manual Actions deploy button. Prefer connected tools, repository automation, the repo-scoped self-hosted runner, and durable browser/admin mechanisms.
 
-Runtime secrets remain only on the VPS. Normal backend deployment must **not** read/import the live workbook.
+Runtime secrets remain only on the VPS. Normal backend deployment must not read/import the live workbook.
 
-Deployment status is published to GitHub issue #26 (`MSA deployment status`) so connected tooling can inspect push-triggered deployment success/failure and descend into run/job logs without requiring the owner to manually inspect Actions.
+Deployment status is published to GitHub issue #26 (`MSA deployment status`) so connected tooling can inspect deployment success/failure and descend into run/job logs without manual owner inspection.
 
 ## Product direction
 
-Medicine Store Assistant is not intended to become only a database-backed spreadsheet replacement. The target product is a multi-client intelligent operations system in which human users, AI agents, integrations, and system jobs collaborate through the same typed backend while preserving clear identity, authorization, auditability, deterministic analytics, and database-grounded AI behavior.
+MSA is a multi-client intelligent store-operations platform, not merely a database-backed spreadsheet replacement.
 
-Primary future clients:
+Future clients and actors include:
 
 - Web dashboard;
 - Telegram;
 - Flutter;
 - internal MSA AI Assistant;
 - Custom GPT / ChatGPT integrations;
-- scheduled/system jobs.
+- scheduled/system jobs;
+- external integrations.
+
+All clients use the same typed backend contracts, identity/RBAC, store-location scope, preferences, audit, analytics, alerts, calculator/receipt flows, and later controlled inventory operations.
 
 No client or AI agent receives arbitrary SQL or raw database credentials.
 
@@ -40,14 +43,12 @@ No client or AI agent receives arbitrary SQL or raw database credentials.
 - F5 synthetic CMS catalogue versioning — verified complete 2026-08-22
 - F5.1 authenticated catalogue read API — verified complete 2026-08-22
 - F6A synthetic shadow migration adapter foundation — verified complete 2026-08-22
-- F6B read-only live-workbook test snapshot — verified staging exercise only; not a migration baseline
+- F6B read-only live-workbook test snapshot — staging exercise only; not a migration baseline
 - F6C authenticated shadow read API — verified complete 2026-08-22
 - F7.1 read-only Web Dashboard foundation — verified complete 2026-08-22
-- F7.2 bootstrap Owner credential + live read path — verified working through dedicated login, authenticated data view, logout, and post-logout login flow
+- F7.2 bootstrap Owner credential + public login/read/logout flow — verified complete as a temporary bridge
 
 ## Test-only F6B snapshot
-
-Current test dataset remains unchanged:
 
 - batch ID `be13d127-5045-4284-a088-0a0b9b024d76`
 - rows **1,646**
@@ -58,217 +59,184 @@ Current test dataset remains unchanged:
 - `migration_baseline_accepted=false`
 - `database_canonical=false`
 
-This batch is for read-path/UI testing only. It must not drive canonical reconciliation or promotion decisions.
+This batch is only for read/UI/shadow verification.
 
-## F7 — Web application foundation, identity, audit, and intelligence
-
-Canonical docs include:
+## Canonical F7 architecture docs
 
 - `docs/architecture/F7_WEB_DASHBOARD.md`
 - `docs/design/UI_UX_PRO_MAX_INTEGRATION.md`
 - `docs/design/F7_2_AUTH_RBAC_DESIGN.md`
 - `docs/architecture/F7_3_ACTOR_AUDIT_AND_OPERATION_LEDGER.md`
-- `docs/architecture/F7_4_F7_6_INTELLIGENCE_ARCHITECTURE.md`
+- `docs/architecture/F7_4_F7_8_STORE_AND_INTELLIGENCE_ARCHITECTURE.md`
 - `design-system/medicine-store-assistant/MASTER.md`
 - `design-system/medicine-store-assistant/pages/dashboard.md`
 
-Dashboard v2.4 remains the locked visual/interaction baseline while new product surfaces are added consistently.
+`docs/architecture/F7_4_F7_6_INTELLIGENCE_ARCHITECTURE.md` is superseded and retained only as a historical pointer.
 
-### F7.1 — verified complete
+## F7 — Application foundation before production writes
 
-Read-only dashboard foundation, public HTTPS route, private BFF, fail-closed session architecture, test/non-canonical indicators, and read-only interaction baseline are verified.
+### F7.1 — Read-only Web Dashboard — verified complete
 
-### F7.2 — Authentication, RBAC & User Management
+Public HTTPS dashboard, private BFF, dedicated bootstrap Owner login, authenticated test data reads, logout, and test/non-canonical indicators are verified.
 
-F7.2 is explicitly broader than bootstrap Owner provisioning.
+### F7.2A — Canonical multi-user identity — **NEXT**
 
-The temporary runtime Owner password bridge successfully proved the protected public dashboard path, but it is not the final credential store.
+Implement stable `user_id`, username + password, roles `OWNER` / `ADMIN` / `STAFF` / `READ_ONLY`, states `PENDING` / `ACTIVE` / `DISABLED`, revocable user sessions, Owner migration from the bootstrap bridge, backend authorization, and explicit 403 behavior.
 
-#### F7.2A — canonical multi-user identity — **next**
+Inventory remains read-only.
 
-Implement:
+### F7.2B — User Management
 
-- stable backend `user_id`;
-- username + password accounts;
-- roles `OWNER`, `ADMIN`, `STAFF`, `READ_ONLY`;
-- `PENDING`, `ACTIVE`, `DISABLED` account states;
-- canonical user-bound sessions;
-- migrate the bootstrap Owner into the canonical user model;
-- normal Owner login becomes username + password;
-- backend-enforced role authorization and explicit 403 state.
+Dedicated User Management surface with access requests, Owner approval/rejection, role assignment, disable/reactivate/revoke, escalation boundaries, security events, and reusable notification events.
 
-#### F7.2B — User Management
+ADMIN cannot grant/promote OWNER.
 
-`User Management` is a dedicated surface, separate from Audit.
+### F7.2C — Credential lifecycle
 
-Implement:
+Change password, Owner-assisted forgotten-password reset, one-time reset tokens, and session revocation after reset/disable.
 
-- access-request queue rather than immediately active public signup;
-- Owner approval/rejection;
-- allowed role assignment;
-- ADMIN cannot grant/promote OWNER;
-- disable/reactivate/revoke behavior;
-- in-product pending-request notification;
-- future Telegram notification mirrors the same backend request/approval operation.
+### F7.3 — Actor-aware Audit & Operation Ledger
 
-#### F7.2C — credential lifecycle
+Operational/database audit is separate from User Management.
 
-Implement:
-
-- change password;
-- owner-assisted forgotten-password/reset request in v1;
-- short-lived single-use reset flow;
-- session revocation after reset/disable;
-- security/account event recording.
-
-### F7.3 — Actor-aware Store/Database Audit & Operation Ledger
-
-`Audit` is reserved for store/database operational history, not user management.
-
-Because humans and AI agents will work together, every meaningful operation must identify both the actor and the client/source. The system must be able to distinguish a human action from an AI-assisted action, autonomous system action, integration action, or scheduled job.
-
-Canonical actor types:
+Canonical actor classes:
 
 - `HUMAN`
 - `AI_AGENT`
 - `SYSTEM`
 - `INTEGRATION`
 
-Representative provenance:
+Meaningful operations retain actor/source/authority/outcome/affected-record provenance. AI actions performed for a human retain the authorizing `user_id`. Committed historical operations use reversal/correction rather than silent destructive edits.
 
-- stable `operation_id` and idempotency key where applicable;
-- `actor_type` and `actor_id`;
-- `authorized_by_user_id` when an AI/service actor acts under a human user's authority;
-- client/source such as Web, Telegram, Flutter, Custom GPT, internal AI, or system job;
-- typed action type;
-- timestamp/outcome;
-- affected-record references;
-- before/after or ledger movement references where appropriate;
-- reversal/correction links;
-- sync/mirror result references.
+### F7.4 — Inventory Locations, Store Policy & Preferences
 
-Historical transactional records are corrected/reversed rather than destructively deleted where auditability matters.
+Canonical location model:
 
-Before broad AI/multi-client writes are allowed, the Audit foundation must answer: what happened, who/what initiated it, under whose authority, through which client, what changed, and whether it succeeded/failed/reversed.
+- exactly **one Main Store**;
+- Owner may create any number of Sub Stores;
+- product/lot balances are location-aware;
+- initial transfer direction is Main Store -> selected Sub Store;
+- current `Daily Usage` source is treated as future historical Stock Transfer evidence where supported by source truth;
+- no silent invention of historical Sub Store destinations.
 
-### F7.4 — Smart Analysis Foundation
+Owner-configurable reorder basis:
 
-Build a read-only deterministic analytics layer plus professional dashboard visualizations.
+- `MAIN_STORE_ONLY` — initial/default mode;
+- `TOTAL_ACTIVE_STOCK` — Main Store + all active Sub Stores.
 
-Initial v1 modules:
+Owner can switch the policy through Settings without formula/code changes.
+
+Durable user preferences include default location/Calculator Sub Store, view mode, column visibility/order/density, saved filters, and calculator/receipt defaults.
+
+### F7.5 — Smart Calculator & Receipts — calculation-only first
+
+Restore the useful Flutter calculator concept as a backend-backed first-class surface.
+
+Normal Calculator use reads product/lot/location data directly from the DB/API and **does not require Excel upload or manual column mapping**.
+
+Capabilities:
+
+- item search and same-name disambiguation;
+- quantities and prices;
+- multiple items;
+- extra fees;
+- receiver/customer, issuer, note;
+- saved calculations;
+- receipt history;
+- print/PDF/export/share.
+
+Initial mode is `CALCULATE_ONLY` with no stock mutation.
+
+Future `DISPENSE_FROM_SUB_STORE` uses the selected or saved default Sub Store and becomes write-capable only after controlled-write authorization.
+
+Owner batch-intake/import mapping remains a separate ingestion workflow.
+
+### F7.6 — Smart Analysis
+
+Deterministic professional analytics with charts/KPIs and drill-down.
+
+Initial modules:
 
 1. Stock Health
-2. Usage Trends
+2. Transfer / Usage Trends
 3. Expiry Risk
 4. Reorder Outlook
 5. Price Movement
 6. Data Quality
 
-Principles:
+Analysis can show Main Store, individual Sub Stores, and Total active stock. Reorder views clearly identify which Owner policy is active.
 
-- SQL/domain formulas/business rules produce reproducible facts;
-- charts/KPIs support date/category/item drill-down;
-- supporting rows/lots/operations remain inspectable;
-- Smart Analysis remains useful even when an AI provider is unavailable;
-- no opaque AI-generated metric is treated as database truth.
+### F7.7 — Internal AI Assistant
 
-### F7.5 — Internal AI Assistant
+Read-only first-party conversational analysis grounded in typed backend tools. The Assistant is an identifiable `AI_AGENT`, respects current-user RBAC/location scope, can explain/drill down/chart facts, and receives no arbitrary SQL access.
 
-Add a first-party, read-only conversational analysis workspace grounded in authorized backend analytics/tools.
+A future photo/scan-to-calculation flow may build a Smart Calculator draft, but ambiguous item identity requires human confirmation and AI/OCR never auto-commits inventory.
 
-The AI Assistant may explain trends, compare periods, generate chart/table views, identify risk candidates, and drill into supporting facts, but it may not invent database values or receive arbitrary SQL access.
+### F7.8 — Alerts & Notifications
 
-The internal assistant is an identifiable `AI_AGENT` service principal and participates in the same actor/audit model.
+Deterministic event generation first, optional AI explanation second.
 
-Initial tool direction includes typed reads such as stock health, usage trends, expiry risk, reorder candidates, price movement, data-quality issues, and audit summaries.
+Examples include low stock, Sub Store refill pressure, expiry, unusual transfer/dispense patterns, data-quality issues, sync failures, and User Management access/reset requests.
 
-### F7.6 — Alerts & Notifications
+One backend event should be reusable across Web, Telegram, and Flutter.
 
-Use deterministic rule/event generation first, with AI optionally explaining or prioritizing results.
+## F8 — External / Custom GPT read-only integration
 
-Candidate alerts:
+Reuse approved typed read/analytics interfaces. Read-only first, scoped/revocable auth, no raw DB/Sheet credentials.
 
-- low stock / low days-of-stock;
-- approaching expiry;
-- unusual usage spike/drop;
-- data-quality/mapping problems;
-- reconciliation/sync failure;
-- pending access/password-reset requests.
+## F9 — Controlled typed write foundation
 
-One backend event/alert may later surface through Web, Telegram, Flutter, and other notification channels rather than being independently reimplemented per client.
+Only after identity, location, ledger/idempotency, and actor-aware audit are verified.
 
-Saved/scheduled analysis may later generate recurring operational summaries and notifications under identifiable SYSTEM/AI_AGENT provenance.
+Required path:
 
-## F8 — External/Custom GPT read-only integration
+`Client/Agent -> typed API -> auth/RBAC/location scope/delegation -> validation -> idempotency -> atomic DB transaction -> actor-aware audit -> readback`
 
-Only after F7.2 identity/RBAC and the core audit/analysis contracts are stable:
+Candidate commands include Main -> Sub transfer, transfer reversal/correction, and Smart Calculator Sub Store dispense. Technical write success does not itself authorize production canonicality.
 
-- connect Custom GPT through the typed HTTPS API;
-- reuse the same read/analytics interfaces used by internal clients;
-- read-only Actions first;
-- revocable scoped service/client credential;
-- no arbitrary SQL or DB credentials;
-- verify health, stock/lot lookup, audit/summary, and approved analysis reads.
+## F10 — Real workflow, fresh migration & Sheet sync validation
 
-## F9 — Controlled typed write experiment
+- Owner batch-intake workflow remains separate from Calculator;
+- import a fresh migration candidate only when authorized;
+- reinterpret supported historical `Daily Usage` as Stock Transfer source evidence;
+- surface historical destination ambiguity instead of guessing;
+- compare real Sheet workflow against backend shadow operations;
+- backend owns Sheet mirror/sync orchestration;
+- clients/AI never write directly to Sheets;
+- observable retry/idempotency/reconciliation behavior.
 
-Only after identity/RBAC + ledger/idempotency/actor-audit foundations are verified:
-
-- authorize one low-risk typed write operation first;
-- server-side validation + RBAC/delegation;
-- idempotency/operation ID;
-- atomic transaction;
-- complete actor/client provenance;
-- audit event;
-- committed-state readback;
-- no direct SQL from LLM/GPT clients;
-- database remains non-canonical.
-
-Preferred client architecture:
-
-`Web / Telegram / Flutter / Internal AI / Custom GPT -> typed Inventory API -> auth/RBAC/delegation -> validation -> idempotency -> DB transaction -> actor-aware audit -> readback`
-
-AI agents are never invisible superusers. When acting on behalf of a human, delegated authority must be explicit and auditable.
-
-## F10 — Dual real-workflow + Sheet sync validation
-
-Run representative live operations through the existing Sheet workflow and backend shadow path, then compare results.
-
-Add the operational sync/mirror contract deliberately; do not let LLM clients write directly to Sheets. Backend owns the typed operation and any Sheet mirror/sync behavior.
-
-No automatic canonical cutover.
+No automatic cutover.
 
 ## F11 — Canonical promotion
 
-Requires explicit approval plus:
+Requires explicit Owner approval plus fresh migration baseline, parity acceptance, backup/restore proof, location-aware workflow validation, actor-aware audit completeness, Sheet mirror/reconciliation confidence, and rollback/cutback procedure.
 
-- fresh migration baseline;
-- measurable parity acceptance;
-- backup + restore proof;
-- actor-aware audit completeness;
-- real-workflow validation;
-- Sheet mirror rebuild/sync confidence;
-- rollback/cutback procedure.
+## Later client rollout
 
-Only after promotion may PostgreSQL become the operational source of truth for the approved operation scope.
+Telegram and Flutter are clients over the same backend, not separate inventory truths.
+
+Flutter may later provide mobile-optimized card/table views, Smart Calculator, receipt/share/print, preferences, alerts, and optional offline-tolerant caching without creating a second canonical inventory database.
 
 ## Recommended execution order
 
-1. F7.2A canonical multi-user identity.
-2. F7.2B User Management.
-3. F7.2C credential lifecycle.
-4. F7.3 actor-aware Audit / operation ledger.
-5. F7.4 deterministic Smart Analysis.
-6. F7.5 internal read-only AI Assistant.
-7. F7.6 Alerts & Notifications.
-8. F8 external/Custom GPT read-only integration.
-9. F9 first controlled typed write.
-10. F10 dual-workflow + Sheet sync validation.
-11. F11 canonical promotion.
+1. F7.2A — Canonical multi-user identity
+2. F7.2B — User Management
+3. F7.2C — Credential lifecycle
+4. F7.3 — Actor-aware Audit / operation ledger
+5. F7.4 — Inventory Locations, Store Policy & Preferences
+6. F7.5 — Smart Calculator / receipts, calculation-only
+7. F7.6 — Smart Analysis
+8. F7.7 — Internal read-only AI Assistant
+9. F7.8 — Alerts & Notifications
+10. F8 — External/Custom GPT read-only integration
+11. F9 — Controlled typed writes
+12. F10 — Real workflow + fresh migration + Sheet sync validation
+13. F11 — Canonical promotion
+14. Telegram/Flutter rollout over proven contracts
 
 ## Safety boundary
 
-Do not treat F6B test data as production migration truth. Do not begin production inventory writes, DB promotion, Telegram inventory writes, Flutter rollout, Sheet mirror conversion, or Custom GPT write Actions until the corresponding slice is explicitly authorized.
+Do not treat F6B test data as production migration truth. Do not begin production inventory writes, DB promotion, Telegram/Flutter stock mutation, Sheet mirror conversion, or Custom GPT write Actions until the corresponding slice is explicitly authorized.
 
 ## Continuity rule
 
