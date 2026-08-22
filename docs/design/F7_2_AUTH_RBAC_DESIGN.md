@@ -1,6 +1,6 @@
 # F7.2 — Authentication, RBAC & User Management Design
 
-Status: **F7.2A verified complete; F7.2B User Management is next; F7.2C/F7.2D remain later slices**
+Status: **F7.2A and F7.2B verified complete; F7.2C Credential Lifecycle is next; F7.2D remains later**
 
 ## Goal
 
@@ -28,7 +28,7 @@ The deployed implementation reuses and evolves the existing F2 human-identity fo
 - `users.user_id` UUID remains stable canonical human identity;
 - existing `roles` and `user_roles` carry `OWNER`, `ADMIN`, `STAFF`, `READ_ONLY`;
 - current v1 policy enforces one role per canonical human user;
-- `login_name` evolved to username credential metadata without changing `user_id`;
+- username credential metadata does not change stable `user_id`;
 - account state is canonicalized as `PENDING`, `ACTIVE`, `DISABLED`;
 - password is stored only as a one-way hash;
 - `credential_version` supports session invalidation boundaries;
@@ -43,7 +43,7 @@ The former runtime-only password bridge has been superseded for normal login.
 
 F7.2A materialized the existing Owner password hash into the canonical F2 `users` model and assigned the canonical `OWNER` role without exposing plaintext credentials. Normal Owner sign-in is now **username + password**; the deployed bootstrap username is `owner` unless explicitly overridden by protected runtime configuration.
 
-Compatibility boundary: the already-deployed Owner PBKDF2 hash was preserved specifically to permit plaintext-free migration. This is not authorization to expand credential lifecycle work. New password-change/reset/hash-upgrade policy belongs to F7.2C.
+Compatibility boundary: the already-deployed Owner PBKDF2 hash was preserved specifically to permit plaintext-free migration. New password-change/reset/hash-upgrade policy belongs to F7.2C.
 
 Verified implementation evidence:
 
@@ -79,9 +79,9 @@ Rules:
 - session expiry/sign-out return to login;
 - passwords, service credentials, and signing secrets never enter browser storage.
 
-## Backend authorization contract
+F7.2B adds a progressively disclosed `Request access` flow. Submitting it creates only a pending canonical account/request; it does not grant private inventory access.
 
-F7.2A establishes backend authorization helpers as the enforcement boundary.
+## Backend authorization contract
 
 - authenticated session resolution returns stable `user_id`, username, role, state, and session identity;
 - `require_roles(...)` accepts only canonical human roles;
@@ -89,75 +89,79 @@ F7.2A establishes backend authorization helpers as the enforcement boundary.
 - missing/invalid/disabled session returns unauthenticated denial rather than a client-side role decision;
 - UI visibility is convenience only and never substitutes for backend enforcement.
 
-## F7.2B — User Management — **NEXT**
+## F7.2B — User Management — **VERIFIED COMPLETE**
 
-`User Management` is a standalone human-account surface. It is not combined with Audit or AI Agent Management.
+Deployed via PR #38, merge `e4671c75ab2ece2a6f5065a78779413ef3e9f38b`, deploy run `32588170791`, job `97067607202`.
 
-Responsibilities:
+Alembic upgraded `0005_identity -> 0006_user_management`.
 
-- list human users/account status;
-- review access requests;
-- approve/reject requests;
-- assign allowed roles;
-- change role within authorized boundaries;
-- disable/reactivate accounts;
-- inspect basic account/security state.
+`User Management` is a standalone human-account surface. It is not combined with operational Audit or AI Agent Management.
 
-Credential recovery belongs to F7.2C and must not be implemented as part of the F7.2B minimum runnable slice.
+### Request-access lifecycle
 
-### Access request
+1. applicant submits display name, requested username, and password;
+2. password is stored only as a one-way hash;
+3. backend creates a canonical `PENDING` account and pending access request;
+4. pending account receives no role/private inventory access and cannot authenticate to protected inventory;
+5. Owner sees the pending request in User Management;
+6. Owner may assign `ADMIN`, `STAFF`, or `READ_ONLY`, or reject;
+7. approval activates the account with the exact assigned role;
+8. request/approval/rejection and later role/state/session changes create account-security events;
+9. reusable notification events are generated independently of delivery channel.
 
-1. applicant submits requested username, password, and minimal identity/display information;
-2. backend creates `PENDING` account/request;
-3. pending account has no private inventory access;
-4. Owner sees pending request in product UI;
-5. later Telegram/Flutter may mirror the same backend notification;
-6. authorized approver chooses allowed role or rejects;
-7. approval activates account;
-8. approval/rejection/role/status changes become security/account events using only the minimum prerequisite interface needed for this slice.
+The public request response is designed not to reveal whether a username already exists.
 
-### Grant boundaries
+### Deployed management operations
 
-- `OWNER` can approve `ADMIN`, `STAFF`, `READ_ONLY` accounts;
-- `ADMIN` may perform only account operations explicitly delegated by backend policy and can never grant/promote `OWNER`;
-- OWNER creation/promotion is separate high-risk flow, not an ordinary dropdown;
-- no client-side visibility rule is treated as authorization.
+Owner-only F7.2B supports:
 
-Use product terminology such as **Approve access**, **Assign role**, **Promote**, and **Disable account**.
+- list human users/account state;
+- review pending requests;
+- approve/reject;
+- assign/change allowed non-Owner roles;
+- disable/reactivate approved non-Owner accounts;
+- revoke sessions;
+- inspect basic active-session state.
 
-## F7.2C — Credential lifecycle
+Current F7.2B does not delegate User Management to ADMIN. Future ADMIN delegation, if desired, must be explicitly designed and can never grant/promote OWNER.
 
-- logged-in user can change password after re-authentication;
-- forgotten-password recovery does not depend on email in v1;
-- user can create reset request;
-- Owner-assisted workflow approves/issues a short-lived one-time reset;
-- reset token expires and is single-use;
-- successful reset invalidates old sessions;
-- password change/reset become security/account events.
+### Grant/escalation boundaries
 
-Verified-email recovery may be added later only if real email infrastructure is deliberately introduced.
+- ordinary assignable roles are `ADMIN`, `STAFF`, `READ_ONLY`;
+- `OWNER` is not an ordinary dropdown role;
+- ordinary User Management refuses mutation of an existing OWNER account;
+- OWNER creation/promotion remains a separate future high-risk flow;
+- backend enforcement is authoritative.
 
-## F7.2D companion — AI Agent Management
+### Session/state behavior
 
-AI agents are **not** human accounts assigned `OWNER/ADMIN/STAFF/READ_ONLY` roles. They are separately registered `AI_AGENT` principals with capability-based authority.
+- role change revokes the target user's existing sessions;
+- disable removes protected access;
+- approved disabled users can be reactivated;
+- explicit session revocation is available;
+- stable `user_id` survives role/state changes;
+- rejected users remain non-authenticating.
 
-Only `OWNER` may access `AI Agent Management` and global `Settings`.
+### Account/security history vs operational Audit
 
-Owner may configure an agent's:
+F7.2B introduces minimum durable `account_security_events` and reusable `notification_events` required for human-account administration. These do **not** replace or implement the later F7.3 actor-aware operational/store Audit ledger.
 
-- typed capability scope;
-- Main Store / selected Sub Store / all-store scope;
-- authority ceiling;
-- delegated/autonomous policy;
-- confirmation policy;
-- active/disabled/revoked state;
-- availability of shared AI Chat to Staff/Admin users.
+## Signed-in drawer profile — **VERIFIED F7.2B**
 
-For human-delegated AI actions:
+Dashboard v2.4 now shows a signed-in identity box below product branding and above primary navigation in the sidebar/drawer.
 
-`effective_authority = human_authority ∩ agent_capability_scope ∩ location_scope ∩ operation_policy`
+Required/deployed representation:
 
-Therefore AI Chat never becomes a permission bypass. An Owner may later grant an AI agent explicit typed Main Store operations when those writes are separately authorized, while the agent still cannot self-escalate, change Agent Management, alter Owner/security settings, or change global Settings.
+- circular profile avatar area;
+- deterministic initials fallback while no managed profile image exists;
+- canonical username as primary identity label;
+- current role as secondary metadata;
+- safe truncation/responsive drawer behavior;
+- identity sourced from authenticated backend session, not a browser-side profile store.
+
+The F7.2B profile card is informational. Actual profile-image upload/change is deferred until separately authorized and must not be silently mixed into F7.2C.
+
+Web UI implementation follows the pinned UI/UX Pro Max skill and the existing MSA `MASTER.md` / Dashboard v2.4 design system: semantic surfaces, keyboard/focus affordances, responsive behavior, readable textual state, and no color-only meaning.
 
 ## Role-aware dashboard behavior
 
@@ -167,30 +171,25 @@ Therefore AI Chat never becomes a permission bypass. An Owner may later grant an
 - User Management visible;
 - AI Agent Management visible only when F7.2D is implemented;
 - global Settings visible only when its authorized slice is implemented;
-- later high-risk/canonical actions remain separately gated and are not authorized by F7.2 alone.
+- later high-risk/canonical actions remain separately gated.
 
 ### ADMIN
 
 - operational/admin surfaces allowed by backend policy;
-- User Management only where a narrow delegated account-management policy allows it;
+- no current F7.2B User Management access;
 - no Owner escalation;
-- no AI Agent Management;
-- no global Settings;
-- no canonical promotion authority unless separately authorized later.
+- no AI Agent Management/global Settings.
 
 ### STAFF
 
 - inventory and approved routine operational surfaces;
-- AI Chat may be visible only if Owner enables it in its later slice;
-- AI Chat remains bounded by Staff role/location authority;
 - no User Management, Agent Management, global Settings, migration promotion, or privileged historical correction.
 
 ### READ_ONLY
 
 - read surfaces only;
-- AI Chat may only be exposed if later Owner policy allows read-only assistant use;
 - no write/edit/save/approve controls;
-- management screens return explicit access-denied state.
+- management routes return access-denied behavior.
 
 ## Access denied
 
@@ -201,40 +200,78 @@ Use a first-class `403 / Access denied` state that:
 - provides a safe return to Overview;
 - does not suggest credential retry for authenticated-but-unauthorized users.
 
-The backend 403 behavior is verified in F7.2A. A polished visual Access Denied management-screen state may be added with the relevant UI slice without changing the backend contract.
+Backend 403 and the User Management visual denied state are verified.
+
+## F7.2C — Credential lifecycle — **NEXT**
+
+- logged-in user changes password only after current-password re-authentication;
+- forgotten-password request must not reveal whether username exists;
+- reset request grants no access;
+- Owner-assisted workflow approves/issues a cryptographically random short-lived one-time reset;
+- store only reset-token digest/verifier material after issuance boundary;
+- reset token expires and is single-use;
+- successful password change/reset increments credential version and invalidates old sessions;
+- password change/reset become account-security events;
+- reusable notification events support Owner review/delivery;
+- normal credential maintenance is accessible through product UI without VPS/terminal intervention.
+
+Verified-email recovery may be added later only if real email infrastructure is deliberately introduced.
+
+Profile-image upload/edit remains outside F7.2C unless separately authorized.
+
+## F7.2D companion — AI Agent Management
+
+AI agents are **not** human accounts assigned `OWNER/ADMIN/STAFF/READ_ONLY` roles. They are separately registered `AI_AGENT` principals with capability-based authority.
+
+Only `OWNER` may access `AI Agent Management` and global `Settings`.
+
+For human-delegated AI actions:
+
+`effective_authority = human_authority ∩ agent_capability_scope ∩ location_scope ∩ operation_policy`
+
+AI Chat never becomes a permission bypass. An Owner may later grant an AI agent explicit typed Main Store/Sub Store operations only when those writes are separately authorized. An agent cannot self-escalate or change security/control-plane policy.
 
 ## Surface separation
 
-- `User Management` — human accounts, roles, status; credential recovery is F7.2C.
-- `AI Agent Management` — Owner-only agent capabilities/delegation/control plane, later F7.2D.
+- `User Management` — human accounts, roles, state, session administration.
+- credential lifecycle — F7.2C password/change/reset workflow.
+- `AI Agent Management` — later Owner-only F7.2D control plane.
 - `Settings` — Owner-only global policy in later authorized slices.
-- `Audit` — store/database operational history, not account/agent management.
+- `Audit` — F7.3 store/database operational history, not account/agent management.
 
-Security/account/control-plane events may be retained in backend security history while the primary `Audit` product surface remains operational/store focused.
-
-## Telegram and future clients
-
-Web, Telegram, Flutter, ChatGPT, and Custom GPT attach actions to canonical backend human/agent identities rather than creating separate user stores.
-
-Future Telegram approval controls remain clients of backend approval operations; backend identity/state/authorization is authoritative.
-
-## F7.2 acceptance criteria
+## F7.2 acceptance state
 
 ### F7.2A — complete
 
-1. canonical stable `user_id` model exists — pass;
-2. Owner uses username + password through canonical account model — pass;
-3. human role authorization is backend-enforced — pass;
-4. explicit authenticated 403 behavior is verified — pass;
-5. user-bound revocable session exists — pass;
-6. disabled users lose protected access — pass;
-7. bootstrap bridge is no longer the normal password-only login path — pass;
-8. no inventory write authority was introduced — pass.
+1. canonical stable `user_id` — pass;
+2. Owner username + password — pass;
+3. backend human role authorization — pass;
+4. explicit authenticated 403 — pass;
+5. durable revocable session — pass;
+6. disabled-user denial — pass;
+7. bootstrap password-only normal login retired — pass;
+8. no inventory write authority — pass.
 
-### Remaining F7.2 human-account work
+### F7.2B — complete
 
-F7.2B must verify User Management and access-request/approval/escalation boundaries. F7.2C must separately verify change-password/reset lifecycle and related session revocation. F7.2D remains a subsequent companion slice and must not be conflated with human-account implementation.
+1. pending request remains non-authenticating — pass;
+2. Owner lists/reviews pending requests — pass;
+3. approval/rejection — pass;
+4. exact role assignment — pass;
+5. non-Owner User Management 403 — pass;
+6. ordinary OWNER-account escalation/mutation guard — pass;
+7. role-change session revocation — pass;
+8. disable/reactivate — pass;
+9. explicit session revocation — pass;
+10. account-security + notification events — pass;
+11. signed-in drawer profile UI — pass;
+12. User Management separate from operational Audit — pass;
+13. no inventory mutation — pass.
+
+### Remaining human-account work
+
+F7.2C must separately verify change-password/reset lifecycle, token expiry/single use, and credential/session invalidation. F7.2D remains a subsequent companion slice and must not be conflated with human-account implementation.
 
 ## Safety boundary
 
-F7.2 does **not** authorize inventory writes, Google Sheet mutation, PostgreSQL canonical promotion, Telegram/Flutter inventory writes, Custom GPT write Actions, arbitrary SQL, or arbitrary permission editing.
+F7.2 does **not** authorize inventory writes, Google Sheet mutation, PostgreSQL canonical promotion, Telegram/Flutter inventory writes, Custom GPT write Actions, arbitrary SQL, AI self-escalation, or arbitrary permission editing.
