@@ -21,10 +21,39 @@ from app.shadow_read_api import _query
 router = APIRouter(tags=["dashboard"])
 ASSET_DIR = Path(__file__).resolve().parent / "dashboard_assets"
 ALLOWED_ASSETS = {"dashboard.css", "dashboard.js"}
+DASHBOARD_CSP = (
+    "default-src 'self'; "
+    "script-src 'self'; "
+    "style-src 'self'; "
+    "img-src 'self' data:; "
+    "connect-src 'self'; "
+    "font-src 'self'; "
+    "frame-ancestors 'none'; "
+    "base-uri 'none'; "
+    "form-action 'self'"
+)
 
 
 class LoginRequest(BaseModel):
     password: str
+
+
+def _no_store(response: Response) -> None:
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+
+
+def _latest_google_snapshot_batch_id() -> str | None:
+    rows = _query(
+        """
+        SELECT migration_batch_id::text AS migration_batch_id
+        FROM migration_batches
+        WHERE source_kind = 'google_sheet_snapshot'
+        ORDER BY created_at DESC, migration_batch_id DESC
+        LIMIT 1
+        """
+    )
+    return rows[0]["migration_batch_id"] if rows else None
 
 
 @router.get("/", include_in_schema=False)
@@ -34,7 +63,13 @@ def root_redirect() -> RedirectResponse:
 
 @router.get("/dashboard", include_in_schema=False)
 def dashboard_shell() -> FileResponse:
-    return FileResponse(ASSET_DIR / "dashboard.html", media_type="text/html")
+    response = FileResponse(ASSET_DIR / "dashboard.html", media_type="text/html")
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Content-Security-Policy"] = DASHBOARD_CSP
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
 
 
 @router.get("/dashboard/assets/{asset_name}", include_in_schema=False)
@@ -42,11 +77,14 @@ def dashboard_asset(asset_name: str) -> FileResponse:
     if asset_name not in ALLOWED_ASSETS:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found")
     media_type = "text/css" if asset_name.endswith(".css") else "text/javascript"
-    return FileResponse(ASSET_DIR / asset_name, media_type=media_type)
+    response = FileResponse(ASSET_DIR / asset_name, media_type=media_type)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
 
 
 @router.get("/dashboard/api/session", summary="Dashboard owner session state")
-def dashboard_session_state(request: Request) -> dict[str, bool]:
+def dashboard_session_state(request: Request, response: Response) -> dict[str, bool]:
+    _no_store(response)
     token = request.cookies.get(SESSION_COOKIE)
     return {
         "configured": dashboard_auth_configured(),
@@ -58,6 +96,7 @@ def dashboard_session_state(request: Request) -> dict[str, bool]:
 
 @router.post("/dashboard/api/session", summary="Create dashboard owner session")
 def dashboard_login(payload: LoginRequest, response: Response) -> dict[str, bool]:
+    _no_store(response)
     if not dashboard_auth_configured():
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -83,6 +122,7 @@ def dashboard_login(payload: LoginRequest, response: Response) -> dict[str, bool
 
 @router.delete("/dashboard/api/session", summary="Clear dashboard owner session")
 def dashboard_logout(response: Response) -> dict[str, bool]:
+    _no_store(response)
     response.delete_cookie(key=SESSION_COOKIE, path="/dashboard", secure=True, httponly=True, samesite="strict")
     return {"authenticated": False}
 
@@ -92,7 +132,8 @@ def dashboard_logout(response: Response) -> dict[str, bool]:
     summary="Read dashboard overview from test-only shadow data",
     dependencies=[Depends(require_dashboard_session)],
 )
-def dashboard_overview() -> dict[str, Any]:
+def dashboard_overview(response: Response) -> dict[str, Any]:
+    _no_store(response)
     batch_rows = _query(
         """
         SELECT mb.migration_batch_id::text AS migration_batch_id,
@@ -112,24 +153,20 @@ def dashboard_overview() -> dict[str, Any]:
         LIMIT 1
         """
     )
+    latest_batch_id = batch_rows[0]["migration_batch_id"] if batch_rows else None
     reasons = _query(
         """
         SELECT classification,
                COALESCE(review_reason, '(none)') AS review_reason,
                COUNT(*) AS row_count
         FROM migration_source_rows
-        WHERE classification IN ('REVIEW', 'CONFLICT', 'NEW_UNMAPPED')
-          AND migration_batch_id = (
-            SELECT migration_batch_id
-            FROM migration_batches
-            WHERE source_kind = 'google_sheet_snapshot'
-            ORDER BY created_at DESC, migration_batch_id DESC
-            LIMIT 1
-          )
+        WHERE (:migration_batch_id IS NULL OR migration_batch_id::text = :migration_batch_id)
+          AND classification IN ('REVIEW', 'CONFLICT', 'NEW_UNMAPPED')
         GROUP BY classification, COALESCE(review_reason, '(none)')
         ORDER BY row_count DESC, classification, review_reason
         LIMIT 12
-        """
+        """,
+        {"migration_batch_id": latest_batch_id},
     )
     return {
         "batch": batch_rows[0] if batch_rows else None,
@@ -145,6 +182,7 @@ def dashboard_overview() -> dict[str, Any]:
     dependencies=[Depends(require_dashboard_session)],
 )
 def dashboard_rows(
+    response: Response,
     migration_batch_id: str | None = None,
     source_sheet: str | None = None,
     classification: Literal["SAFE", "REVIEW", "CONFLICT", "NEW_UNMAPPED"] | None = None,
@@ -152,17 +190,9 @@ def dashboard_rows(
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
 ) -> dict[str, Any]:
+    _no_store(response)
     if migration_batch_id is None:
-        latest = _query(
-            """
-            SELECT migration_batch_id::text AS migration_batch_id
-            FROM migration_batches
-            WHERE source_kind = 'google_sheet_snapshot'
-            ORDER BY created_at DESC, migration_batch_id DESC
-            LIMIT 1
-            """
-        )
-        migration_batch_id = latest[0]["migration_batch_id"] if latest else None
+        migration_batch_id = _latest_google_snapshot_batch_id()
 
     rows = _query(
         """
@@ -212,7 +242,10 @@ def dashboard_rows(
     summary="Read dashboard review reason summary",
     dependencies=[Depends(require_dashboard_session)],
 )
-def dashboard_review_reasons(migration_batch_id: str | None = None) -> dict[str, Any]:
+def dashboard_review_reasons(response: Response, migration_batch_id: str | None = None) -> dict[str, Any]:
+    _no_store(response)
+    if migration_batch_id is None:
+        migration_batch_id = _latest_google_snapshot_batch_id()
     rows = _query(
         """
         SELECT classification,
@@ -229,6 +262,7 @@ def dashboard_review_reasons(migration_batch_id: str | None = None) -> dict[str,
     return {
         "items": rows,
         "count": len(rows),
+        "migration_batch_id": migration_batch_id,
         "database_canonical": False,
         "migration_baseline_accepted": False,
     }
