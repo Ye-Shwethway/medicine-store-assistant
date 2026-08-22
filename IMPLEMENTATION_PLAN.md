@@ -258,6 +258,34 @@ Purpose: normal username/password maintenance and assisted recovery without VPS/
 - normal credential maintenance requires no VPS/terminal intervention — pass;
 - inventory authority flags/read-only boundary remain unchanged — pass.
 
+### Planned automated recovery delivery — provider-neutral
+
+The deployed Owner-assisted link issuance remains a valid **fallback**, but it is not the intended long-term normal recovery workflow. Routine forgotten-password recovery should not require the Owner to manually copy and deliver every reset link.
+
+Future recovery delivery must reuse the verified F7.2C token/security lifecycle and add delivery transports around it rather than moving credential authority into Telegram or an email provider.
+
+Planned recovery channels:
+
+1. **Verified email** — a user may register and verify a recovery email address. An eligible forgot-password request may automatically issue the existing short-lived single-use reset token and deliver the reset link through a configured transactional-email adapter.
+2. **Linked Telegram account** — after the Telegram client exists, a user may securely link a Telegram identity to the same canonical `user_id`. An eligible forgot-password request may automatically deliver the reset link or an equivalent one-time recovery action through the MSA Telegram bot.
+3. **Owner-assisted issuance** — retained as a fallback for users with no usable verified recovery channel, delivery failure, or exceptional recovery cases.
+
+Security rules for automated recovery:
+
+- public forgot-password responses remain enumeration-safe;
+- email addresses must be verified before they can become recovery destinations;
+- Telegram linking must use an authenticated pairing/challenge flow; users must not gain recovery authority merely by typing an arbitrary Telegram ID;
+- reset tokens remain cryptographically random, short-lived, single-use, digest-only at rest, and governed by the MSA backend;
+- delivery providers receive only the minimum information needed to send the recovery message and never receive password hashes, database credentials, roles, or inventory authority;
+- rate limiting, retry/backoff, abuse protection, delivery-state events, and security events must be deterministic backend behavior;
+- delivery failure must not silently weaken recovery security; the user sees a generic response and fallback policy applies;
+- provider credentials remain runtime secrets and never enter Git/browser storage;
+- email/Telegram transports are replaceable adapters, not sources of account truth.
+
+Provider-selection note: do **not** hard-code a vendor into the canonical architecture. At implementation time, choose a transactional provider based on current pricing, deliverability, domain-verification support, API/SMTP reliability, and data-handling requirements. Low-volume free tiers may be sufficient for MSA, but provider quotas/pricing are operational configuration rather than durable architecture.
+
+Suggested implementation placement: delivery adapters and recovery-channel verification can be introduced with the F7.8 Alerts & Notifications/event-delivery layer or as a narrow prerequisite when Telegram account linking is implemented. The current Owner-assisted F7.2C recovery remains operational until an automated channel is verified end-to-end.
+
 F7.2C did not include profile-image upload/editing, F7.2D Agent Management, F7.3 operational Audit, or inventory writes.
 
 ## F7.2D — AI Agent Management & delegated authority — **NEXT**
@@ -460,9 +488,11 @@ Future write tools reuse F7.2D policy and F7.3 audit rather than inventing a sep
 
 Deterministic event generation first; optional AI explanation/prioritization second.
 
-Initial candidates include low stock/days-of-stock, Sub Store refill pressure, expiry, unusual transfer/dispense patterns, data-quality issues, sync failures, access/reset requests, and scheduled analysis results.
+Initial candidates include low stock/days-of-stock, Sub Store refill pressure, expiry, unusual transfer/dispense patterns, data-quality issues, sync failures, access/reset requests, scheduled analysis results, and credential-recovery delivery events.
 
-One backend event contract is reusable across Web, Telegram, Flutter, and future clients.
+One backend event contract is reusable across Web, Telegram, Flutter, email, and future clients. Channel adapters must remain transport-only: they deliver backend-issued notifications/recovery links but do not become account-authority or inventory-authority systems.
+
+Recovery-related F7.8 work should support verified-email and securely linked Telegram destinations, provider-neutral email delivery, delivery status/retry events, abuse/rate controls, and Owner-assisted fallback when automated delivery is unavailable.
 
 ---
 
@@ -524,6 +554,8 @@ Only after approved promotion may PostgreSQL become the operational source of tr
 
 Telegram and Flutter are clients over the same backend contracts, not separate inventory truths.
 
+Telegram account linking must bind a verified/pairing-confirmed Telegram identity to the canonical `user_id`; once implemented, the linked bot channel may be used for recovery-link delivery and other notifications without making Telegram a source of account authority.
+
 Flutter may provide mobile-optimized card/table views, Smart Calculator, receipt/share/print, preferences, alerts, and offline-tolerant caching; local cache never becomes a second canonical inventory store.
 
 ## Recommended execution order
@@ -537,7 +569,7 @@ Flutter may provide mobile-optimized card/table views, Smart Calculator, receipt
 7. **F7.5 — Smart Calculator / receipts, calculation-only**
 8. **F7.6 — Smart Analysis**
 9. **F7.7 — Internal read-only AI Assistant**
-10. **F7.8 — Alerts & Notifications**
+10. **F7.8 — Alerts & Notifications, including automated recovery delivery**
 11. **F8 — External/Custom GPT read-only integration**
 12. **F9 — Controlled typed writes**
 13. **F10 — Real workflow + fresh migration + Sheet sync validation**
