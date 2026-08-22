@@ -45,13 +45,19 @@ wait_for_url() {
 
 wait_for_url "http://127.0.0.1:${API_PORT}/health"
 wait_for_url "http://127.0.0.1:${API_PORT}/ready"
+wait_for_url "http://127.0.0.1:${API_PORT}/dashboard"
+wait_for_url "http://127.0.0.1:${API_PORT}/dashboard/api/session"
 
 OPENAPI="$(curl --fail --silent --show-error "http://127.0.0.1:${API_PORT}/openapi.json")"
 for route in \
   '/v1/shadow/batches' \
   '/v1/shadow/batches/{migration_batch_id}' \
   '/v1/shadow/rows' \
-  '/v1/shadow/review-reasons'; do
+  '/v1/shadow/review-reasons' \
+  '/dashboard/api/session' \
+  '/dashboard/api/overview' \
+  '/dashboard/api/rows' \
+  '/dashboard/api/review-reasons'; do
   grep -Fq "\"${route}\"" <<<"$OPENAPI"
 done
 
@@ -61,5 +67,12 @@ if [[ "$ANON_STATUS" != "401" ]]; then
   exit 1
 fi
 
+DASHBOARD_PRIVATE_STATUS="$(curl --silent --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:${API_PORT}/dashboard/api/overview")"
+if [[ "$DASHBOARD_PRIVATE_STATUS" != "401" && "$DASHBOARD_PRIVATE_STATUS" != "503" ]]; then
+  echo "error: unauthenticated dashboard BFF returned HTTP ${DASHBOARD_PRIVATE_STATUS}, expected 401 or fail-closed 503" >&2
+  exit 1
+fi
+
 echo "shadow_routes=pass anonymous_auth_guard=pass"
+echo "dashboard_shell=pass dashboard_session_state=pass dashboard_private_gate=pass:${DASHBOARD_PRIVATE_STATUS}"
 echo "MSA backend deployed at ${CURRENT_SHA}; no live workbook import executed."
