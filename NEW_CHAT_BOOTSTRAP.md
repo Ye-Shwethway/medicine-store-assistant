@@ -37,7 +37,7 @@ Canonical flow: `test -> pull request -> main -> automatic VPS deployment for re
 - Runtime secrets stay on the VPS.
 - `.github/backend-deploy-result` records deployment status, source SHA, and workflow run ID.
 - Normal backend deploy does **not** read/import the live Google workbook.
-- Dashboard deploy verification now checks both localhost and `https://inventory.drthorne.uk` public HTTPS paths.
+- Dashboard deploy verification checks both localhost and `https://inventory.drthorne.uk` public HTTPS paths.
 
 ## Verified checkpoints
 
@@ -62,16 +62,18 @@ Canonical F7.1 evidence:
 
 ## F7 Web Dashboard
 
-Read before dashboard work:
+Read before dashboard/auth work:
 
 - `docs/architecture/F7_WEB_DASHBOARD.md`
 - `docs/design/UI_UX_PRO_MAX_INTEGRATION.md`
+- `docs/design/F7_2_AUTH_RBAC_DESIGN.md`
 - `design-system/medicine-store-assistant/MASTER.md`
 - `design-system/medicine-store-assistant/pages/dashboard.md`
+- `docs/architecture/F2_SCHEMA_DECISION_PROPOSAL.md`
 
 UI/UX Pro Max is pinned for this design cycle to upstream `nextlevelbuilder/ui-ux-pro-max-skill` commit `bc826e2267a36d98a2dcf5231e16c30ff546770f`.
 
-Dashboard v2.4 is the locked visual/interaction baseline. Preserve responsive sidebar/mobile drawer, visual sun/moon Light-Dark toggle, spreadsheet gridlines, Inventory→Overview path, row detail drawer, full-table focus mode, TEST DATA / DB NON-CANONICAL badges, and the read-only boundary.
+Dashboard v2.4 remains the locked visual/interaction baseline. Preserve responsive sidebar/mobile drawer, visual sun/moon Light-Dark toggle, spreadsheet gridlines, Inventory→Overview path, row detail drawer, full-table focus mode, TEST DATA / DB NON-CANONICAL badges, and the read-only boundary.
 
 ### F7.1 verified deployment
 
@@ -93,41 +95,49 @@ Verified runtime facts:
 - dashboard session route is deployed;
 - private dashboard BFF is fail-closed;
 - public `https://inventory.drthorne.uk/dashboard` path verified by the VPS runner;
-- public unauthenticated `/dashboard/api/overview` returned HTTP 503 because owner auth is intentionally unprovisioned;
+- public unauthenticated `/dashboard/api/overview` returned HTTP 503 because bootstrap Owner auth is intentionally unprovisioned;
 - dashboard auth password/session/tamper verifier passed;
 - F6C shadow verifier passed;
 - no live workbook import executed;
 - no inventory write routes were added.
 
-## Next authorized slice — F7.2
+## Next authorized slice — F7.2 Authentication & Role-Based Access
 
-Provision dashboard owner authentication in the protected VPS runtime environment, then verify authenticated public dashboard reads against the existing F6C test-only dataset.
+F7.2 is now explicitly an authentication/RBAC slice, not credential provisioning alone.
 
-Runtime-only values:
+Locked design direction:
+
+- dedicated `/dashboard/login` primary sign-in page;
+- no public signup;
+- roles `OWNER`, `ADMIN`, `STAFF`, `READ_ONLY`;
+- backend policy is authoritative; hidden UI is not security;
+- role-aware navigation/control visibility;
+- explicit authenticated `403 / Access denied` state;
+- `Audit & Access` becomes the future account/access-management surface;
+- stable backend `user_id` is canonical human identity;
+- disable/revoke accounts rather than delete historical actors;
+- session expiry/sign-out return to login without exposing private data.
+
+The existing runtime-only values are retained as a bootstrap Owner bridge for the first protected read verification:
 
 - `MSA_DASHBOARD_OWNER_PASSWORD_HASH`
 - `MSA_DASHBOARD_SESSION_SECRET`
 
-Do not put these in Git or browser code. Do not weaken the existing root-owned F3 token boundary.
+They are not the final multi-user credential store. Do not put them, the plaintext Owner password, or session material in Git/browser code/logs.
 
-After provisioning, verify:
+Authorized implementation order:
 
-- public owner sign-in;
-- real overview metrics from the test-only batch;
-- inventory rows through the dashboard BFF;
-- search/classification/source-sheet filters;
-- detail drawer;
-- expanded table mode;
-- Light/Dark theme;
-- responsive navigation;
-- logout;
-- unauthenticated private-route rejection.
+1. auth/RBAC canonical design + continuity docs;
+2. secure bootstrap Owner secret provisioning on VPS;
+3. authenticated Owner public dashboard read verification against the existing test-only dataset;
+4. dedicated login + canonical user/session/RBAC implementation;
+5. OWNER / ADMIN / STAFF / READ_ONLY authorization verification.
 
 F7.2 remains read-only. Google Sheets remains the operational source of truth.
 
 ## Safety boundary
 
-Do not treat F6B test data as production migration truth. Do not begin production stock writes, database promotion, Telegram writes, Flutter rollout, Sheet mirror conversion, or Custom GPT write Actions without explicit authorization for those slices.
+Do not treat F6B test data as production migration truth. Do not begin production stock writes, database promotion, Telegram writes, Flutter rollout, Sheet mirror conversion, Custom GPT write Actions, or arbitrary permission editing without explicit authorization for those slices.
 
 ## Continuity rule
 

@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Project Roadmap
 
-Status: **F0/F1/F2/F3/F4/F5/F5.1/F6A/F6C/F7.1 verified complete; F6B remains test-only; F7.2 next; PostgreSQL remains non-canonical**
+Status: **F0/F1/F2/F3/F4/F5/F5.1/F6A/F6C/F7.1 verified complete; F6B remains test-only; F7.2 Authentication & RBAC next; PostgreSQL remains non-canonical**
 
 The live Google workbook/source documents remain operationally authoritative. The current staged F6B snapshot is **test-only** and is **not an accepted migration baseline**. A fresh real migration dataset will be imported later only after the operational workflow and user-facing management UI are ready and explicitly approved.
 
@@ -57,10 +57,11 @@ Canonical dashboard docs:
 
 - `docs/architecture/F7_WEB_DASHBOARD.md`
 - `docs/design/UI_UX_PRO_MAX_INTEGRATION.md`
+- `docs/design/F7_2_AUTH_RBAC_DESIGN.md`
 - `design-system/medicine-store-assistant/MASTER.md`
 - `design-system/medicine-store-assistant/pages/dashboard.md`
 
-Dashboard v2.4 is the locked implementation baseline: responsive sidebar/mobile drawer, visual sun/moon Light-Dark toggle, spreadsheet gridlines, Inventory→Overview return path, item detail drawer, full-table focus mode, TEST DATA / DB NON-CANONICAL indicators, and no write affordances.
+Dashboard v2.4 remains the locked implementation baseline: responsive sidebar/mobile drawer, visual sun/moon Light-Dark toggle, spreadsheet gridlines, Inventory→Overview return path, item detail drawer, full-table focus mode, TEST DATA / DB NON-CANONICAL indicators, and no write affordances.
 
 ### F7.1 — verified complete
 
@@ -81,18 +82,38 @@ Verified:
 - F6C test-only data remained unchanged;
 - no live Google workbook import executed.
 
-### F7.2 — next authorized slice
+### F7.2 — next authorized slice: Authentication & Role-Based Access
 
-Provision dashboard owner authentication only in the protected VPS runtime environment, then verify authenticated public dashboard reads against the existing F6C test-only dataset.
+F7.2 is now explicitly broader than owner-password provisioning.
 
-Required runtime values:
+Design decisions are locked in `docs/design/F7_2_AUTH_RBAC_DESIGN.md`:
+
+- dedicated `/dashboard/login` page as the primary login UX;
+- no public self-registration;
+- roles `OWNER`, `ADMIN`, `STAFF`, `READ_ONLY` from the approved F2 model;
+- role-aware navigation/control visibility with backend authorization as the source of truth;
+- explicit authenticated `403 / Access denied` state;
+- session expiry and sign-out return to login;
+- `Audit & Access` becomes the future account/access-management surface;
+- stable backend `user_id` remains canonical human identity;
+- deactivate/revoke accounts rather than delete historical actors.
+
+The existing runtime values remain a **bootstrap Owner bridge** for the first protected deployment verification:
 
 - `MSA_DASHBOARD_OWNER_PASSWORD_HASH`
 - `MSA_DASHBOARD_SESSION_SECRET`
 
-Then verify owner sign-in, overview/rows/review data, search/filter, detail drawer, full-table mode, Light/Dark theme, responsive navigation, logout, and unauthenticated rejection.
+They are not the final multi-user credential store.
 
-F7.2 remains **read-only** and does not authorize inventory writes, Sheet mutation, or database promotion.
+Implementation sequence:
+
+1. auth/RBAC design and continuity docs;
+2. securely provision bootstrap Owner runtime secrets on VPS;
+3. verify authenticated Owner read path against the existing test-only F6C dataset;
+4. implement dedicated login UX and canonical user/session/RBAC foundation;
+5. verify role behavior and access-denied states.
+
+F7.2 remains **read-only** and does not authorize inventory writes, Sheet mutation, database promotion, or arbitrary permission editing.
 
 ## Safety boundary
 
