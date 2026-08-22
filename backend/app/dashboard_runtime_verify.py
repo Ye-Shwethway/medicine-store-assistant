@@ -72,14 +72,18 @@ def main() -> None:
             row = connection.execute(
                 text(
                     """
-                    INSERT INTO users (username, password_hash, role, state)
-                    VALUES (:username, :password_hash, 'READ_ONLY', 'ACTIVE')
+                    INSERT INTO users (display_name, username, password_hash, state)
+                    VALUES ('F7.2A verification user', :username, :password_hash, 'ACTIVE')
                     RETURNING user_id::text
                     """
                 ),
                 {"username": temp_username, "password_hash": make_password_hash(temp_password)},
             ).one()
             temp_user_id = row[0]
+            connection.execute(
+                text("INSERT INTO user_roles (user_id, role_code) VALUES (CAST(:user_id AS uuid), 'READ_ONLY')"),
+                {"user_id": temp_user_id},
+            )
 
         authenticated = authenticate_user(temp_username, temp_password)
         if authenticated is None or authenticated["user_id"] != temp_user_id or authenticated["role"] != "READ_ONLY":
@@ -101,6 +105,7 @@ def main() -> None:
             revoke_session_token(temp_cookie)
         if temp_user_id:
             with engine.begin() as connection:
+                connection.execute(text("DELETE FROM user_roles WHERE user_id = CAST(:user_id AS uuid)"), {"user_id": temp_user_id})
                 connection.execute(text("DELETE FROM users WHERE user_id = CAST(:user_id AS uuid)"), {"user_id": temp_user_id})
         engine.dispose()
         revoke_session_token(owner_cookie)
