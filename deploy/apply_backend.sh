@@ -86,11 +86,12 @@ if [[ "$DASHBOARD_PRIVATE_STATUS" != "401" && "$DASHBOARD_PRIVATE_STATUS" != "50
   exit 1
 fi
 
-# Exercise the authenticated dashboard BFF with a short-lived server-generated session token.
-# This proves the test-only batch is not merely present in PostgreSQL but is actually readable
-# through the same dashboard endpoints used by the browser. No Owner password is read or logged.
-docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T api \
-  python -m app.dashboard_runtime_verify
+# Exercise the authenticated dashboard BFF from inside the running API container.
+# The container listens on 8080; the host-mapped port (normally 8088) is not reachable
+# via 127.0.0.1 from inside the container itself.
+docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T \
+  -e MSA_DASHBOARD_VERIFY_BASE_URL=http://127.0.0.1:8080 \
+  api python -m app.dashboard_runtime_verify
 
 wait_for_url "${PUBLIC_BASE_URL}/health"
 wait_for_url "${PUBLIC_BASE_URL}/dashboard/login"
