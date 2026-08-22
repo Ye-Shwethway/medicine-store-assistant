@@ -25,7 +25,7 @@ def make_password_hash(password: str, *, salt: bytes | None = None) -> str:
         raise ValueError("password must not be empty")
     salt = salt or secrets.token_bytes(16)
     digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, PBKDF2_ITERATIONS)
-    return "pbkdf2_sha256${}${}${}".format(
+    return "pbkdf2_sha256:{}:{}:{}".format(
         PBKDF2_ITERATIONS,
         base64.urlsafe_b64encode(salt).decode("ascii").rstrip("="),
         base64.urlsafe_b64encode(digest).decode("ascii").rstrip("="),
@@ -40,7 +40,7 @@ def verify_password(password: str) -> bool:
     if not dashboard_auth_configured() or not password:
         return False
     try:
-        algorithm, iterations_text, salt_text, digest_text = PASSWORD_HASH.split("$", 3)
+        algorithm, iterations_text, salt_text, digest_text = PASSWORD_HASH.split(":", 3)
         if algorithm != "pbkdf2_sha256":
             return False
         iterations = int(iterations_text)
