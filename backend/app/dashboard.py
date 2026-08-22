@@ -10,11 +10,13 @@ from pydantic import BaseModel
 from app.dashboard_auth import (
     SESSION_COOKIE,
     SESSION_TTL_SECONDS,
+    authenticate_user,
     create_session_token,
     dashboard_auth_configured,
     require_dashboard_session,
-    validate_session_token,
-    verify_password,
+    require_owner_session,
+    resolve_session_token,
+    revoke_session_token,
 )
 from app.shadow_read_api import _query
 
@@ -35,6 +37,7 @@ DASHBOARD_CSP = (
 
 
 class LoginRequest(BaseModel):
+    username: str
     password: str
 
 
@@ -76,7 +79,7 @@ def _dashboard_row_where(
         params["classification"] = classification
     if q is not None:
         clauses.append(
-            "(" 
+            "("
             "COALESCE(msr.payload->>'item_name', '') ILIKE '%' || :q || '%' "
             "OR COALESCE(msr.payload->>'serial_code', '') ILIKE '%' || :q || '%' "
             "OR COALESCE(msr.review_reason, '') ILIKE '%' || :q || '%'"
@@ -112,31 +115,43 @@ def dashboard_asset(asset_name: str) -> FileResponse:
     return response
 
 
-@router.get("/dashboard/api/session", summary="Dashboard owner session state")
-def dashboard_session_state(request: Request, response: Response) -> dict[str, bool]:
+@router.get("/dashboard/api/session", summary="Dashboard session state")
+def dashboard_session_state(request: Request, response: Response) -> dict[str, Any]:
     _no_store(response)
     token = request.cookies.get(SESSION_COOKIE)
+    principal = resolve_session_token(token)
     return {
         "configured": dashboard_auth_configured(),
-        "authenticated": validate_session_token(token),
+        "authenticated": principal is not None,
+        "user": (
+            {
+                "user_id": principal["user_id"],
+                "username": principal["username"],
+                "role": principal["role"],
+                "state": principal["state"],
+            }
+            if principal
+            else None
+        ),
         "database_canonical": False,
         "migration_baseline_accepted": False,
     }
 
 
-@router.post("/dashboard/api/session", summary="Create dashboard owner session")
-def dashboard_login(payload: LoginRequest, response: Response) -> dict[str, bool]:
+@router.post("/dashboard/api/session", summary="Create dashboard user session")
+def dashboard_login(payload: LoginRequest, response: Response) -> dict[str, Any]:
     _no_store(response)
     if not dashboard_auth_configured():
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Dashboard owner access is not provisioned",
+            detail="Dashboard access is not provisioned",
         )
-    if not verify_password(payload.password):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid dashboard credential")
+    principal = authenticate_user(payload.username, payload.password)
+    if principal is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password")
     response.set_cookie(
         key=SESSION_COOKIE,
-        value=create_session_token(),
+        value=create_session_token(principal["user_id"]),
         max_age=max(300, SESSION_TTL_SECONDS),
         httponly=True,
         secure=True,
@@ -145,16 +160,33 @@ def dashboard_login(payload: LoginRequest, response: Response) -> dict[str, bool
     )
     return {
         "authenticated": True,
+        "user": {
+            "user_id": principal["user_id"],
+            "username": principal["username"],
+            "role": principal["role"],
+            "state": principal["state"],
+        },
         "database_canonical": False,
         "migration_baseline_accepted": False,
     }
 
 
-@router.delete("/dashboard/api/session", summary="Clear dashboard owner session")
-def dashboard_logout(response: Response) -> dict[str, bool]:
+@router.delete("/dashboard/api/session", summary="Revoke current dashboard session")
+def dashboard_logout(request: Request, response: Response) -> dict[str, bool]:
     _no_store(response)
+    revoke_session_token(request.cookies.get(SESSION_COOKIE))
     response.delete_cookie(key=SESSION_COOKIE, path="/dashboard", secure=True, httponly=True, samesite="strict")
     return {"authenticated": False}
+
+
+@router.get(
+    "/dashboard/api/authorization/owner",
+    summary="Verify Owner-only backend authorization",
+    dependencies=[Depends(require_owner_session)],
+)
+def dashboard_owner_authorization_probe(response: Response) -> dict[str, bool]:
+    _no_store(response)
+    return {"authorized": True}
 
 
 @router.get(

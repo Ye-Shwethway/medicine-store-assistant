@@ -11,8 +11,8 @@ def main() -> None:
     login = client.get("/dashboard/login", follow_redirects=False)
     if login.status_code != 200:
         raise SystemExit(f"dedicated login route failed: {login.status_code}")
-    if "Secure dashboard access" not in login.text or "Owner password" not in login.text:
-        raise SystemExit("dedicated login page content missing")
+    if "Secure dashboard access" not in login.text or ">Username<" not in login.text or ">Password<" not in login.text:
+        raise SystemExit("dedicated canonical login page content missing")
 
     dashboard = client.get("/dashboard", follow_redirects=False)
     if dashboard.status_code != 307 or dashboard.headers.get("location") != "/dashboard/login":
@@ -20,7 +20,7 @@ def main() -> None:
             f"unauthenticated dashboard gate failed: status={dashboard.status_code} location={dashboard.headers.get('location')}"
         )
 
-    print("F7.2 dedicated login verification PASS")
+    print("F7.2A dedicated username/password login verification PASS")
 
 
 if __name__ == "__main__":

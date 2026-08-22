@@ -23,11 +23,26 @@ docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" config --quiet
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" build api
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d db
 
+for _ in $(seq 1 30); do
+  if docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T db \
+      sh -c 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"' >/dev/null 2>&1; then
+    break
+  fi
+  sleep 1
+done
+docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T db \
+  sh -c 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"' >/dev/null
+
+docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm api alembic upgrade head
+
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm \
   api python -m app.dashboard_verify
 
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm \
   api python -m app.shadow_read_verify
+
+docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm \
+  api python -c 'from app.dashboard_auth import ensure_bootstrap_owner; u=ensure_bootstrap_owner(); print("canonical_owner_bootstrap=pass user_id=" + u["user_id"] + " username=" + u["username"])'
 
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d api
 
@@ -58,6 +73,7 @@ for route in \
   '/v1/shadow/rows' \
   '/v1/shadow/review-reasons' \
   '/dashboard/api/session' \
+  '/dashboard/api/authorization/owner' \
   '/dashboard/api/overview' \
   '/dashboard/api/rows' \
   '/dashboard/api/review-reasons'; do
@@ -66,7 +82,8 @@ done
 
 LOGIN_BODY="$(curl --fail --silent --show-error "http://127.0.0.1:${API_PORT}/dashboard/login")"
 grep -Fq 'Secure dashboard access' <<<"$LOGIN_BODY"
-grep -Fq 'Owner password' <<<"$LOGIN_BODY"
+grep -Fq '>Username<' <<<"$LOGIN_BODY"
+grep -Fq '>Password<' <<<"$LOGIN_BODY"
 
 ANON_STATUS="$(curl --silent --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:${API_PORT}/v1/shadow/batches")"
 if [[ "$ANON_STATUS" != "401" ]]; then
@@ -86,7 +103,8 @@ if [[ "$DASHBOARD_PRIVATE_STATUS" != "401" && "$DASHBOARD_PRIVATE_STATUS" != "50
   exit 1
 fi
 
-# Exercise the authenticated dashboard BFF from inside the running API container.
+# Exercise canonical human identity, revocable sessions, RBAC, disabled-user denial,
+# and the existing read-only dashboard against the running API.
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T \
   -e MSA_DASHBOARD_VERIFY_BASE_URL=http://127.0.0.1:8080 \
   api python -m app.dashboard_runtime_verify
@@ -106,6 +124,6 @@ if [[ "$PUBLIC_PRIVATE_STATUS" != "401" && "$PUBLIC_PRIVATE_STATUS" != "503" ]];
 fi
 
 echo "shadow_routes=pass shadow_test_batch=pass anonymous_auth_guard=pass"
-echo "dashboard_auth_foundation=pass dedicated_login=pass authenticated_dashboard_data=pass dashboard_private_gate=pass:${DASHBOARD_PRIVATE_STATUS}"
+echo "f7_2a_identity=pass canonical_owner=pass username_password=pass durable_sessions=pass backend_rbac=pass access_denied_403=pass disabled_user_denied=pass"
 echo "dashboard_public_route=pass dashboard_public_private_gate=pass:${PUBLIC_PRIVATE_STATUS} public_base=${PUBLIC_BASE_URL}"
-echo "MSA backend deployed at ${CURRENT_SHA}; no live workbook import executed."
+echo "MSA backend deployed at ${CURRENT_SHA}; inventory remains read-only; no live workbook import executed."

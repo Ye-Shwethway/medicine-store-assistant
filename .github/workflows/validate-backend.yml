@@ -30,7 +30,9 @@ jobs:
       - name: Compile backend Python
         run: python -m compileall -q backend/app backend/alembic
       - name: Validate dashboard JavaScript syntax
-        run: node --check backend/app/dashboard_assets/dashboard.js
+        run: |
+          node --check backend/app/dashboard_assets/dashboard.js
+          node --check backend/app/dashboard_assets/login.js
       - name: Validate deployment shell syntax
         run: |
           set -euo pipefail

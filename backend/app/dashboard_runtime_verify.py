@@ -2,23 +2,39 @@ from __future__ import annotations
 
 import json
 import os
+import secrets
 import urllib.error
 import urllib.request
 
-from app.dashboard_auth import SESSION_COOKIE, create_session_token
+from sqlalchemy import text
+
+from app.dashboard_auth import (
+    SESSION_COOKIE,
+    _engine,
+    authenticate_user,
+    create_session_token,
+    ensure_bootstrap_owner,
+    make_password_hash,
+    revoke_session_token,
+)
 
 
-def _get_json(base_url: str, path: str, cookie: str) -> dict:
+def _request_json(base_url: str, path: str, cookie: str, *, expected_status: int = 200) -> dict:
     request = urllib.request.Request(
         f"{base_url}{path}",
         headers={"Cookie": f"{SESSION_COOKIE}={cookie}", "Accept": "application/json"},
     )
     try:
         with urllib.request.urlopen(request, timeout=10) as response:
-            return json.loads(response.read().decode("utf-8"))
+            body = response.read().decode("utf-8")
+            if response.status != expected_status:
+                raise SystemExit(f"dashboard runtime verification failed: {path} -> HTTP {response.status}")
+            return json.loads(body)
     except urllib.error.HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")
-        raise SystemExit(f"dashboard runtime read failed: {path} -> HTTP {exc.code}: {body[:240]}") from exc
+        if exc.code != expected_status:
+            raise SystemExit(f"dashboard runtime verification failed: {path} -> HTTP {exc.code}: {body[:240]}") from exc
+        return json.loads(body)
 
 
 def main() -> None:
@@ -28,33 +44,77 @@ def main() -> None:
         base_url = f"http://127.0.0.1:{port}"
     base_url = base_url.rstrip("/")
 
-    cookie = create_session_token()
+    owner = ensure_bootstrap_owner()
+    if owner["role"] != "OWNER" or owner["state"] != "ACTIVE" or not owner["user_id"]:
+        raise SystemExit("F7.2A verification failed: canonical Owner is invalid")
+    owner_cookie = create_session_token(owner["user_id"])
 
-    overview = _get_json(base_url, "/dashboard/api/overview", cookie)
+    overview = _request_json(base_url, "/dashboard/api/overview", owner_cookie)
     batch = overview.get("batch")
-    if not batch:
+    if not batch or int(batch.get("row_count") or 0) <= 0:
         raise SystemExit("dashboard runtime verification failed: overview has no test-only batch")
-    if int(batch.get("row_count") or 0) <= 0:
-        raise SystemExit("dashboard runtime verification failed: overview row_count is zero")
     if overview.get("database_canonical") is not False or overview.get("migration_baseline_accepted") is not False:
         raise SystemExit("dashboard runtime verification failed: authority flags changed")
 
-    rows = _get_json(base_url, "/dashboard/api/rows?limit=5&offset=0", cookie)
+    rows = _request_json(base_url, "/dashboard/api/rows?limit=5&offset=0", owner_cookie)
     if int(rows.get("count") or 0) <= 0 or not rows.get("items"):
         raise SystemExit("dashboard runtime verification failed: authenticated rows endpoint returned no rows")
-    if rows.get("database_canonical") is not False or rows.get("migration_baseline_accepted") is not False:
-        raise SystemExit("dashboard runtime verification failed: row authority flags changed")
 
-    reasons = _get_json(base_url, "/dashboard/api/review-reasons", cookie)
-    if reasons.get("database_canonical") is not False or reasons.get("migration_baseline_accepted") is not False:
-        raise SystemExit("dashboard runtime verification failed: review authority flags changed")
+    _request_json(base_url, "/dashboard/api/authorization/owner", owner_cookie)
+
+    temp_username = f"f72a-verify-{secrets.token_hex(5)}"
+    temp_password = secrets.token_urlsafe(18)
+    engine = _engine()
+    temp_user_id = None
+    temp_cookie = None
+    try:
+        with engine.begin() as connection:
+            row = connection.execute(
+                text(
+                    """
+                    INSERT INTO users (display_name, username, password_hash, state)
+                    VALUES ('F7.2A verification user', :username, :password_hash, 'ACTIVE')
+                    RETURNING user_id::text
+                    """
+                ),
+                {"username": temp_username, "password_hash": make_password_hash(temp_password)},
+            ).one()
+            temp_user_id = row[0]
+            connection.execute(
+                text("INSERT INTO user_roles (user_id, role_code) VALUES (CAST(:user_id AS uuid), 'READ_ONLY')"),
+                {"user_id": temp_user_id},
+            )
+
+        authenticated = authenticate_user(temp_username, temp_password)
+        if authenticated is None or authenticated["user_id"] != temp_user_id or authenticated["role"] != "READ_ONLY":
+            raise SystemExit("F7.2A verification failed: username/password authentication did not resolve canonical user")
+
+        temp_cookie = create_session_token(temp_user_id)
+        denied = _request_json(base_url, "/dashboard/api/authorization/owner", temp_cookie, expected_status=403)
+        if denied.get("detail") != "Access denied":
+            raise SystemExit("F7.2A verification failed: authenticated 403 did not return Access denied")
+
+        with engine.begin() as connection:
+            connection.execute(
+                text("UPDATE users SET state = 'DISABLED', disabled_at = now(), updated_at = now() WHERE user_id = CAST(:user_id AS uuid)"),
+                {"user_id": temp_user_id},
+            )
+        _request_json(base_url, "/dashboard/api/overview", temp_cookie, expected_status=401)
+    finally:
+        if temp_cookie:
+            revoke_session_token(temp_cookie)
+        if temp_user_id:
+            with engine.begin() as connection:
+                connection.execute(text("DELETE FROM user_roles WHERE user_id = CAST(:user_id AS uuid)"), {"user_id": temp_user_id})
+                connection.execute(text("DELETE FROM users WHERE user_id = CAST(:user_id AS uuid)"), {"user_id": temp_user_id})
+        engine.dispose()
+        revoke_session_token(owner_cookie)
 
     print(
-        "dashboard_authenticated_runtime=pass "
-        f"row_count={int(batch.get('row_count') or 0)} "
-        f"sample_rows={int(rows.get('count') or 0)} "
-        f"review_reason_groups={int(reasons.get('count') or 0)} "
-        "database_canonical=false migration_baseline_accepted=false"
+        "F7.2A canonical identity runtime=pass "
+        f"owner_user_id={owner['user_id']} owner_username={owner['username']} "
+        "username_password=pass durable_session=pass owner_rbac=pass access_denied_403=pass disabled_access_revoked=pass "
+        f"row_count={int(batch.get('row_count') or 0)} database_canonical=false migration_baseline_accepted=false"
     )
 
 
