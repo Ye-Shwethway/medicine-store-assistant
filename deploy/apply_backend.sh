@@ -86,9 +86,12 @@ if [[ "$DASHBOARD_PRIVATE_STATUS" != "401" && "$DASHBOARD_PRIVATE_STATUS" != "50
   exit 1
 fi
 
+# Run the exact dashboard SQL directly first so a DB failure reports its real SQLAlchemy/PostgreSQL
+# error in the workflow log without exposing inventory row payloads or credentials.
+docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T \
+  api python -m app.dashboard_query_verify
+
 # Exercise the authenticated dashboard BFF from inside the running API container.
-# The container listens on 8080; the host-mapped port (normally 8088) is not reachable
-# via 127.0.0.1 from inside the container itself.
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T \
   -e MSA_DASHBOARD_VERIFY_BASE_URL=http://127.0.0.1:8080 \
   api python -m app.dashboard_runtime_verify
