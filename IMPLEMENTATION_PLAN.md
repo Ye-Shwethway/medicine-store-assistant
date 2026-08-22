@@ -2,26 +2,52 @@
 
 Status: **foundation and read-only dashboard verified; F7.2A canonical multi-user identity is the next implementation slice; production inventory write authority remains unauthorized**
 
-This plan is the execution contract for the current Medicine Store Assistant architecture. It converts the approved product direction into small, reversible slices with explicit exit criteria.
-
-`ROADMAP.md` remains the high-level project roadmap. This file defines implementation order, dependencies, and the boundaries that must be preserved while moving from the current Sheet-led workflow toward a multi-client intelligent store operations platform.
+This file is the execution contract for the current Medicine Store Assistant architecture. `ROADMAP.md` remains the high-level roadmap; this plan defines implementation order, dependencies, and exit criteria.
 
 ## 1. Global implementation rules
 
-- Google Sheets remains operationally authoritative until an explicit canonical-promotion slice is approved and verified.
+- Google Sheets remains operationally authoritative until an explicit F11 canonical-promotion decision is approved and verified.
 - PostgreSQL being deployed does **not** make it canonical.
-- The current F6B dataset remains test-only and must never be silently promoted into migration truth.
-- No browser, Telegram bot, Flutter client, Custom GPT, internal AI agent, or integration receives arbitrary SQL or database credentials.
-- Human users, AI agents, integrations, and system jobs operate through typed backend APIs/commands.
-- AI interpretation never replaces deterministic database facts, formulas, business rules, or auditable transaction results.
-- Every meaningful state-changing operation must eventually carry stable actor/client provenance.
-- Historical stock/ledger records are corrected through reversal/correction semantics rather than destructive history editing where auditability matters.
-- Secrets never enter Git, browser storage, application logs, or documentation evidence.
+- The current F6B dataset is test-only and must never be silently promoted into migration truth.
+- No Web, Telegram, Flutter, Custom GPT, internal AI agent, integration, or system job receives arbitrary SQL or raw database credentials.
+- Humans, AI agents, integrations, and system jobs operate through typed backend APIs/commands.
+- Deterministic backend code owns identity resolution, arithmetic, constraints, authorization, location scope, idempotency, transactions, derived state, and committed read-back.
+- AI may interpret evidence, reconcile candidates, prepare proposals, explain results, and execute explicitly allowed typed operations; AI interpretation never replaces source evidence or deterministic database truth.
+- Every meaningful mutation must carry actor/client/authority provenance and must not be reported as successful until committed-state read-back succeeds.
+- Historical committed stock/ledger facts are corrected through reversal/correction semantics rather than silent destructive rewriting.
+- Secrets never enter Git, browser storage, application logs, prompt/audit payloads, or documentation evidence.
 - Prefer the smallest runnable slice and avoid unnecessary infrastructure.
 - Normal continuation uses connected tools, repository automation, and the self-hosted runner. Do not require the Owner to use Termux, SSH, Bamboo/Bamboo Claw, tmux, or manual GitHub Actions.
 - Significant architecture, implementation, deployment, migration, or next-work changes must update `ROADMAP.md`, `NEW_CHAT_BOOTSTRAP.md`, this file, and relevant canonical docs.
 
-## 2. Verified foundation
+## 2. Existing MSA workflow that the new architecture must preserve
+
+The database system is an evolution of the existing `$msa` operating model, not a replacement for its useful behavior.
+
+For evidence-driven workflows such as CMS issue/supply papers, price updates, and paper-form reconciliation, preserve this conceptual sequence:
+
+1. inspect source evidence;
+2. reconcile against the current authoritative inventory data;
+3. classify identity/confidence;
+4. perform only the operation classes already authorized by Owner policy;
+5. surface material ambiguity instead of guessing;
+6. commit through a typed backend operation;
+7. read the affected state back;
+8. record actor/operation/audit provenance;
+9. report success only after verification.
+
+Canonical reconciliation classes may retain the established skill semantics:
+
+- `SAFE` — strong evidence compatibility; routine operation may proceed when its operation class is pre-authorized;
+- `REVIEW` — likely match but meaningful uncertainty; require human review before identity-sensitive mutation;
+- `CONFLICT` — contradictory/recycled/incompatible evidence; block automatic propagation;
+- `NEW_UNMAPPED` — no acceptable existing match; require the appropriate create/mapping review workflow.
+
+UI may use green/yellow/red-style visual treatment, but stored workflow state must be explicit and not depend on color alone.
+
+Owner authorization is policy-based as well as per-operation. A narrow SAFE workflow may run without asking for confirmation on every obvious row when the Owner has already granted that workflow scope. REVIEW/CONFLICT/NEW_UNMAPPED and high-risk operations remain review/approval boundaries.
+
+## 3. Verified foundation
 
 Verified complete:
 
@@ -40,82 +66,83 @@ Verified complete:
 
 F6B remains a verified **test-only** live-workbook staging exercise, not an accepted migration baseline.
 
-## 3. Product architecture direction
+## 4. Product architecture direction
 
-MSA is not intended to be only a spreadsheet replacement. The target system is a multi-client store operations platform with:
+MSA is a multi-client intelligent store-operations platform with:
 
 - Web dashboard;
 - future Telegram client;
 - future Flutter client;
+- canonical human users;
+- Owner-managed AI/service agents;
 - internal AI Assistant;
 - Custom GPT / ChatGPT integrations;
 - scheduled/system jobs;
-- deterministic analytics;
-- alerts and notifications;
-- receipts/calculation workflow;
+- actor-aware operational audit;
 - one Main Store plus expandable Sub Stores;
-- complete actor-aware operational audit.
+- Smart Calculator and receipts;
+- deterministic Smart Analysis;
+- Alerts & Notifications.
 
-All clients reuse the same backend identity, role, store-location, inventory, analytics, calculator, and operation contracts.
+All clients reuse the same backend identity, authority, store-location, preference, inventory, analytics, calculator, and operation contracts.
 
 ---
 
-# F7 — Application foundation before production writes
+# F7 — Application and control-plane foundation before production writes
 
 ## F7.2A — Canonical multi-user identity and sessions — **NEXT**
 
-Purpose: replace the bootstrap password-only Owner bridge with durable human accounts before expanding privileged application features.
+Purpose: replace the bootstrap password-only Owner bridge with durable human accounts.
 
 ### Tasks
 
-- add canonical human-account schema with stable `user_id`;
+- stable canonical `user_id`;
 - unique mutable username;
 - password hash + credential metadata;
-- roles: `OWNER`, `ADMIN`, `STAFF`, `READ_ONLY`;
-- account states: `PENDING`, `ACTIVE`, `DISABLED`;
+- roles `OWNER`, `ADMIN`, `STAFF`, `READ_ONLY`;
+- account states `PENDING`, `ACTIVE`, `DISABLED`;
 - user-bound revocable sessions;
-- migrate/bootstrap the existing Owner into the canonical account model without exposing plaintext credentials;
+- migrate/bootstrap the existing Owner into the canonical model without exposing plaintext credentials;
 - normal Owner login becomes username + password;
-- backend authorization helpers and role policy tests;
+- backend authorization helpers and deterministic role-policy tests;
 - explicit authenticated `403 / Access denied` state;
 - session revocation on disable/security events;
-- keep inventory read-only.
+- inventory remains read-only.
 
 ### Exit criteria
 
 - Owner authenticates with username + password;
 - session resolves to stable `user_id` + `OWNER` role;
 - disabled users lose protected access;
-- role checks are server-side and deterministic;
+- role checks are server-side;
 - no inventory mutation is introduced.
 
 ## F7.2B — User Management
 
-Purpose: create a durable account/access workflow independent of store Audit.
+Purpose: durable human account/access workflow, separate from Audit and AI Agent Management.
 
 ### Tasks
 
-- dedicated `User Management` navigation/screen;
+- dedicated `User Management` surface;
 - `Request access` creates pending account/request only;
 - pending users receive no private inventory access;
-- Owner sees pending requests;
-- Owner may approve/reject and assign `ADMIN`, `STAFF`, or `READ_ONLY`;
-- ADMIN may not grant/promote `OWNER`;
-- Owner creation/promotion uses a separate high-risk flow;
+- Owner sees pending requests and may approve/reject/assign `ADMIN`, `STAFF`, or `READ_ONLY`;
+- ADMIN may perform only explicitly delegated account operations and can never grant/promote `OWNER`;
+- Owner creation/promotion remains a separate high-risk flow;
 - disable/reactivate/revoke flows;
 - security events for account/role/status changes;
-- notification-event contract so Telegram can later mirror approval requests without becoming the authorization source.
+- reusable notification-event contract for future Telegram/Flutter approval mirrors.
 
 ### Exit criteria
 
 - pending/rejected users cannot access protected inventory;
 - approved users receive the exact assigned role;
-- escalation boundaries are enforced by backend tests;
-- User Management remains separate from operational Audit.
+- escalation boundaries are backend-enforced;
+- User Management remains separate from operational Audit and AI Agent Management.
 
 ## F7.2C — Credential lifecycle
 
-Purpose: make credentials maintainable without VPS/terminal intervention.
+Purpose: credential maintenance without VPS/terminal intervention.
 
 ### Tasks
 
@@ -125,177 +152,186 @@ Purpose: make credentials maintainable without VPS/terminal intervention.
 - short-lived single-use reset token/link;
 - revoke old sessions after reset;
 - security-event recording;
-- verified-email recovery only if separate email infrastructure is deliberately introduced later.
+- verified-email recovery only if separate email infrastructure is deliberately added later.
 
 ### Exit criteria
 
 - password change works through product UI;
 - reset flow is durable and one-use;
-- expired reset tokens fail;
+- expired tokens fail;
 - old sessions fail after reset/disable.
 
-## F7.3 — Actor-aware Audit & Operation Ledger Foundation
+## F7.2D — AI Agent Management & delegated authority
 
-Purpose: establish the traceability layer required before humans and AI agents begin collaborating on write-capable workflows.
+Purpose: create the Owner-only control plane for named AI/service principals while preserving the low-friction `$msa` workflow.
 
-### Canonical actor classes
+Canonical design: `docs/architecture/F7_2D_AI_AGENT_MANAGEMENT.md`.
+
+### Principal model
+
+AI agents are distinct `AI_AGENT` principals, not human users with copied staff roles.
+
+Each agent may have:
+
+- stable `agent_id`;
+- active/disabled state;
+- typed capability allowlist;
+- location scope: Main Store, selected Sub Stores, all active stores, or read-only analytical scope as configured;
+- authority ceiling;
+- delegated vs autonomous execution policy;
+- confirmation policy such as read-only, propose-only, confirm-before-write, or autonomous-within-preauthorized-scope;
+- revocable service/client credential where applicable.
+
+### Owner-only control plane
+
+Only `OWNER` may create, configure, enable/disable, revoke, or change AI-agent capability/location/authority policy.
+
+`AI Agent Management` and global `Settings` are Owner-only surfaces.
+
+An agent can never change its own grant, authority ceiling, Agent Management policy, Owner/security controls, or global Settings.
+
+### Effective authority
+
+For a human-delegated AI action:
+
+`effective_authority = human_authority ∩ agent_capability_scope ∩ location_scope ∩ operation_policy`
+
+This means:
+
+- the Owner may explicitly grant an agent Main Store reads and, in later authorized write phases, Main Store typed writes;
+- agents are **not** Sub-Store-only;
+- Staff/Admin users may use AI Chat only when the Owner enables that feature for them;
+- AI Chat cannot expand a user's normal role/location authority;
+- an Owner-invoked agent still cannot execute capabilities that the Owner did not grant to that agent.
+
+### MSA workflow parity
+
+- SAFE operations inside a pre-authorized workflow may execute without per-row confirmation once production writes for that operation are separately authorized;
+- REVIEW/CONFLICT/NEW_UNMAPPED and material/high-risk cases require human review/approval;
+- all writes require deterministic validation, idempotency where applicable, atomic commit, actor-aware audit, and read-back verification;
+- Main Store workflows such as future CMS price reconciliation/batch operations may be delegated to AI if Owner capability policy allows them.
+
+### Exit criteria
+
+- Owner can manage agent principals and scopes from product UI/control plane;
+- non-Owner users cannot access Agent Management or global Settings;
+- an agent cannot self-escalate;
+- capability/location intersection is testable and deterministic;
+- no inventory write tool is enabled merely by creating an agent.
+
+## F7.3 — Actor-aware Audit & Operation Ledger
+
+Purpose: establish traceability before humans and AI agents collaborate on write-capable operations.
+
+Actor classes:
 
 - `HUMAN`
 - `AI_AGENT`
 - `SYSTEM`
 - `INTEGRATION`
 
-### Operation provenance
-
-Support, as applicable:
+Required provenance, as applicable:
 
 - stable `operation_id`;
 - idempotency key;
 - actor type/id;
-- `authorized_by_user_id` when an AI/service acts under human authority;
-- client/source: Web, Telegram, Flutter, internal AI, Custom GPT, system job, integration;
+- `authorized_by_user_id` for delegated AI/service action;
+- autonomous policy reference where there is no live human delegate;
+- client/source: Web, Telegram, Flutter, Internal AI, Custom GPT, system job, integration;
 - typed action name;
-- target/affected-record references;
-- timestamp and outcome;
+- location/target references;
+- reconciliation class where operationally relevant;
+- validation/approval result;
+- timestamp/outcome;
 - before/after or stock-ledger references;
 - reversal/correction linkage;
 - sync/mirror result linkage.
 
-### Rules
+Rules:
 
-- Audit is store/database operational history, not User Management;
+- Audit is store/database operational history, not User Management or Agent Management;
 - AI agents are never invisible superusers;
-- secrets, passwords, tokens, and unrestricted prompt transcripts are never operational-audit payloads;
-- historical committed operations are not silently edited/deleted.
+- secrets, credentials, tokens, and unrestricted prompt transcripts are not stored in operational audit;
+- committed history is not silently edited/deleted.
 
 ### Exit criteria
 
-- representative test operations distinguish human, AI, system, and integration origin;
-- delegated AI actions preserve authorizing human identity;
-- Audit can answer what happened, who/what initiated it, under whose authority, through which client, what changed, and the result.
+Audit can answer what happened, who/what initiated it, under whose authority, through which client, at which location, what changed, and whether it succeeded/failed/reversed.
 
-## F7.4 — Inventory Locations, Store Policy & Preference Foundation
+## F7.4 — Inventory Locations, Store Policy & Preferences
 
-Purpose: move from a single implicit stock pool to an expandable location-aware model without yet enabling live stock mutation.
+Purpose: create location-aware inventory and persistent cross-client operational preferences without live stock mutation.
 
-### Store-location rules
+### Store model
 
-- exactly **one** `MAIN` store exists for the system;
-- Owner may create any number of `SUB` stores;
-- Sub Stores can be renamed, activated, disabled/archived according to policy without destroying history;
-- inventory balance is modeled per product/lot/location;
-- current operational `Daily Usage` semantics are treated as a future migration source for **Main Store -> Sub Store transfer history**, not assumed to be true end-customer consumption;
-- migration provenance retains the original source sheet/document name.
+- exactly one `MAIN` Store;
+- Owner may create any number of `SUB` Stores;
+- Sub Stores may be renamed/activated/disabled while history is preserved;
+- product/lot balances are location-aware;
+- initial transfer direction is Main Store -> selected Sub Store;
+- current `Daily Usage` data is future Main->Sub Stock Transfer evidence where source truth supports it; never invent historical destinations.
 
-### Transfer-domain direction
+### Reorder policy — Owner-only Settings
 
-Initial stock movement concepts:
-
-- `RECEIPT`: external source -> Main Store;
-- `TRANSFER`: Main Store -> selected Sub Store;
-- `DISPENSE/USAGE`: selected Sub Store -> customer/consumption;
-- `ADJUSTMENT`: controlled balance correction;
-- `REVERSAL/CORRECTION`: linked correction of a previously committed operation.
-
-Whether Sub-to-Sub transfer is supported is deferred until there is a real workflow need.
-
-### Reorder policy
-
-Owner-configurable setting:
-
-- `MAIN_STORE_ONLY` — **initial/default production policy**;
+- `MAIN_STORE_ONLY` — initial/default;
 - `TOTAL_ACTIVE_STOCK` — Main Store + all active Sub Stores.
 
-The Owner can switch this policy from Settings without changing formulas/code. Analytics and reorder calculations read the policy from the backend.
+The Owner may switch the backend policy from Settings without code/formula changes.
 
-Regardless of active reorder policy, analysis may display Main, Sub, and Total stock separately.
+### Preferences
 
-### User/location preferences
-
-Support durable user preferences such as:
-
-- default store/location;
-- default Smart Calculator dispense Sub Store;
-- whether a role/user may change Calculator store;
-- card/table/list view preference;
-- visible columns, column order, table density;
-- saved filters and analysis defaults;
-- receipt/calculator defaults.
-
-Cross-device preferences belong in backend user preferences. Ephemeral device-only display state may use local client storage.
+Backend user preferences may include default location/Calculator Sub Store, allowed Calculator-location switching, card/table/list view, visible columns/order/density, saved filters, analysis defaults, calculator defaults, fee presets, and receipt defaults.
 
 ### Exit criteria
 
-- schema/policy guarantees only one Main Store;
-- multiple Sub Stores can be represented without duplicating product identity;
-- product/lot/location balances can be read deterministically;
-- reorder policy can switch between Main-only and Total-active-stock using one Owner setting;
-- preference contract is client-independent;
-- no live stock mutation is enabled yet.
+- one-Main constraint is deterministic;
+- unlimited Sub Store representation works without duplicating product identity;
+- location balances read deterministically;
+- reorder basis switches through one Owner setting;
+- preference contract is reusable across Web/Flutter/other clients;
+- no stock mutation is enabled yet.
 
-## F7.5 — Smart Calculator & Receipt Foundation — calculation-only first
+## F7.5 — Smart Calculator & Receipts — calculation-only first
 
-Purpose: restore the valuable Flutter calculator workflow as a first-class backend-backed product capability without requiring Excel uploads or inventory writes.
+Purpose: restore the useful local Flutter calculator workflow as a backend-backed feature without Excel re-upload or stock mutation.
 
-### Data source
+### Normal data source
 
-- Calculator searches the canonical backend product/lot rows;
-- normal Calculator use **does not** ask users to map Excel columns;
-- item identity is `product_id`/`lot_id`, not display name alone;
-- same/similar names must be disambiguated using relevant brand/strength/lot/expiry/code/location details;
-- owner batch-intake/import mapping remains a separate data-ingestion workflow and is not part of Calculator UX.
+Calculator searches backend product/lot/location records directly. Normal use does not ask for Excel column mapping. Owner batch-intake/import mapping remains a separate ingestion workflow.
 
-### Calculation workflow
+### Capabilities
 
-- item search and selection;
-- quantity;
-- effective/reference price;
-- multiple added items;
-- extra-fee presets and ad-hoc allowed fee lines;
-- receiver/customer;
-- issuer;
-- note;
-- subtotal/fee/total calculation;
-- saved calculation session;
-- receipt identity and history;
+- item search and same-name disambiguation;
+- quantity and effective/reference price;
+- multiple items;
+- extra-fee presets/ad-hoc allowed fees;
+- receiver/customer, issuer, note;
+- subtotal/fees/total;
+- saved calculation sessions;
+- receipt identity/history;
 - print-friendly Web receipt;
 - PDF/export/share contract reusable by Flutter later.
 
-### Modes
+Modes:
 
-1. `CALCULATE_ONLY`
-   - does not mutate stock;
-   - may save receipt/calculation history.
+- `CALCULATE_ONLY` — no stock mutation;
+- future `DISPENSE_FROM_SUB_STORE` — selected/default Sub Store, activated only in a later controlled-write slice.
 
-2. `DISPENSE_FROM_SUB_STORE`
-   - designed now, but **write capability remains disabled until the later controlled-write slice**;
-   - selected Sub Store is explicit;
-   - user preference can provide default Sub Store;
-   - stock availability must be validated at commit time once writes are authorized.
-
-### AI/photo upgrade contract
-
-Future scan/photo-to-calculation flow may:
-
-- extract candidate item/quantity text;
-- resolve candidate products through typed search;
-- surface ambiguous same-name matches for human selection;
-- create a draft calculation only;
-- never auto-commit inventory based solely on AI/OCR interpretation.
+AI/photo scan may build a calculation draft after typed candidate matching; ambiguity requires human selection and OCR/LLM interpretation alone never commits stock.
 
 ### Exit criteria
 
-- Calculator works from backend data with no Excel re-upload/mapping requirement;
-- same-name candidates are explicitly distinguishable;
-- calculations, fees, totals, saved sessions, and receipts are deterministic;
-- Web can save/print/export a calculation receipt;
-- no stock quantity changes occur in this slice.
+- DB/API-backed Calculator works without Excel remapping;
+- similar items are explicitly distinguishable;
+- calculations/fees/receipts are deterministic;
+- Web can save/print/export;
+- stock quantity remains unchanged.
 
-## F7.6 — Smart Analysis Foundation
+## F7.6 — Smart Analysis
 
-Purpose: provide professional read-only operational intelligence independent of LLM availability.
+Deterministic first, AI-assisted second.
 
-### Initial modules
+Initial modules:
 
 1. Stock Health
 2. Transfer / Usage Trends
@@ -304,200 +340,111 @@ Purpose: provide professional read-only operational intelligence independent of 
 5. Price Movement
 6. Data Quality
 
-### Requirements
-
-- deterministic SQL/domain formulas/business rules;
-- professional KPI cards and charts;
-- date/category/product/store filters;
-- Main/Sub/Total stock visibility where relevant;
-- active reorder policy clearly identified;
-- drill-down from charts/metrics to supporting rows/lots/operations;
-- test/non-canonical dataset labeling when applicable;
-- AI commentary may explain results but never becomes the numeric source of truth.
-
-### Exit criteria
-
-- metrics are reproducible without AI;
-- supporting data is inspectable;
-- Main-vs-Sub-vs-Total analysis is available where useful;
-- Smart Analysis remains usable if the AI provider is offline.
+Requirements include professional KPI/charts, product/category/date/store filters, Main/Sub/Total visibility, active reorder-policy labeling, and drill-down to supporting rows/lots/operations.
 
 ## F7.7 — Internal AI Assistant
 
-Purpose: add a first-party read-only conversational analysis workspace grounded in typed backend truth.
+Purpose: first-party conversational workspace grounded in typed backend tools.
 
-### Tasks
+Initial mode remains read-only.
 
-- register the Assistant as an identifiable `AI_AGENT` principal;
-- typed tools for stock health, transfer/usage trends, period comparison, expiry risk, reorder candidates, price movement, data quality, calculator/reference lookup, and audit summaries;
-- preserve the signed-in user's RBAC and location scope;
-- allow chart/table/drill-down requests;
-- log appropriate tool/agent provenance;
+- identifiable `AI_AGENT` principal;
+- tools for stock/lot/location lookup, analytics, comparison, expiry/reorder risk, data quality, Calculator draft/reference lookup, and audit summaries;
+- signed-in user role/location scope remains part of effective authority;
+- Owner may enable AI Chat for Staff/Admin users;
 - no arbitrary SQL;
-- no inventory write tools yet.
+- no write tools yet.
 
-### Exit criteria
-
-- Assistant answers representative operational questions from structured backend facts;
-- responses can expose supporting tables/charts;
-- role/location boundaries are respected;
-- no write capability exists.
+Future write tools reuse F7.2D policy and F7.3 audit rather than inventing a separate AI authority path.
 
 ## F7.8 — Alerts & Notifications
 
-Purpose: convert deterministic rules/events into reusable attention signals across clients.
+Deterministic event generation first; optional AI explanation/prioritization second.
 
-### Initial candidates
+Initial candidates include low stock/days-of-stock, Sub Store refill pressure, expiry, unusual transfer/dispense patterns, data-quality issues, sync failures, access/reset requests, and scheduled analysis results.
 
-- low stock / low days-of-stock;
-- approaching expiry;
-- transfer/usage anomalies;
-- data-quality/mapping issues;
-- reconciliation/sync failure;
-- pending access/password-reset requests;
-- later store-specific refill pressure and saved/scheduled analysis results.
-
-### Requirements
-
-- deterministic alert generation first;
-- Web notification center;
-- one reusable backend notification event contract;
-- Telegram and Flutter delivery later;
-- optional AI explanation/prioritization layered on the same event;
-- observable delivery/read state.
-
-### Exit criteria
-
-- one backend event can surface in multiple clients;
-- trigger facts are reproducible without AI;
-- AI explanation cannot replace the underlying alert fact.
+One backend event contract is reusable across Web, Telegram, Flutter, and future clients.
 
 ---
 
 # F8 — External / Custom GPT read-only integration
 
-Only after identity/RBAC and core audit/read/analysis contracts are stable.
-
-### Tasks
-
-- version-control Custom GPT OpenAPI contract;
-- expose scoped typed read APIs;
-- reuse internal read/analytics interfaces;
-- revocable service/client credential or delegated auth;
-- health, stock/lot/location lookup, audit summary, analysis reads, and permitted Calculator reference reads;
-- no writes.
-
-### Exit criteria
-
-- Custom GPT can reliably call allowed reads;
-- actor/source provenance is available;
-- no DB/Sheet credentials are exposed.
+Reuse approved typed read/analytics interfaces with scoped/revocable service or delegated auth. External AI principals must be Owner-registered in the Agent Management model where applicable. No DB/Sheet credentials and no writes.
 
 # F9 — Controlled typed write foundation
 
-Purpose: prove safe state mutation after identity, audit, location, and ledger foundations are stable.
+Purpose: prove safe typed mutation after identity, Agent Management, audit, location, and idempotency foundations are stable.
 
-No arbitrary CRUD/SQL writes are introduced.
+Required path:
 
-Required pipeline:
+`Client/Agent -> typed API -> auth/RBAC/delegation -> agent capability + location scope -> validation/reconciliation policy -> idempotency -> atomic DB transaction -> actor-aware audit -> committed-state readback -> result`
 
-`Client/Agent -> typed API -> auth/RBAC/location scope/delegation -> validation -> idempotency -> atomic DB transaction -> actor-aware audit -> committed-state readback -> result`
+Potential typed operations include:
 
-### Initial write sequence
-
-Start with a deliberately narrow synthetic/test operation, then expand only after verification.
-
-Candidate operational commands include:
-
+- approved Main Store CMS price/metadata reconciliation;
+- approved batch/receipt operation;
 - Main Store -> Sub Store transfer;
-- reversal/correction of a committed transfer;
-- Sub Store dispense operation generated from Smart Calculator;
-- controlled receipt/adjustment operations later.
+- reversal/correction;
+- Smart Calculator Sub Store dispense;
+- later controlled adjustments.
 
-Smart Calculator `DISPENSE_FROM_SUB_STORE` becomes write-capable only here or a specifically authorized descendant slice.
+Start with a narrow synthetic/test operation. Technical write success does not make PostgreSQL canonical or authorize broad production writes.
 
-### Exit criteria
+For AI-agent writes, preserve `$msa` semantics: pre-authorized SAFE workflow classes may proceed with low friction; REVIEW/CONFLICT/NEW_UNMAPPED and high-risk operations require human review.
 
-- duplicate replay cannot duplicate a movement;
-- failed operation rolls back;
-- successful operation records actor/source/authority/location/result;
-- committed-state readback matches transaction state;
-- production authority is still not implied merely by technical success.
+# F10 — Real workflow, fresh migration & Sheet sync validation
 
-# F10 — Real workflow, migration, and Sheet sync validation
+- keep Owner batch-intake workflow separate from Smart Calculator;
+- import a fresh migration candidate only when authorized;
+- reinterpret supported historical `Daily Usage` as Stock Transfer evidence without inventing unknown destinations;
+- compare real Sheet workflow against backend shadow operations;
+- validate the existing `$msa` reconciliation/approval/read-back behavior against typed DB operations;
+- define backend-owned Google Sheet mirror/sync;
+- clients/AI never bypass the backend to mutate Sheets in the canonical architecture;
+- retry/idempotency/reconciliation failures are observable;
+- mismatches are reported rather than silently repaired.
 
-Purpose: reconcile the redesigned Main/Sub Store model with the real operational workflow before any canonical cutover.
-
-### Tasks
-
-- define Owner batch-intake workflow separately from Smart Calculator;
-- import a fresh migration candidate when authorized;
-- reinterpret/transform historical `Daily Usage` records as Stock Transfer source data where supported by source truth;
-- do not silently invent Sub Store destinations when historical source data lacks them;
-- run representative Sheet workflow and backend shadow operations in parallel;
-- compare Main balances, Sub balances where available, transfers, lots, and history;
-- define Google Sheet mirror/sync contract behind the backend;
-- clients/AI never write directly to the workbook;
-- retry/idempotency/reconciliation for sync failures;
-- mismatch reports instead of silent repair.
-
-### Exit criteria
-
-- representative workflows reconcile measurably;
-- historical ambiguity is surfaced rather than guessed;
-- sync failure is observable/recoverable;
-- no automatic canonical cutover.
+No automatic cutover.
 
 # F11 — Canonical promotion
 
-Requires explicit Owner approval.
-
-Before promotion:
+Requires explicit Owner approval plus:
 
 - fresh migration baseline;
 - measurable parity acceptance;
 - backup/restore proof;
-- location-aware inventory validation;
+- location-aware workflow validation;
 - actor-aware audit completeness;
-- realistic transfer/dispense/receipt workflow validation;
-- Sheet mirror/rebuild/reconciliation proof;
+- AI/delegated workflow validation;
+- Sheet mirror/rebuild/reconciliation confidence;
 - rollback/cutback procedure.
 
-Promotion may be operation-scope based instead of all-at-once if deliberately designed and approved.
+Only after approved promotion may PostgreSQL become the operational source of truth for the promoted scope.
 
-# Later client rollout tracks
+# Later client rollout
 
-Telegram and Flutter are not separate sources of inventory truth. They are additional clients over the same backend contracts.
+Telegram and Flutter are clients over the same backend contracts, not separate inventory truths.
 
-Future client rollout should reuse:
+Flutter may provide mobile-optimized card/table views, Smart Calculator, receipt/share/print, preferences, alerts, and offline-tolerant caching; local cache never becomes a second canonical inventory store.
 
-- canonical users/RBAC;
-- store/location scope;
-- user preferences;
-- Smart Calculator and receipts;
-- Smart Analysis;
-- Alerts/Notifications;
-- AI Assistant tools;
-- typed inventory operations;
-- actor-aware Audit.
+## Recommended execution order
 
-Flutter should eventually support mobile-optimized card/table views, Smart Calculator, receipt/share/print workflows, and optional offline-tolerant caching without creating a second canonical database.
-
-# Recommended implementation order
-
-1. **F7.2A — Canonical multi-user identity**
+1. **F7.2A — Canonical multi-user identity** — next
 2. **F7.2B — User Management**
 3. **F7.2C — Credential lifecycle**
-4. **F7.3 — Actor-aware Audit / operation ledger foundation**
-5. **F7.4 — Inventory Locations, Store Policy & Preferences**
-6. **F7.5 — Smart Calculator / receipts, calculation-only**
-7. **F7.6 — Smart Analysis**
-8. **F7.7 — Internal read-only AI Assistant**
-9. **F7.8 — Alerts & Notifications**
-10. **F8 — External/Custom GPT read-only integration**
-11. **F9 — Controlled typed writes**
-12. **F10 — Real workflow + migration + Sheet sync validation**
-13. **F11 — Canonical promotion**
-14. Telegram/Flutter expansion over the proven backend contracts
+4. **F7.2D — AI Agent Management & delegated authority**
+5. **F7.3 — Actor-aware Audit / operation ledger**
+6. **F7.4 — Inventory Locations, Store Policy & Preferences**
+7. **F7.5 — Smart Calculator / receipts, calculation-only**
+8. **F7.6 — Smart Analysis**
+9. **F7.7 — Internal read-only AI Assistant**
+10. **F7.8 — Alerts & Notifications**
+11. **F8 — External/Custom GPT read-only integration**
+12. **F9 — Controlled typed writes**
+13. **F10 — Real workflow + fresh migration + Sheet sync validation**
+14. **F11 — Canonical promotion**
+15. Telegram/Flutter rollout over proven contracts
 
-The immediate authorized continuation remains **F7.2A**, followed by User Management and credential lifecycle. Store-location, Calculator, analytics, AI, alerts, and write capabilities must not jump ahead of the identity/audit foundation.
+## Immediate work boundary
+
+The next chat resumes implementation from **F7.2A canonical multi-user identity**. Complete the human identity/User Management/credential foundation before moving into F7.2D Agent Management and F7.3 Audit. Do not jump ahead to production inventory writes, AI writes, store transfers, Calculator deduction, Telegram/Flutter mutation, or canonical promotion.
