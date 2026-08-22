@@ -1,12 +1,24 @@
 # F7.2D1 — Custom GPT Action Read-Only Connectivity Proof
 
-Status: **FIRST IMPLEMENTATION STEP OF F7.2D**
+Status: **OPTIONAL SECONDARY EXTERNAL PATH — DEFERRED UNTIL AFTER MCP PROOF**
 
 ## Goal
 
-Prove as early as possible that a Custom GPT can securely reach the public Medicine Store Assistant backend through a GPT Action and receive real, authorized MSA data.
+Provide a fallback/secondary proof that a standalone Custom GPT can securely reach the public Medicine Store Assistant backend through a GPT Action and receive real, authorized MSA data.
 
-This is a connectivity/authority proof, not an AI write slice and not direct database access.
+This is a connectivity/authority proof, not direct database access and not an AI write slice.
+
+## Current priority
+
+F7.2D now tries the custom MCP path first through `F7_2D0_CUSTOM_MCP_CONNECTIVITY_PROOF.md`.
+
+If MCP proves reliable and provides the ChatGPT access/freedom needed by the project, this Custom GPT Action path may remain deferred or may never be required for the primary workflow.
+
+Implement this proof only when:
+
+- MCP is blocked by a real platform/product limitation; or
+- a standalone packaged Custom GPT is specifically desired; or
+- Action-specific distribution/authentication provides a concrete benefit not met by MCP.
 
 ## Architecture
 
@@ -14,27 +26,15 @@ This is a connectivity/authority proof, not an AI write slice and not direct dat
 
 The Custom GPT must never receive PostgreSQL credentials, Google Sheet credentials, VPS shell access, or a generic SQL endpoint.
 
-## Why this comes first
-
-The project intends to use Custom GPT as one durable external access path for ChatGPT/IANEO-style interaction with MSA. If GPT Actions cannot reliably authenticate to or call the deployed MSA API in the real product environment, that constraint should be discovered before significant Agent Management/provider work is built around the assumption that the path works.
-
-## Current OpenAI Action assumptions
+## OpenAI Action assumptions
 
 At implementation time, re-check current OpenAI documentation before configuring the GPT.
 
-As of the architecture update, Custom GPT Actions support:
-
-- external HTTPS APIs;
-- OpenAPI JSON/YAML schemas;
-- API-key authentication including Bearer/custom-header forms;
-- OAuth for account-based user authorization;
-- Preview testing in the GPT editor.
-
-For the first single-Owner proof, prefer a scoped revocable API/service credential. Do not implement OAuth unless the proof or current product requirements require per-human delegated identity.
+The Action proof should use the current supported external HTTPS/OpenAPI/authentication flow. For a single-Owner server-to-server proof, prefer a scoped revocable API/service credential where currently supported. Use OAuth only when per-human delegated identity is actually required.
 
 ## Minimal server contract
 
-Create a dedicated external-action API namespace rather than exposing arbitrary internal endpoints.
+Use a dedicated external-action API namespace rather than exposing arbitrary internal endpoints.
 
 Suggested first contract:
 
@@ -44,7 +44,7 @@ Suggested first contract:
 
 - `GET /actions/v1/inventory/summary`
   - returns an existing bounded read-only summary from the current test/shadow dataset;
-  - must preserve `database_canonical=false` and `migration_baseline_accepted=false` metadata.
+  - preserves `database_canonical=false` and `migration_baseline_accepted=false` metadata.
 
 - optional bounded lookup such as `GET /actions/v1/inventory/search?q=...&limit=...`
   - only if necessary to prove parameterized tool invocation;
@@ -54,11 +54,11 @@ Do not expose raw SQL, arbitrary table selection, generic database query executi
 
 ## External client identity
 
-The proof should register one named external client/agent, for example a Custom GPT Action client, with:
+Register one named external Action client with:
 
 - stable identifier;
 - runtime type `EXTERNAL_ACTION_CLIENT`;
-- `ACTIVE`/`REVOKED` state;
+- `ACTIVE` / `REVOKED` state;
 - credential digest or equivalent safe verifier material;
 - explicit read capability allowlist;
 - created/revoked timestamps/provenance.
@@ -67,18 +67,14 @@ Plaintext service credential is shown/provisioned only at issuance and must not 
 
 ## Authentication
 
-First proof preference:
-
-`Authorization: Bearer <scoped-service-token>`
-
 Requirements:
 
-- high-entropy revocable token;
-- server stores only keyed digest/verifier material;
-- token scope is limited to this external client/agent;
+- high-entropy revocable credential;
+- server stores only keyed digest/verifier material or a secret reference;
+- token scope is limited to the registered external client;
 - disabling/revoking the client immediately blocks future requests;
-- invalid/missing token returns 401;
-- valid token without a requested capability returns 403.
+- invalid/missing credential returns an authentication denial;
+- valid credential without a requested capability returns an authorization denial.
 
 ## OpenAPI schema
 
@@ -86,47 +82,39 @@ Provide the smallest valid schema needed for the proof.
 
 Requirements:
 
-- server URL uses `https://inventory.drthorne.uk`;
+- server URL uses the public MSA HTTPS domain;
 - stable descriptive `operationId` values;
-- clear natural-language descriptions so ChatGPT selects the intended action;
+- clear natural-language descriptions;
 - bounded parameters/response shapes;
 - no write endpoints;
-- no secret-bearing schema examples;
-- schema should be exportable/copyable for Custom GPT configuration.
-
-A public schema endpoint may be added later if useful, but the first proof may use a checked-in schema file copied into the GPT editor.
+- no secret-bearing schema examples.
 
 ## Acceptance test
 
-The slice passes only when all of the following are proven end-to-end:
+The optional slice passes only when all of the following are proven end-to-end:
 
 1. MSA external Action client/credential is created without exposing secrets in Git/logs.
-2. Local/API-level test with the credential succeeds.
-3. Missing/invalid credential returns 401.
-4. A deliberately ungranted operation returns 403.
+2. Local/API-level test succeeds.
+3. Missing/invalid credential is denied.
+4. A deliberately ungranted operation is denied.
 5. OpenAPI schema validates in the Custom GPT editor.
 6. GPT Preview can invoke `whoami` successfully.
 7. GPT Preview can invoke a real read-only inventory summary and receive current MSA backend data.
 8. The response explicitly preserves test/non-canonical boundaries where relevant.
 9. Revoking the Action client causes a subsequent GPT Action request to fail.
-10. Re-enabling/reissuing a new credential restores only the intended read access.
-11. No inventory mutation, workbook import, DB canonical promotion, or provider/model call occurs as part of the proof.
+10. No inventory mutation, workbook import, DB canonical promotion, or provider/model call occurs.
 
 ## Failure decision
 
-If the GPT editor or runtime cannot execute the Action because of current OpenAI product/workspace/domain/authentication restrictions, record the exact failure and stop treating Custom GPT Actions as a proven primary path.
-
-Do not weaken MSA security, expose DB credentials, or open unauthenticated data merely to make the proof pass.
-
-The architecture can still continue through internal provider-backed agents and other typed clients, but the limitation must be documented early.
+If the GPT editor/runtime cannot execute the Action because of current product/workspace/domain/authentication restrictions, record the exact failure. Do not weaken MSA security or expose DB credentials to make the Action pass.
 
 ## Non-scope
 
+- custom MCP implementation, which is owned by F7.2D0;
 - provider API keys;
 - OpenAI/Gemini/OpenRouter/NanoGPT model calls;
 - Provider Registry UI;
 - internal AI Chat;
-- OAuth unless required to prove connectivity;
 - production inventory writes;
 - AI writes;
 - Telegram/Flutter integration;
@@ -135,4 +123,4 @@ The architecture can still continue through internal provider-backed agents and 
 
 ## Next after success
 
-Proceed to F7.2D2 AI-agent principal/control-plane foundation, then Provider Registry/model catalog and internal model assignment.
+Return to the normal F7.2D sequence: AI-agent/external-client control-plane foundation, Provider Registry/model catalog, and internal model assignment.
