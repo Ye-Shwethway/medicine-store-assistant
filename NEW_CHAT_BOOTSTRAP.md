@@ -23,6 +23,8 @@ Treat newer verified repository/runtime evidence as authoritative over remembere
 
 The live Google workbook/source documents remain authoritative. PostgreSQL is deployed but **not canonical**.
 
+The F6B staged batch is **test-only**. It is not an accepted migration baseline and must not be treated as the real dataset to be promoted later. A fresh real migration dataset will be imported only after the operational workflow and user-facing management UI are ready and explicitly approved.
+
 ## Deployment workflow
 
 Canonical flow: `test -> pull request -> main -> automatic VPS deployment for relevant runtime changes`.
@@ -34,19 +36,17 @@ Canonical flow: `test -> pull request -> main -> automatic VPS deployment for re
 - Relevant runtime changes use repository-scoped self-hosted runner `msa-vps-runner-01`.
 - Runtime secrets stay on the VPS.
 - `.github/backend-deploy-result` records deployment status, source SHA, and workflow run ID.
+- Normal backend deploy must not read/import the live Google workbook.
+- The F6B live importer is retained only as an explicit test/migration tool.
 
 ## Verified checkpoints
 
-F0, F1, Cloudflare HTTPS route, F2, F3, F4, F5, F5.1, F6A, and **F6B** are verified complete as of 2026-08-22.
+F0, F1, Cloudflare HTTPS route, F2, F3, F4, F5, F5.1, and F6A are verified foundation checkpoints.
 
-Canonical F6B evidence: `docs/operations/F6B_LIVE_SHADOW_IMPORT_VERIFICATION_2026-08-22.md`.
-
-Verified F6B deployment:
+F6B verified a **test-only** read-only snapshot/staging exercise:
 
 - source commit `34b169c56422454b9a919936689c3088a9c4ebfc`;
 - GitHub Actions run `32549738838`;
-- dedicated Google service account shared to `Medicine Store Cloud` as Viewer only;
-- live read-only snapshot staged into shadow PostgreSQL;
 - total rows `1646`;
 - `SAFE=1417`, `REVIEW=222`, `NEW_UNMAPPED=7`, `CONFLICT=0`;
 - snapshot hash `cfe4c24201bbe9f519189572f0c4c1988a9785e6fb0ca3e8f9630f5ca0417192`;
@@ -55,19 +55,25 @@ Verified F6B deployment:
 - `/health` healthy with `database_canonical:false`;
 - `/ready` database reachable with migration/expected migration `0004_shadow`.
 
-Real medicine-store rows and credentials are not published in the public repository.
+This snapshot is useful for read-path testing only. Do not use its REVIEW/NEW_UNMAPPED population as a real migration reconciliation workload.
 
-## Next gated slice
+## Current slice — F6C read-only shadow inspection
 
-**F6C — shadow reconciliation analysis.**
+Build and verify authenticated read-only inspection endpoints over the existing test-only shadow batch:
 
-F6C should explain and group the 222 `REVIEW` rows and 7 `NEW_UNMAPPED` rows using read-only analysis. It may compare staged provenance against current workbook/CMS/local identity evidence, but must not silently repair source data, create canonical inventory transactions, mutate mappings, or promote PostgreSQL.
+- batch list and classification counts;
+- one-batch summary;
+- staged-row query/filter/search;
+- review/unmapped reason summaries;
+- explicit `migration_baseline_accepted:false` and `database_canonical:false` responses;
+- no live workbook import during deployment;
+- no write/correction/promotion endpoint.
 
-F6C requires explicit authorization before implementation.
+The user-facing management UI remains a required later product slice before a real migration baseline is imported and accepted.
 
 ## Safety boundary
 
-Do not begin production stock writes, database promotion, Telegram writes, Flutter rollout, Google Sheet mirror conversion, or Custom GPT write Actions without explicit authorization for that slice.
+Do not treat F6B test data as production migration truth. Do not begin production stock writes, database promotion, Telegram writes, Flutter rollout, Sheet mirror conversion, or Custom GPT write Actions without explicit authorization for those slices.
 
 ## Continuity rule
 
