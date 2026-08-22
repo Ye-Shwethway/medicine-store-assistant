@@ -58,6 +58,7 @@ Verified complete:
 - F6C authenticated shadow read API
 - F7.1 read-only Web Dashboard foundation
 - F7.2A canonical multi-user identity and sessions
+- F7.2B User Management and signed-in drawer profile
 
 F7.2A verification anchor:
 
@@ -72,6 +73,29 @@ F7.2A verification anchor:
 - explicit authenticated `403 / Access denied` — pass;
 - disabled-user protected-access denial — pass;
 - public dashboard private gate — 401 when anonymous;
+- `database_canonical=false` and `migration_baseline_accepted=false` preserved;
+- no live workbook import and no inventory mutation occurred.
+
+F7.2B verification anchor:
+
+- implementation PR #38;
+- merge SHA `e4671c75ab2ece2a6f5065a78779413ef3e9f38b`;
+- automatic deploy run `32588170791`, job `97067607202` — success;
+- Alembic upgraded `0005_identity -> 0006_user_management`;
+- pending-only Request access — pass;
+- pending user cannot authenticate — pass;
+- Owner User Management list/review — pass;
+- approve and exact role assignment — pass;
+- reject — pass;
+- non-Owner User Management authenticated 403 — pass;
+- ordinary OWNER-account mutation/escalation guard — pass;
+- role change revokes existing sessions — pass;
+- disable/reactivate — pass;
+- explicit per-user session revocation — pass;
+- account/security events — pass;
+- reusable notification events — pass;
+- signed-in profile UI contract — pass;
+- public anonymous User Management gate — 401;
 - `database_canonical=false` and `migration_baseline_accepted=false` preserved;
 - no live workbook import and no inventory mutation occurred.
 
@@ -150,15 +174,44 @@ Current deployed model:
 - disabled users fail protected-session resolution;
 - inventory remains read-only.
 
-### F7.2B — User Management — **NEXT**
+### F7.2B — User Management — **VERIFIED COMPLETE**
 
-Separate human-account surface for pending access requests, Owner approval/rejection, allowed role assignment, disable/reactivate/revoke, and security events. ADMIN cannot grant/promote OWNER.
+Deployed human-account behavior:
 
-F7.2B must reuse F7.2A canonical `user_id`, roles, states, sessions, and backend authorization. It must not introduce credential lifecycle, AI Agent Management, operational Audit UI, inventory writes, or canonical DB promotion.
+- public `Request access` creates a `PENDING` account/request only;
+- pending users have no private inventory access;
+- Owner-only User Management lists users and requests;
+- Owner may approve as `ADMIN`, `STAFF`, or `READ_ONLY`, or reject;
+- active non-Owner role changes revoke existing sessions;
+- disable/reactivate and explicit session revocation are supported;
+- ordinary User Management cannot mutate or demote the `OWNER` account;
+- account/security history remains separate from operational Audit;
+- reusable notification events support later Web/Telegram/Flutter delivery.
 
-### F7.2C — Credential lifecycle
+Dashboard profile UI:
 
-Change password, Owner-assisted forgotten-password reset v1, short-lived single-use reset, and session revocation after reset/disable.
+- drawer/sidebar top section below product branding and above primary navigation;
+- circular profile avatar area;
+- deterministic initials fallback while no profile image is managed;
+- canonical username;
+- current role;
+- profile identity is sourced from the authenticated backend session, not a browser-side profile store.
+
+Web UI work follows the pinned UI/UX Pro Max skill and Dashboard v2.4 design system.
+
+### F7.2C — Credential lifecycle — **NEXT**
+
+Implement:
+
+- authenticated password change with current-password re-authentication;
+- enumeration-safe forgotten-password reset request;
+- Owner-assisted short-lived single-use reset issuance;
+- reset-token digest/verifier storage, never plaintext token persistence;
+- credential-version increment and old-session invalidation after password change/reset;
+- security/account events;
+- product UI so normal credential maintenance requires no VPS/terminal intervention.
+
+Profile-image upload/edit remains outside F7.2C unless separately authorized.
 
 ### F7.2D — AI Agent Management
 
@@ -230,26 +283,27 @@ Deterministic events first, optional AI explanation second, reusable across Web/
 
 ## Immediate implementation boundary
 
-Start the next implementation chat with **F7.2B User Management**.
+Start the next implementation chat with **F7.2C Credential Lifecycle**.
 
 Then continue in order:
 
-1. F7.2C credential lifecycle
-2. F7.2D AI Agent Management
-3. F7.3 actor-aware Audit
+1. F7.2D AI Agent Management
+2. F7.3 actor-aware Audit
 
-Do not jump ahead to production stock writes, AI writes, store transfers, Smart Calculator deduction, Telegram/Flutter mutation, or canonical promotion.
+Do not jump ahead to production stock writes, AI writes, store transfers, Smart Calculator deduction, Telegram/Flutter mutation, Sheet mirror conversion, or canonical promotion.
 
 ## New-chat readiness checklist
 
 A fresh implementation chat is ready when it can establish all of the following from repository evidence without remembered chat context:
 
 - current SOT boundary: Sheet authoritative, PostgreSQL non-canonical;
-- verified F7.2A canonical identity/session checkpoint and PR #36/deploy #32586385336 evidence;
+- verified F7.2A and F7.2B checkpoints and deployment evidence;
 - test-only F6B status and counts;
 - delivery policy and issue #26 deployment evidence path;
-- next slice = F7.2B;
-- F7.2C/D and F7.3 order;
+- signed-in drawer profile card behavior;
+- User Management is Owner-only and separate from operational Audit;
+- next slice = F7.2C;
+- F7.2D/F7.3 order;
 - Owner-only AI Agent Management and Settings;
 - AI may eventually operate on Main Store or Sub Stores only inside Owner-granted typed scopes;
 - `$msa` SAFE/REVIEW/CONFLICT/NEW_UNMAPPED + read-back/audit workflow parity;
