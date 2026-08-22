@@ -59,23 +59,40 @@ F6C verification:
 
 Canonical evidence: `docs/operations/F6C_SHADOW_READ_API_VERIFICATION_2026-08-22.md`.
 
-## Active product direction — Web Dashboard
+## Active product direction — F7 Web Dashboard
 
-User-facing web management is now the active product direction. Continue using the existing F6B/F6C test dataset only for UI/read-workflow development.
-
-UI/UX Pro Max is adopted for dashboard design intelligence, pinned for this design cycle to upstream `nextlevelbuilder/ui-ux-pro-max-skill` commit `bc826e2267a36d98a2dcf5231e16c30ff546770f`.
+User-facing web management is now authorized and under implementation. Continue using the existing F6B/F6C test dataset only for UI/read-workflow development.
 
 Read before dashboard work:
 
+- `docs/architecture/F7_WEB_DASHBOARD.md`
 - `docs/design/UI_UX_PRO_MAX_INTEGRATION.md`
 - `design-system/medicine-store-assistant/MASTER.md`
 - `design-system/medicine-store-assistant/pages/dashboard.md`
 
-`scripts/bootstrap_ui_ux_pro_max.sh` materializes the pinned third-party skill locally under `.agents/skills/ui-ux-pro-max/`; that materialized bundle is intentionally Git-ignored and is not part of the production runtime.
+UI/UX Pro Max is pinned for this design cycle to upstream `nextlevelbuilder/ui-ux-pro-max-skill` commit `bc826e2267a36d98a2dcf5231e16c30ff546770f`.
 
-Current Figma file has a clean `Dashboard v2 — UUPM` page. The next implementation slice should build an authenticated interactive web dashboard against the existing read API and prove navigation, search/filtering, row details, loading/empty/error states, accessibility, and responsive behavior before any production write UI is added.
+The owner approved **Dashboard v2.4** as the locked visual/interaction baseline. Preserve the responsive sidebar/mobile drawer, visual sun/moon Light-Dark toggle, spreadsheet gridlines, Inventory→Overview path, row detail drawer, full-table focus mode, TEST DATA / DB NON-CANONICAL badges, and read-only boundary.
 
-Google Sheets remains the practical operational human-facing interface until the new dashboard is implemented and verified.
+### Current F7.1 implementation on `test`
+
+- FastAPI serves `/dashboard`; `/` redirects there.
+- Dashboard is plain HTML/CSS/vanilla JS; no new frontend framework/runtime.
+- Browser-facing BFF routes: `/dashboard/api/overview`, `/dashboard/api/rows`, `/dashboard/api/review-reasons`.
+- Dashboard owner session uses PBKDF2-SHA256 password hash and HMAC-signed HttpOnly + Secure + SameSite=Strict cookie.
+- Raw F3 Bearer service credential is not exposed to browser code/storage.
+- If `MSA_DASHBOARD_OWNER_PASSWORD_HASH` or `MSA_DASHBOARD_SESSION_SECRET` is missing, private BFF routes fail closed with no private row disclosure.
+- CI checks Python compile, dashboard JavaScript syntax, and deploy-shell syntax.
+- deployment verifies dashboard auth primitives, shell/session route, and private BFF gate.
+- no inventory writes and no live workbook import are added.
+
+F7.1 is **implementation-active, not yet verified complete** until PR validation, main merge, automatic VPS deploy, and public HTTPS checks are green.
+
+### Next after F7.1 deploy
+
+F7.2: provision dashboard owner password hash + session secret in the protected VPS runtime env, then live-verify owner login and real F6C test-only overview/row/review reads through the dashboard. Do not weaken existing root-owned API credential files just to make the browser work.
+
+Google Sheets remains the operational source of truth throughout this phase.
 
 ## Safety boundary
 

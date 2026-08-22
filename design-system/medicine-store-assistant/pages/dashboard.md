@@ -2,19 +2,37 @@
 
 Use together with `../MASTER.md`. These rules refine the master system for the web dashboard only.
 
+## Locked baseline
+
+The owner approved **Dashboard v2.4** as the current visual/interaction baseline on 2026-08-22. Treat this as locked for implementation unless the owner explicitly requests a redesign.
+
+Preserve:
+
+- clean clinical/operations visual language;
+- light and dark themes;
+- theme control as a visual sun/moon toggle rather than a text-only button;
+- persistent test/non-canonical state badges while those states remain true;
+- responsive left navigation, with slide-out drawer behavior at narrow widths;
+- spreadsheet-style inventory table with visible horizontal and vertical gridlines;
+- Inventory `← Overview` return path;
+- expanded/full-table focus mode with an obvious exit control;
+- item-detail side drawer;
+- search and filters;
+- no write/edit/save affordance in the read-only phase.
+
 ## Dashboard goals
 
 The dashboard should answer, within a few seconds:
 
-1. Is the system healthy?
-2. What inventory state needs attention?
+1. Is the read path healthy?
+2. What test/shadow inventory state needs attention?
 3. What is test-only versus operational truth?
 4. Where should the operator go next?
 
 ## Desktop composition
 
 - Left navigation: 248 px reference width.
-- Header: page title + concise subtitle on the left; environment/data-authority badges on the right.
+- Header: page title + concise subtitle on the left; environment/data-authority badges + visual theme toggle on the right.
 - Main canvas: metrics row followed by prioritized operational content.
 - Avoid placing more than four top-level metric cards in one row.
 - Use one dominant information region and one narrower context/authority region rather than many equal cards.
@@ -37,13 +55,15 @@ Primary workflow:
 
 1. search;
 2. filter;
-3. scan rows;
+3. scan spreadsheet-style rows;
 4. open detail drawer;
-5. inspect provenance/status.
+5. inspect provenance/status;
+6. optionally expand the table into focus mode;
+7. return to Inventory or Overview without losing navigation context.
 
 Current phase is read-only. Do not show fake edit/save buttons.
 
-Desktop columns should remain aligned through a shared grid. Mobile should move secondary fields into the detail view rather than compressing every column.
+Desktop columns must remain aligned through a shared table grid. Use visible vertical and horizontal borders similar to the working Google Sheet. Mobile may use local horizontal table scrolling rather than crushing columns until the later mobile inventory redesign is authorized.
 
 ## Shadow inspection
 
@@ -60,19 +80,32 @@ Show:
 
 Avoid exposing internal secrets or raw credential paths.
 
-## Interaction prototype requirements
+## Authentication UX
 
-The prototype must demonstrate:
+The dashboard shell may load publicly, but private inventory/shadow data must remain behind the server-side owner session gate.
 
-- navigation selection;
+- Never ask the browser to store the F3 Bearer service credential.
+- If dashboard owner credentials are not provisioned, state that clearly and keep private data unavailable.
+- Login errors belong next to the login form.
+- Logout must clear the owner session without affecting backend service credentials.
+
+## Interaction regression checklist
+
+Every implementation/refinement must preserve and verify:
+
+- Overview ↔ Inventory navigation;
+- sidebar navigation at desktop widths;
+- slide-out navigation at narrow widths;
+- light ↔ dark theme switching;
 - search filtering;
-- classification filter;
+- classification/source-sheet filtering;
 - row selection;
-- detail drawer/modal;
-- loading state;
-- empty result state;
+- detail drawer open/close and Escape handling;
+- expanded table view + exit path;
+- loading, empty and auth-error states;
 - keyboard-focus affordances;
-- responsive behavior concept;
+- touch targets around 44 px;
+- no accidental write controls;
 - reduced-motion-safe transitions.
 
-All controls shown in the prototype must have a defined behavior. Disabled future actions must explain why they are disabled.
+All controls shown in the product must have a defined behavior. Disabled future actions must explain why they are disabled.
