@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Project Roadmap
 
-Status: **F0/F1/F2/F3/F4/F5/F5.1/F6A/F6C/F7.1/F7.2A verified complete; F6B remains test-only; F7.2B User Management is next; PostgreSQL remains non-canonical**
+Status: **F0/F1/F2/F3/F4/F5/F5.1/F6A/F6C/F7.1/F7.2A/F7.2B verified complete; F6B remains test-only; F7.2C Credential Lifecycle is next; PostgreSQL remains non-canonical**
 
 The live Google workbook/source documents remain operationally authoritative. The current F6B snapshot is test-only and is not an accepted migration baseline. A fresh real migration dataset will be imported only after the redesigned operational workflow, location model, management surfaces, and shadow-validation path are ready and explicitly approved.
 
@@ -38,6 +38,7 @@ The new architecture preserves the useful `$msa` workflow: source evidence is re
 - F7.1 read-only Web Dashboard — verified complete 2026-08-22
 - F7.2 temporary bootstrap Owner credential bridge — superseded by F7.2A
 - F7.2A canonical multi-user identity and sessions — verified complete 2026-08-22 via PR #36, merge `c3aa75d65e0bc6d1836227fe8450b0b3de5b2651`, deploy run `32586385336`
+- F7.2B User Management and signed-in drawer profile — verified complete 2026-08-22 via PR #38, merge `e4671c75ab2ece2a6f5065a78779413ef3e9f38b`, deploy run `32588170791`, job `97067607202`
 
 ## F7.2A verified result
 
@@ -52,6 +53,29 @@ The new architecture preserves the useful `$msa` workflow: source evidence is re
 - disabled users immediately lose protected access even if a previously issued session token still exists;
 - public dashboard private gate remains authenticated and read-only;
 - `database_canonical=false` and `migration_baseline_accepted=false` remain enforced;
+- deployment performed no live workbook import and introduced no inventory mutation.
+
+## F7.2B verified result
+
+- Alembic upgraded `0005_identity -> 0006_user_management`;
+- public `Request access` creates a `PENDING` canonical user/request only and does not grant a role or protected access;
+- pending users cannot authenticate to protected inventory;
+- Owner-only User Management lists human users and pending requests;
+- Owner can approve as `ADMIN`, `STAFF`, or `READ_ONLY`, or reject a request;
+- approved users receive the exact assigned role;
+- non-Owner User Management access returns authenticated `403 / Access denied`;
+- ordinary User Management cannot mutate/demote the existing `OWNER` account; Owner creation/promotion remains a separate high-risk future flow;
+- active non-Owner role changes revoke existing sessions;
+- account disable removes protected access and approved disabled accounts can be reactivated;
+- explicit per-user session revocation works;
+- account/security events are stored separately from operational Audit;
+- reusable notification events exist for future Web/Telegram/Flutter delivery;
+- Dashboard drawer/sidebar top section now shows a signed-in profile box with circular avatar area, canonical username, and current role;
+- deterministic initials are used as the avatar fallback until profile-image management is separately authorized;
+- User Management is a standalone surface separate from operational Audit;
+- UI work follows the pinned UI/UX Pro Max skill and locked Dashboard v2.4 design system;
+- public anonymous User Management gate returns 401;
+- `database_canonical=false`, `migration_baseline_accepted=false`, and the read-only inventory boundary remain enforced;
 - deployment performed no live workbook import and introduced no inventory mutation.
 
 ## Test-only F6B snapshot
@@ -82,13 +106,15 @@ The new architecture preserves the useful `$msa` workflow: source evidence is re
 
 Stable `user_id`, username + password, roles `OWNER` / `ADMIN` / `STAFF` / `READ_ONLY`, states `PENDING` / `ACTIVE` / `DISABLED`, durable revocable user sessions, Owner migration from the bootstrap bridge, backend authorization, and explicit 403 behavior are deployed and runtime-verified. Inventory remains read-only.
 
-### F7.2B — User Management — **NEXT**
+### F7.2B — User Management — **VERIFIED COMPLETE**
 
-Dedicated human-account surface with access requests, Owner approval/rejection, role assignment, disable/reactivate/revoke, escalation boundaries, security events, and reusable notification events. ADMIN cannot grant/promote OWNER.
+Dedicated human-account surface with pending access requests, Owner approval/rejection, role assignment, disable/reactivate/session revoke, escalation boundaries, security/account events, reusable notification events, explicit Access Denied handling, and the signed-in drawer profile box are deployed and runtime-verified. Ordinary User Management does not grant/promote `OWNER`.
 
-### F7.2C — Credential lifecycle
+### F7.2C — Credential lifecycle — **NEXT**
 
-Change password, Owner-assisted forgotten-password reset, short-lived one-time reset, and session revocation after reset/disable.
+Change password with current-password re-authentication, enumeration-safe forgotten-password request, Owner-assisted short-lived single-use reset, credential-version/session invalidation, and security/account events. Normal credential maintenance must be available through product UI without VPS/terminal intervention.
+
+Profile-image upload/edit is not implicitly part of F7.2C and remains separately deferred unless explicitly authorized.
 
 ### F7.2D — AI Agent Management & delegated authority
 
@@ -184,8 +210,8 @@ Telegram and Flutter reuse the same backend contracts and never become separate 
 ## Recommended execution order
 
 1. F7.2A — Canonical multi-user identity — verified complete
-2. F7.2B — User Management — next
-3. F7.2C — Credential lifecycle
+2. F7.2B — User Management — verified complete
+3. F7.2C — Credential lifecycle — next
 4. F7.2D — AI Agent Management & delegated authority
 5. F7.3 — Actor-aware Audit / operation ledger
 6. F7.4 — Inventory Locations, Store Policy & Preferences
@@ -201,7 +227,7 @@ Telegram and Flutter reuse the same backend contracts and never become separate 
 
 ## Immediate boundary
 
-The next authorized implementation slice is **F7.2B User Management**. Do not implement F7.2C credential lifecycle, F7.2D AI Agent Management, F7.3 Audit, production inventory writes, AI writes, store transfers, Smart Calculator deduction, Telegram/Flutter stock mutation, or canonical promotion as part of F7.2B unless a strict prerequisite is separately authorized.
+The next authorized implementation slice is **F7.2C Credential Lifecycle**. Do not implement F7.2D AI Agent Management, F7.3 Audit, production inventory writes, AI writes, store transfers, Smart Calculator deduction, Telegram/Flutter stock mutation, Sheet mirror conversion, or canonical promotion as part of F7.2C unless a strict prerequisite is separately authorized.
 
 ## Continuity rule
 
