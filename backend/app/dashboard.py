@@ -56,6 +56,36 @@ def _latest_google_snapshot_batch_id() -> str | None:
     return rows[0]["migration_batch_id"] if rows else None
 
 
+def _dashboard_row_where(
+    *,
+    migration_batch_id: str | None,
+    source_sheet: str | None = None,
+    classification: str | None = None,
+    q: str | None = None,
+) -> tuple[str, dict[str, Any]]:
+    clauses: list[str] = []
+    params: dict[str, Any] = {}
+    if migration_batch_id is not None:
+        clauses.append("msr.migration_batch_id::text = :migration_batch_id")
+        params["migration_batch_id"] = migration_batch_id
+    if source_sheet is not None:
+        clauses.append("msr.source_sheet = :source_sheet")
+        params["source_sheet"] = source_sheet
+    if classification is not None:
+        clauses.append("msr.classification = :classification")
+        params["classification"] = classification
+    if q is not None:
+        clauses.append(
+            "(" 
+            "COALESCE(msr.payload->>'item_name', '') ILIKE '%' || :q || '%' "
+            "OR COALESCE(msr.payload->>'serial_code', '') ILIKE '%' || :q || '%' "
+            "OR COALESCE(msr.review_reason, '') ILIKE '%' || :q || '%'"
+            ")"
+        )
+        params["q"] = q
+    return (" AND ".join(clauses) if clauses else "TRUE"), params
+
+
 @router.get("/", include_in_schema=False)
 def root_redirect() -> RedirectResponse:
     return RedirectResponse(url="/dashboard", status_code=status.HTTP_307_TEMPORARY_REDIRECT)
@@ -154,20 +184,22 @@ def dashboard_overview(response: Response) -> dict[str, Any]:
         """
     )
     latest_batch_id = batch_rows[0]["migration_batch_id"] if batch_rows else None
-    reasons = _query(
-        """
-        SELECT classification,
-               COALESCE(review_reason, '(none)') AS review_reason,
-               COUNT(*) AS row_count
-        FROM migration_source_rows
-        WHERE (:migration_batch_id IS NULL OR migration_batch_id::text = :migration_batch_id)
-          AND classification IN ('REVIEW', 'CONFLICT', 'NEW_UNMAPPED')
-        GROUP BY classification, COALESCE(review_reason, '(none)')
-        ORDER BY row_count DESC, classification, review_reason
-        LIMIT 12
-        """,
-        {"migration_batch_id": latest_batch_id},
-    )
+    reasons: list[dict[str, Any]] = []
+    if latest_batch_id is not None:
+        reasons = _query(
+            """
+            SELECT classification,
+                   COALESCE(review_reason, '(none)') AS review_reason,
+                   COUNT(*) AS row_count
+            FROM migration_source_rows
+            WHERE migration_batch_id::text = :migration_batch_id
+              AND classification IN ('REVIEW', 'CONFLICT', 'NEW_UNMAPPED')
+            GROUP BY classification, COALESCE(review_reason, '(none)')
+            ORDER BY row_count DESC, classification, review_reason
+            LIMIT 12
+            """,
+            {"migration_batch_id": latest_batch_id},
+        )
     return {
         "batch": batch_rows[0] if batch_rows else None,
         "attention": reasons,
@@ -193,9 +225,15 @@ def dashboard_rows(
     _no_store(response)
     if migration_batch_id is None:
         migration_batch_id = _latest_google_snapshot_batch_id()
-
+    where_sql, params = _dashboard_row_where(
+        migration_batch_id=migration_batch_id,
+        source_sheet=source_sheet,
+        classification=classification,
+        q=q,
+    )
+    params.update({"limit": limit, "offset": offset})
     rows = _query(
-        """
+        f"""
         SELECT msr.migration_source_row_id::text AS migration_source_row_id,
                msr.migration_batch_id::text AS migration_batch_id,
                msr.source_sheet,
@@ -205,26 +243,11 @@ def dashboard_rows(
                msr.payload,
                msr.created_at
         FROM migration_source_rows msr
-        WHERE (:migration_batch_id IS NULL OR msr.migration_batch_id::text = :migration_batch_id)
-          AND (:source_sheet IS NULL OR msr.source_sheet = :source_sheet)
-          AND (:classification IS NULL OR msr.classification = :classification)
-          AND (
-            :q IS NULL
-            OR COALESCE(msr.payload->>'item_name', '') ILIKE '%' || :q || '%'
-            OR COALESCE(msr.payload->>'serial_code', '') ILIKE '%' || :q || '%'
-            OR COALESCE(msr.review_reason, '') ILIKE '%' || :q || '%'
-          )
+        WHERE {where_sql}
         ORDER BY msr.source_sheet, msr.source_row_no, msr.migration_source_row_id
         LIMIT :limit OFFSET :offset
         """,
-        {
-            "migration_batch_id": migration_batch_id,
-            "source_sheet": source_sheet,
-            "classification": classification,
-            "q": q,
-            "limit": limit,
-            "offset": offset,
-        },
+        params,
     )
     return {
         "items": rows,
@@ -246,19 +269,22 @@ def dashboard_review_reasons(response: Response, migration_batch_id: str | None 
     _no_store(response)
     if migration_batch_id is None:
         migration_batch_id = _latest_google_snapshot_batch_id()
-    rows = _query(
-        """
-        SELECT classification,
-               COALESCE(review_reason, '(none)') AS review_reason,
-               COUNT(*) AS row_count
-        FROM migration_source_rows
-        WHERE (:migration_batch_id IS NULL OR migration_batch_id::text = :migration_batch_id)
-          AND classification IN ('REVIEW', 'CONFLICT', 'NEW_UNMAPPED')
-        GROUP BY classification, COALESCE(review_reason, '(none)')
-        ORDER BY classification, row_count DESC, review_reason
-        """,
-        {"migration_batch_id": migration_batch_id},
-    )
+    if migration_batch_id is None:
+        rows: list[dict[str, Any]] = []
+    else:
+        rows = _query(
+            """
+            SELECT classification,
+                   COALESCE(review_reason, '(none)') AS review_reason,
+                   COUNT(*) AS row_count
+            FROM migration_source_rows
+            WHERE migration_batch_id::text = :migration_batch_id
+              AND classification IN ('REVIEW', 'CONFLICT', 'NEW_UNMAPPED')
+            GROUP BY classification, COALESCE(review_reason, '(none)')
+            ORDER BY classification, row_count DESC, review_reason
+            """,
+            {"migration_batch_id": migration_batch_id},
+        )
     return {
         "items": rows,
         "count": len(rows),
