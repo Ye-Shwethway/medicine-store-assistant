@@ -84,13 +84,15 @@ Avoid exposing internal secrets or raw credential paths.
 
 Primary authentication is a dedicated `/dashboard/login` page, not the temporary in-dashboard owner modal.
 
-Reuse the existing v2.4 visual system. The sign-in page must stay simple and operational: product identity, username, password, `Sign in`, inline generic errors, theme support, and a clear unavailable state when authentication is not provisioned. There is no social login or password-reset email flow in v1.
+Reuse the existing v2.4 visual system. The sign-in page must stay simple and operational: product identity, username, password, `Sign in`, inline generic errors, theme support, and a clear unavailable state when authentication is not provisioned. There is no social login in v1.
 
 F7.2B adds a progressively disclosed **Request access** form. Submitting it never grants private access; it creates only a pending Owner-reviewed account request. The form uses visible labels, inline errors/helper text, 44 px+ controls, and clearly states that approval and role assignment happen later.
 
+F7.2C adds a visible `Forgot password?` entry with enumeration-safe acknowledgement and an Owner-assisted one-time reset flow. It does not add email-based recovery.
+
 Unauthenticated access to protected dashboard pages redirects to sign-in. Successful sign-in returns to the intended protected view when safe. Authenticated visits to the sign-in page redirect to the dashboard. Session expiry and explicit sign-out return to sign-in without revealing private data.
 
-Never ask the browser to store the F3 Bearer service credential, plaintext passwords, session signing secrets, or password hashes.
+Never ask the browser to store the F3 Bearer service credential, plaintext passwords, session signing secrets, password hashes, or reset-token verifier material.
 
 ### Drawer signed-in profile — F7.2B
 
@@ -100,13 +102,53 @@ Required presentation:
 
 - circular profile avatar area;
 - deterministic initials fallback when no managed profile image exists yet;
-- canonical username as the primary identity label;
+- current canonical username as the primary identity label;
 - current role as secondary metadata;
 - visually distinct card/container using existing semantic surface/border tokens;
 - username truncates safely instead of overlapping the drawer;
 - profile data comes from the authenticated backend session, not a browser-side profile store.
 
-The F7.2B profile card is informational, not an edit/upload affordance. Actual profile-image upload/customization is deferred until a separately authorized profile/credential lifecycle slice.
+The profile card remains informational, not an edit/upload affordance. Username editing belongs to the separate F7.2C Account surface. After a successful username change and re-login, the profile card reflects the new canonical username.
+
+Actual profile-image upload/customization remains separately deferred.
+
+### Account security — F7.2C — **VERIFIED**
+
+All active human roles receive an `Account` navigation surface. This is self-service credential management, not User Management and not operational Audit.
+
+Show two distinct cards:
+
+1. **Change username**
+   - visible `New username` label;
+   - visible `Current password` re-authentication field;
+   - helper text for the 3–64 character username contract;
+   - inline errors;
+   - explicit `Change username` submit control.
+2. **Change password**
+   - visible `Current password` field;
+   - visible `New password` field;
+   - helper text for password minimum;
+   - inline errors;
+   - explicit `Change password` submit control.
+
+Successful username or password change invalidates prior sessions and returns the user to sign-in. Copy should explain this before submission so the transition is not surprising.
+
+Username is not the authority label. The initial bootstrap username `owner` may be replaced from this page while the canonical user remains the same stable `user_id` with the `OWNER` role.
+
+Controls must remain keyboard reachable, preserve visible focus, and maintain ~44 px touch targets. Mobile stacks the credential cards vertically.
+
+### Forgot password / reset — F7.2C — **VERIFIED**
+
+The login page exposes `Forgot password?` next to the existing Request access entry.
+
+Forgot-password UX:
+
+- asks only for username;
+- always shows the same generic acknowledgement for submitted requests;
+- does not reveal whether the username exists or is eligible;
+- says that eligible recovery waits for Owner review.
+
+Owner-issued reset links open a dedicated `Set a new password` state on the login page. The reset token is carried in the browser URL fragment and submitted in the reset request body only. The UI states that the link is short-lived and one-use.
 
 ### Role-aware states
 
@@ -115,11 +157,11 @@ Use the locked F2 roles:
 - `OWNER` — full dashboard/access visibility and User Management entry point.
 - `ADMIN` — operational administration without implicit Owner authority.
 - `STAFF` — routine inventory/approved operational surfaces; no User Management or privileged correction/configuration.
-- `READ_ONLY` — read surfaces only; no inventory write/edit/save/approve controls.
+- `READ_ONLY` — read-only business/inventory surfaces; own Account credential maintenance remains available.
 
 UI visibility is convenience only. Backend policy must authorize every protected operation independently.
 
-### User Management — F7.2B
+### User Management — F7.2B/F7.2C
 
 `User Management` is a standalone Owner-only dashboard surface and must not be combined with operational `Audit`.
 
@@ -132,15 +174,23 @@ Show:
 - pending approval/rejection with explicit role assignment (`ADMIN`, `STAFF`, `READ_ONLY` only);
 - active-user role change, session revocation, and account disable;
 - reactivation for previously approved disabled accounts;
-- explicit explanation that ordinary User Management cannot promote/create/modify the `OWNER` account.
+- explicit explanation that ordinary User Management cannot promote/create/modify the `OWNER` account;
+- F7.2C password-reset request queue with readable request status;
+- `Issue reset link` only for eligible pending resets;
+- issuance-only copyable reset link and visible expiry metadata.
 
-States use readable text labels (`PENDING`, `ACTIVE`, `DISABLED`) and never rely on color alone. Destructive/reject actions require an explicit confirmation interaction. Controls remain usable on narrow screens by stacking/wrapping rather than forcing page-level overflow.
+States use readable text labels (`PENDING`, `ACTIVE`, `DISABLED`, reset status text) and never rely on color alone. Destructive/reject actions require an explicit confirmation interaction. Controls remain usable on narrow screens by stacking/wrapping rather than forcing page-level overflow.
+
+The reset link should be treated as temporary secret material: show it only at issuance, do not persist it in browser storage, and do not imply it can be reconstructed later from the database.
 
 ### Access denied
 
 Provide an explicit authenticated `403 / Access denied` state for valid users who lack permission. Show a concise explanation and a safe return to Overview. Do not treat authorization failure as a bad-password problem.
 
-Detailed design contract: `docs/design/F7_2_AUTH_RBAC_DESIGN.md`.
+Detailed design contracts:
+
+- `docs/design/F7_2_AUTH_RBAC_DESIGN.md`
+- `docs/design/F7_2C_CREDENTIAL_LIFECYCLE_DESIGN.md`
 
 ## Interaction regression checklist
 
@@ -148,10 +198,16 @@ Every implementation/refinement must preserve and verify:
 
 - dedicated sign-in flow and unauthenticated redirect;
 - Request access remains pending-only;
+- Forgot password remains enumeration-safe;
+- one-time reset surface works without exposing reset verifier material;
 - authenticated redirect away from sign-in;
 - drawer/sidebar signed-in profile card;
+- Account surface for own username/password management;
+- username/password change requires current-password re-authentication;
+- successful credential change returns to sign-in because prior sessions are invalidated;
 - role-aware navigation/control visibility;
 - Owner-only User Management data/action authorization;
+- Owner-only reset review/issuance;
 - access-denied state;
 - session expiry and sign-out;
 - Overview ↔ Inventory navigation;

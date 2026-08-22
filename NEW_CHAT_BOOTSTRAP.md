@@ -16,10 +16,11 @@ Before changing code/config/schema/runtime in a fresh chat, read and reconcile i
 4. `IMPLEMENTATION_PLAN.md`
 5. `docs/architecture/README.md`
 6. `docs/design/F7_2_AUTH_RBAC_DESIGN.md`
-7. `docs/architecture/F7_2D_AI_AGENT_MANAGEMENT.md`
-8. `docs/architecture/F7_3_ACTOR_AUDIT_AND_OPERATION_LEDGER.md`
-9. task-relevant F7 architecture/design docs
-10. current repository/runtime/deployment evidence
+7. `docs/design/F7_2C_CREDENTIAL_LIFECYCLE_DESIGN.md`
+8. `docs/architecture/F7_2D_AI_AGENT_MANAGEMENT.md`
+9. `docs/architecture/F7_3_ACTOR_AUDIT_AND_OPERATION_LEDGER.md`
+10. task-relevant F7 architecture/design docs
+11. current repository/runtime/deployment evidence
 
 Treat newer verified repository/runtime evidence as authoritative over remembered chat context.
 
@@ -59,6 +60,7 @@ Verified complete:
 - F7.1 read-only Web Dashboard foundation
 - F7.2A canonical multi-user identity and sessions
 - F7.2B User Management and signed-in drawer profile
+- F7.2C Credential Lifecycle and self-service Account security
 
 F7.2A verification anchor:
 
@@ -66,7 +68,7 @@ F7.2A verification anchor:
 - merge SHA `c3aa75d65e0bc6d1836227fe8450b0b3de5b2651`;
 - automatic deploy run `32586385336` / job `97063270146` — success;
 - Alembic upgraded `0004_shadow -> 0005_identity`;
-- canonical Owner bootstrap resolved stable `user_id` and username `owner` without plaintext credential exposure;
+- canonical Owner bootstrap resolved stable `user_id` and initial username `owner` without plaintext credential exposure;
 - username + password authentication — pass;
 - DB-bound durable/revocable session — pass;
 - backend Owner RBAC — pass;
@@ -96,7 +98,28 @@ F7.2B verification anchor:
 - reusable notification events — pass;
 - signed-in profile UI contract — pass;
 - public anonymous User Management gate — 401;
-- `database_canonical=false` and `migration_baseline_accepted=false` preserved;
+- authority flags/read-only boundary preserved;
+- no live workbook import and no inventory mutation occurred.
+
+F7.2C verification anchor:
+
+- implementation PR #40;
+- merge SHA `a910658efc3cbc214b30a1f5ed946fdd34ffe4a2`;
+- automatic deploy run `32589571152`, job `97071112514` — success;
+- Alembic upgraded `0006_user_management -> 0007_credential_lifecycle`;
+- Dashboard Account UI contract — pass;
+- self-service username change with current-password re-authentication — pass;
+- username change preserves stable `user_id`, role, and account state while invalidating old sessions/old username login — pass;
+- self-service password change with current-password re-authentication — pass;
+- password change invalidates old sessions and old password login — pass;
+- forgotten-password response is enumeration-safe — pass;
+- Owner reset review/issuance — pass;
+- reset token is persisted only as keyed digest/verifier material — pass;
+- reset link is short-lived and single-use — pass;
+- reset completion revokes existing sessions and authenticates only with the new password — pass;
+- credential/security events and reusable reset notification events — pass;
+- public anonymous private/User Management gates — 401;
+- `database_canonical=false`, `migration_baseline_accepted=false`, F6B test-only status, and read-only inventory boundary preserved;
 - no live workbook import and no inventory mutation occurred.
 
 F6B remains test-only:
@@ -110,7 +133,26 @@ F6B remains test-only:
 - `migration_baseline_accepted=false`
 - `database_canonical=false`
 
-The former password-only Owner bridge is superseded by the canonical F7.2A human account/session model. The existing password hash was reused as bootstrap evidence; plaintext credentials were never written to Git or logs.
+The former password-only Owner bridge is superseded by the canonical F7.2A human account/session model. F7.2C makes the initial bootstrap username `owner` mutable through the authenticated Account page; changing that username does not change the `OWNER` role or stable canonical `user_id`. Routine username/password maintenance no longer requires an ad-hoc VPS credential page.
+
+## Current Owner credential workflow
+
+Until the Owner changes it, the canonical bootstrap username remains `owner` and the pre-existing Owner password remains valid.
+
+To replace the visible bootstrap username:
+
+1. sign in normally;
+2. open `Account`;
+3. use `Change username`;
+4. enter the desired new username plus the current password;
+5. successful change revokes existing sessions;
+6. sign in again with the new username and the unchanged password.
+
+To change the password, use the separate `Change password` card with the current password. Successful password change revokes existing sessions and requires sign-in with the new password.
+
+If a user forgets a password, the login page exposes `Forgot password?`. Eligible requests remain pending until the Owner reviews them in User Management and issues a short-lived single-use reset link. The public response does not disclose whether the username exists.
+
+Profile-image upload/edit remains separately deferred.
 
 ## Product direction
 
@@ -199,21 +241,25 @@ Dashboard profile UI:
 
 Web UI work follows the pinned UI/UX Pro Max skill and Dashboard v2.4 design system.
 
-### F7.2C — Credential lifecycle — **NEXT**
+### F7.2C — Credential lifecycle — **VERIFIED COMPLETE**
 
-Implement:
+Deployed behavior:
 
+- authenticated username change with current-password re-authentication;
+- username is mutable while stable `user_id`, role, and account state remain unchanged;
 - authenticated password change with current-password re-authentication;
-- enumeration-safe forgotten-password reset request;
-- Owner-assisted short-lived single-use reset issuance;
-- reset-token digest/verifier storage, never plaintext token persistence;
-- credential-version increment and old-session invalidation after password change/reset;
-- security/account events;
-- product UI so normal credential maintenance requires no VPS/terminal intervention.
+- password credentials are stored only as one-way hashes;
+- both credential-change paths increment `credential_version` and invalidate prior sessions;
+- public forgotten-password request is enumeration-safe;
+- durable reset request grants no access;
+- Owner-only reset review/issuance;
+- short-lived single-use reset link;
+- keyed reset-token digest/verifier persistence only after issuance;
+- reset completion revokes sessions, consumes the reset, and records security/account events;
+- reusable notification events support later Web/Telegram/Flutter delivery;
+- signed-in Account, Forgot password, reset-completion, and Owner reset-queue UI are deployed.
 
-Profile-image upload/edit remains outside F7.2C unless separately authorized.
-
-### F7.2D — AI Agent Management
+### F7.2D — AI Agent Management — **NEXT**
 
 Dedicated **Owner-only** control plane for named `AI_AGENT` principals.
 
@@ -283,26 +329,28 @@ Deterministic events first, optional AI explanation second, reusable across Web/
 
 ## Immediate implementation boundary
 
-Start the next implementation chat with **F7.2C Credential Lifecycle**.
+Start the next implementation chat with **F7.2D AI Agent Management & delegated authority**.
 
 Then continue in order:
 
-1. F7.2D AI Agent Management
-2. F7.3 actor-aware Audit
+1. F7.3 actor-aware Audit
+2. F7.4 Inventory Locations / Store Policy / Preferences
 
-Do not jump ahead to production stock writes, AI writes, store transfers, Smart Calculator deduction, Telegram/Flutter mutation, Sheet mirror conversion, or canonical promotion.
+Do not jump ahead to production stock writes, AI inventory writes, store transfers, Smart Calculator deduction, Telegram/Flutter mutation, Sheet mirror conversion, or canonical promotion.
 
 ## New-chat readiness checklist
 
 A fresh implementation chat is ready when it can establish all of the following from repository evidence without remembered chat context:
 
 - current SOT boundary: Sheet authoritative, PostgreSQL non-canonical;
-- verified F7.2A and F7.2B checkpoints and deployment evidence;
+- verified F7.2A/F7.2B/F7.2C checkpoints and deployment evidence;
 - test-only F6B status and counts;
 - delivery policy and issue #26 deployment evidence path;
 - signed-in drawer profile card behavior;
+- self-service username/password Account behavior and Owner-assisted reset behavior;
+- initial `owner` username can be replaced without changing the `OWNER` role/stable `user_id`;
 - User Management is Owner-only and separate from operational Audit;
-- next slice = F7.2C;
+- next slice = F7.2D;
 - F7.2D/F7.3 order;
 - Owner-only AI Agent Management and Settings;
 - AI may eventually operate on Main Store or Sub Stores only inside Owner-granted typed scopes;

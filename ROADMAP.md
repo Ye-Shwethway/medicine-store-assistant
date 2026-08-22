@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Project Roadmap
 
-Status: **F0/F1/F2/F3/F4/F5/F5.1/F6A/F6C/F7.1/F7.2A/F7.2B verified complete; F6B remains test-only; F7.2C Credential Lifecycle is next; PostgreSQL remains non-canonical**
+Status: **F0/F1/F2/F3/F4/F5/F5.1/F6A/F6C/F7.1/F7.2A/F7.2B/F7.2C verified complete; F6B remains test-only; F7.2D AI Agent Management is next; PostgreSQL remains non-canonical**
 
 The live Google workbook/source documents remain operationally authoritative. The current F6B snapshot is test-only and is not an accepted migration baseline. A fresh real migration dataset will be imported only after the redesigned operational workflow, location model, management surfaces, and shadow-validation path are ready and explicitly approved.
 
@@ -39,6 +39,7 @@ The new architecture preserves the useful `$msa` workflow: source evidence is re
 - F7.2 temporary bootstrap Owner credential bridge — superseded by F7.2A
 - F7.2A canonical multi-user identity and sessions — verified complete 2026-08-22 via PR #36, merge `c3aa75d65e0bc6d1836227fe8450b0b3de5b2651`, deploy run `32586385336`
 - F7.2B User Management and signed-in drawer profile — verified complete 2026-08-22 via PR #38, merge `e4671c75ab2ece2a6f5065a78779413ef3e9f38b`, deploy run `32588170791`, job `97067607202`
+- F7.2C Credential Lifecycle and self-service account security — verified complete 2026-08-23 via PR #40, merge `a910658efc3cbc214b30a1f5ed946fdd34ffe4a2`, deploy run `32589571152`, job `97071112514`
 
 ## F7.2A verified result
 
@@ -78,6 +79,26 @@ The new architecture preserves the useful `$msa` workflow: source evidence is re
 - `database_canonical=false`, `migration_baseline_accepted=false`, and the read-only inventory boundary remain enforced;
 - deployment performed no live workbook import and introduced no inventory mutation.
 
+## F7.2C verified result
+
+- Alembic upgraded `0006_user_management -> 0007_credential_lifecycle`;
+- all active human roles have an authenticated `Account` surface for self-service username and password maintenance;
+- username is mutable while stable canonical `user_id`, role, and account state remain unchanged;
+- the bootstrap username `owner` is not a permanent visible identity requirement and the existing Owner can replace it through the Account page while retaining the `OWNER` role;
+- username change requires current-password re-authentication, case-insensitive uniqueness, credential-version increment, session revocation, and a `USERNAME_CHANGED` security event;
+- password change requires current-password re-authentication, one-way hash replacement, credential-version increment, session revocation, outstanding reset cancellation, and a `PASSWORD_CHANGED` security event;
+- public forgotten-password requests are enumeration-safe and grant no access;
+- Owner-only User Management can review pending reset requests and issue a cryptographically random, short-lived, single-use reset link;
+- persistent reset storage retains only keyed token digest/verifier material; plaintext reset token is returned only at issuance;
+- reset links use `/dashboard/login#reset=<token>` so plaintext token material is not sent in ordinary HTTP request URLs;
+- successful reset changes only the password credential, increments credential version, revokes sessions, consumes the reset, and records security/notification events;
+- runtime verification proved username change, password change, wrong-current-password denial, enumeration-safe forgot request, Owner reset review/issuance, digest-only token persistence, one-use reset, old-session denial, and new-credential authentication;
+- UI work follows Dashboard v2.4 and the pinned UI/UX Pro Max skill;
+- profile-image upload/editing remains separately deferred;
+- public anonymous private/User Management gates remain 401;
+- `database_canonical=false`, `migration_baseline_accepted=false`, F6B test-only status, and the read-only inventory boundary remain enforced;
+- deployment performed no live workbook import and introduced no inventory mutation.
+
 ## Test-only F6B snapshot
 
 - batch ID `be13d127-5045-4284-a088-0a0b9b024d76`
@@ -94,6 +115,7 @@ The new architecture preserves the useful `$msa` workflow: source evidence is re
 - `IMPLEMENTATION_PLAN.md`
 - `docs/architecture/F7_WEB_DASHBOARD.md`
 - `docs/design/F7_2_AUTH_RBAC_DESIGN.md`
+- `docs/design/F7_2C_CREDENTIAL_LIFECYCLE_DESIGN.md`
 - `docs/architecture/F7_2D_AI_AGENT_MANAGEMENT.md`
 - `docs/architecture/F7_3_ACTOR_AUDIT_AND_OPERATION_LEDGER.md`
 - `docs/architecture/F7_4_F7_8_STORE_AND_INTELLIGENCE_ARCHITECTURE.md`
@@ -110,13 +132,13 @@ Stable `user_id`, username + password, roles `OWNER` / `ADMIN` / `STAFF` / `READ
 
 Dedicated human-account surface with pending access requests, Owner approval/rejection, role assignment, disable/reactivate/session revoke, escalation boundaries, security/account events, reusable notification events, explicit Access Denied handling, and the signed-in drawer profile box are deployed and runtime-verified. Ordinary User Management does not grant/promote `OWNER`.
 
-### F7.2C — Credential lifecycle — **NEXT**
+### F7.2C — Credential lifecycle — **VERIFIED COMPLETE**
 
-Change password with current-password re-authentication, enumeration-safe forgotten-password request, Owner-assisted short-lived single-use reset, credential-version/session invalidation, and security/account events. Normal credential maintenance must be available through product UI without VPS/terminal intervention.
+Self-service username change and password change, both protected by current-password re-authentication; enumeration-safe forgotten-password request; Owner-assisted short-lived single-use reset; digest-only reset-token persistence; credential-version/session invalidation; security/notification events; and Web product UI are deployed and runtime-verified.
 
-Profile-image upload/edit is not implicitly part of F7.2C and remains separately deferred unless explicitly authorized.
+The Owner may now replace the initial bootstrap username `owner` through the Account surface without changing the canonical `OWNER` role or stable `user_id`. Profile-image upload/edit remains separately deferred.
 
-### F7.2D — AI Agent Management & delegated authority
+### F7.2D — AI Agent Management & delegated authority — **NEXT**
 
 A dedicated **Owner-only** control plane for named `AI_AGENT` principals.
 
@@ -211,8 +233,8 @@ Telegram and Flutter reuse the same backend contracts and never become separate 
 
 1. F7.2A — Canonical multi-user identity — verified complete
 2. F7.2B — User Management — verified complete
-3. F7.2C — Credential lifecycle — next
-4. F7.2D — AI Agent Management & delegated authority
+3. F7.2C — Credential lifecycle — verified complete
+4. F7.2D — AI Agent Management & delegated authority — next
 5. F7.3 — Actor-aware Audit / operation ledger
 6. F7.4 — Inventory Locations, Store Policy & Preferences
 7. F7.5 — Smart Calculator / receipts, calculation-only
@@ -227,7 +249,7 @@ Telegram and Flutter reuse the same backend contracts and never become separate 
 
 ## Immediate boundary
 
-The next authorized implementation slice is **F7.2C Credential Lifecycle**. Do not implement F7.2D AI Agent Management, F7.3 Audit, production inventory writes, AI writes, store transfers, Smart Calculator deduction, Telegram/Flutter stock mutation, Sheet mirror conversion, or canonical promotion as part of F7.2C unless a strict prerequisite is separately authorized.
+The next authorized implementation slice is **F7.2D AI Agent Management & delegated authority**. Do not implement F7.3 Audit, production inventory writes, AI inventory writes, store transfers, Smart Calculator deduction, Telegram/Flutter stock mutation, Sheet mirror conversion, or canonical promotion as part of F7.2D unless a strict prerequisite is separately authorized.
 
 ## Continuity rule
 

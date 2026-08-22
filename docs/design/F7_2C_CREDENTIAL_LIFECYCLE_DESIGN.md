@@ -1,6 +1,18 @@
 # F7.2C — Credential Lifecycle Design
 
-Status: **authorized implementation design; verification pending**
+Status: **VERIFIED COMPLETE — 2026-08-23**
+
+Verification anchors:
+
+- implementation PR #40;
+- merge SHA `a910658efc3cbc214b30a1f5ed946fdd34ffe4a2`;
+- automatic deploy run `32589571152`;
+- deploy job `97071112514` — success;
+- Alembic upgraded `0006_user_management -> 0007_credential_lifecycle`;
+- runtime acceptance: username change, current-password re-authentication, password change, forgotten-password enumeration safety, Owner reset review/issuance, digest-only token persistence, single-use reset, credential/session revocation, security events, and reset notifications — pass;
+- public private/User Management gates remain 401 when anonymous;
+- `database_canonical=false`, `migration_baseline_accepted=false`, F6B test-only status, and read-only inventory boundary preserved;
+- no live workbook import and no inventory mutation occurred.
 
 Use together with:
 
@@ -120,7 +132,7 @@ Both forms use explicit current-password fields. Successful changes explain that
 
 ### Login page
 
-Add:
+The deployed page includes:
 
 - `Forgot password?` entry;
 - generic reset-request acknowledgement;
@@ -128,28 +140,28 @@ Add:
 
 ### Owner User Management
 
-Add a separate password-reset request queue inside User Management. It shows textual request status and permits issuance only for an eligible `PENDING` request.
+A separate password-reset request queue exists inside User Management. It shows textual request status and permits issuance only for an eligible `PENDING` request.
 
-After issuance, show the one-time reset link in a copyable field with the expiry timestamp and a warning that the plaintext link is shown only at issuance.
+After issuance, the Owner receives the one-time reset link in a copyable field with the expiry timestamp. Plaintext reset-token material is shown only at issuance and is not persisted.
 
-## Verification contract
+## Verified runtime contract
 
-Deployment acceptance must verify with a temporary non-Owner account:
+Deployment acceptance with a temporary non-Owner account proved:
 
-- wrong current password blocks username change;
-- successful username change invalidates old sessions and old username login;
-- new username authenticates with unchanged password;
-- wrong current password blocks password change;
-- successful password change invalidates old sessions and old password login;
-- forgotten-password response is enumeration-safe;
-- non-Owner cannot list reset requests;
-- Owner can see and issue a pending reset;
-- database stores token digest, not plaintext token;
-- reset completion invalidates existing sessions;
-- reset token reuse fails;
-- old password fails and reset password authenticates;
-- required account-security/notification events exist;
-- `database_canonical=false`, `migration_baseline_accepted=false`, read-only inventory boundary, and F6B test-only status remain unchanged.
+- wrong current password blocks username change — pass;
+- successful username change invalidates old sessions and old username login — pass;
+- new username authenticates with unchanged password — pass;
+- wrong current password blocks password change — pass;
+- successful password change invalidates old sessions and old password login — pass;
+- forgotten-password response is enumeration-safe — pass;
+- non-Owner cannot list reset requests — pass;
+- Owner can see and issue a pending reset — pass;
+- database stores token digest, not plaintext token — pass;
+- reset completion invalidates existing sessions — pass;
+- reset token reuse fails — pass;
+- old password fails and reset password authenticates — pass;
+- required account-security/notification events exist — pass;
+- `database_canonical=false`, `migration_baseline_accepted=false`, read-only inventory boundary, and F6B test-only status remain unchanged — pass.
 
 ## Explicit non-scope
 
@@ -163,3 +175,7 @@ Deployment acceptance must verify with a temporary non-Owner account:
 - Telegram/Flutter stock mutation;
 - Sheet mirror conversion;
 - PostgreSQL canonical promotion.
+
+## Next authorized slice
+
+F7.2C is complete. The next authorized implementation slice is **F7.2D — AI Agent Management & delegated authority**. Do not pull F7.3 operational Audit, inventory writes, AI writes, store transfers, Calculator deductions, Telegram/Flutter stock mutation, Sheet mirror conversion, or canonical promotion into F7.2D unless a strict prerequisite is separately authorized.

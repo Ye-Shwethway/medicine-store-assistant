@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Architecture Index
 
-Status: **F7.2A canonical human identity/sessions and F7.2B User Management verified; F7.2C Credential Lifecycle next; PostgreSQL remains non-canonical**
+Status: **F7.2A canonical human identity/sessions, F7.2B User Management, and F7.2C Credential Lifecycle verified; F7.2D AI Agent Management next; PostgreSQL remains non-canonical**
 
 This directory defines the future canonical architecture for Medicine Store Assistant beyond the current spreadsheet-operating skill.
 
@@ -29,12 +29,14 @@ MSA evolves toward a ledger-backed multi-client inventory system in which:
 
 F7.2A is deployed and runtime-verified. Human accounts use the existing F2 canonical `users` / `roles` / `user_roles` foundation with stable UUID `user_id`, username + password, `PENDING` / `ACTIVE` / `DISABLED` state, durable DB-bound revocable sessions, backend role helpers, explicit authenticated 403 behavior, and disabled-user enforcement.
 
-F7.2B is also deployed and runtime-verified. It adds pending-only access requests, Owner-only human User Management, approval/rejection and `ADMIN` / `STAFF` / `READ_ONLY` assignment, non-Owner role changes with session revocation, disable/reactivate/session revoke, OWNER ordinary-flow escalation protection, account-security events, reusable notification events, and a signed-in drawer/sidebar profile card with circular avatar area, deterministic initials fallback, canonical username, and role. User Management remains separate from operational Audit.
+F7.2B is deployed and runtime-verified. It adds pending-only access requests, Owner-only human User Management, approval/rejection and `ADMIN` / `STAFF` / `READ_ONLY` assignment, non-Owner role changes with session revocation, disable/reactivate/session revoke, OWNER ordinary-flow escalation protection, account-security events, reusable notification events, and a signed-in drawer/sidebar profile card with circular avatar area, deterministic initials fallback, canonical username, and role. User Management remains separate from operational Audit.
+
+F7.2C is deployed and runtime-verified. Username is now a mutable sign-in/display credential while stable `user_id`, role, and state remain authoritative. Active users can change username or password through the signed-in Account surface after current-password re-authentication. Credential changes increment credential version and revoke prior sessions. Public forgot-password requests are enumeration-safe. Owner User Management can review and issue short-lived single-use reset links; persistent storage retains only keyed token digest/verifier material. The initial bootstrap username `owner` can be replaced through Account without changing the `OWNER` role. Profile-image upload/edit remains separately deferred.
 
 Current direction continues with:
 
-- F7.2C Credential Lifecycle next;
-- F7.2D Owner-only AI Agent Management after F7.2C;
+- F7.2D Owner-only AI Agent Management next;
+- F7.3 actor-aware operational Audit after F7.2D;
 - exactly one Main Store plus Owner-created Sub Stores later in F7.4;
 - Owner-only global Settings in its later authorized slice;
 - Owner-configurable reorder basis (`MAIN_STORE_ONLY` initially, later optional `TOTAL_ACTIVE_STOCK`);
@@ -47,7 +49,9 @@ Current direction continues with:
 
 Verified F7.2A anchor: PR #36, merge `c3aa75d65e0bc6d1836227fe8450b0b3de5b2651`, deploy run `32586385336`.
 
-Verified F7.2B anchor: PR #38, merge `e4671c75ab2ece2a6f5065a78779413ef3e9f38b`, deploy run `32588170791`, job `97067607202`. Deployment preserved `database_canonical=false`, `migration_baseline_accepted=false`, public User Management gate 401, and performed no live workbook import or inventory mutation.
+Verified F7.2B anchor: PR #38, merge `e4671c75ab2ece2a6f5065a78779413ef3e9f38b`, deploy run `32588170791`, job `97067607202`.
+
+Verified F7.2C anchor: PR #40, merge `a910658efc3cbc214b30a1f5ed946fdd34ffe4a2`, deploy run `32589571152`, job `97071112514`. Alembic `0006_user_management -> 0007_credential_lifecycle`, username/password self-service, enumeration-safe reset request, Owner reset issuance, digest-only token persistence, single-use reset, credential-session invalidation, and Account UI all passed runtime acceptance. Deployment preserved `database_canonical=false`, `migration_baseline_accepted=false`, F6B test-only status, anonymous private/User Management gate 401, and performed no live workbook import or inventory mutation.
 
 ## Documents
 
@@ -62,9 +66,11 @@ Verified F7.2B anchor: PR #38, merge `e4671c75ab2ece2a6f5065a78779413ef3e9f38b`,
 9. [MIGRATION_AND_SHADOW_VALIDATION.md](MIGRATION_AND_SHADOW_VALIDATION.md) — migration and canonical-promotion safety.
 10. [DECISIONS_AND_OPEN_QUESTIONS.md](DECISIONS_AND_OPEN_QUESTIONS.md) — locked direction and unresolved gates.
 11. [F7_WEB_DASHBOARD.md](F7_WEB_DASHBOARD.md) — locked Dashboard v2.4 read-only foundation.
-12. [F7_2D_AI_AGENT_MANAGEMENT.md](F7_2D_AI_AGENT_MANAGEMENT.md) — Owner-only AI/service principal management, capabilities, delegation, Main/Sub scope, and `$msa` workflow parity.
-13. [F7_3_ACTOR_AUDIT_AND_OPERATION_LEDGER.md](F7_3_ACTOR_AUDIT_AND_OPERATION_LEDGER.md) — human/AI/system/integration provenance and operation ledger.
-14. [F7_4_F7_8_STORE_AND_INTELLIGENCE_ARCHITECTURE.md](F7_4_F7_8_STORE_AND_INTELLIGENCE_ARCHITECTURE.md) — Main/Sub locations, Settings/preferences, Smart Calculator, Smart Analysis, AI Chat, Alerts.
+12. `../design/F7_2_AUTH_RBAC_DESIGN.md` — canonical human identity/RBAC design and verified account lifecycle.
+13. `../design/F7_2C_CREDENTIAL_LIFECYCLE_DESIGN.md` — verified F7.2C username/password/reset lifecycle contract and evidence.
+14. [F7_2D_AI_AGENT_MANAGEMENT.md](F7_2D_AI_AGENT_MANAGEMENT.md) — Owner-only AI/service principal management, capabilities, delegation, Main/Sub scope, and `$msa` workflow parity.
+15. [F7_3_ACTOR_AUDIT_AND_OPERATION_LEDGER.md](F7_3_ACTOR_AUDIT_AND_OPERATION_LEDGER.md) — human/AI/system/integration provenance and operation ledger.
+16. [F7_4_F7_8_STORE_AND_INTELLIGENCE_ARCHITECTURE.md](F7_4_F7_8_STORE_AND_INTELLIGENCE_ARCHITECTURE.md) — Main/Sub locations, Settings/preferences, Smart Calculator, Smart Analysis, AI Chat, Alerts.
 
 `F7_4_F7_6_INTELLIGENCE_ARCHITECTURE.md` is superseded and retained only as a historical pointer.
 
