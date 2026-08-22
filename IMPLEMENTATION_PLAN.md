@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Implementation Plan
 
-Status: **F7.2A canonical identity/sessions and F7.2B User Management verified complete; F7.2C Credential Lifecycle is the next implementation slice; production inventory write authority remains unauthorized**
+Status: **F7.2A canonical identity/sessions, F7.2B User Management, and F7.2C Credential Lifecycle verified complete; F7.2D AI Agent Management is the next implementation slice; production inventory write authority remains unauthorized**
 
 This file is the execution contract for the current Medicine Store Assistant architecture. `ROADMAP.md` remains the high-level roadmap; this plan defines implementation order, dependencies, and exit criteria.
 
@@ -64,6 +64,7 @@ Verified complete:
 - F7.1 — read-only Web Dashboard foundation
 - F7.2A — canonical multi-user identity and sessions
 - F7.2B — User Management and signed-in drawer profile
+- F7.2C — Credential Lifecycle and self-service Account security
 
 F6B remains a verified **test-only** live-workbook staging exercise, not an accepted migration baseline.
 
@@ -88,6 +89,24 @@ F7.2B verification evidence:
 - Dashboard profile UI contract passed: drawer/sidebar profile box with circular avatar area, initials fallback, canonical username, and role;
 - public anonymous User Management access remained 401;
 - F6B counts remained unchanged and `database_canonical=false` / `migration_baseline_accepted=false` remained enforced;
+- deployment executed no live workbook import and no inventory mutation.
+
+F7.2C verification evidence:
+
+- PR #40 merged as `a910658efc3cbc214b30a1f5ed946fdd34ffe4a2`;
+- automatic VPS deploy run `32589571152`, job `97071112514`, completed successfully;
+- Alembic `0006_user_management -> 0007_credential_lifecycle` succeeded;
+- self-service username change with current-password re-authentication, old-session invalidation, and old-username login denial passed runtime acceptance;
+- self-service password change with current-password re-authentication, old-session invalidation, and old-password denial passed runtime acceptance;
+- forgotten-password request produced the same public response for known eligible and unknown usernames;
+- Owner reset review/issuance passed while non-Owner reset-list access returned 403;
+- reset storage retained token digest/verifier material rather than plaintext token;
+- reset completion revoked existing sessions and reset-token reuse failed;
+- credential/security and reusable reset notification events persisted;
+- Dashboard Account/Forgot/Owner-reset UI contract passed under Dashboard v2.4 + UI/UX Pro Max rules;
+- initial bootstrap username `owner` is now mutable through Account without changing stable `user_id` or the `OWNER` role;
+- F6B counts remained unchanged and `database_canonical=false` / `migration_baseline_accepted=false` remained enforced;
+- public anonymous private/User Management gates remained 401;
 - deployment executed no live workbook import and no inventory mutation.
 
 ## 4. Product architecture direction
@@ -144,7 +163,7 @@ Purpose: replace the bootstrap password-only Owner bridge with durable human acc
 - PostgreSQL remains non-canonical and F6B remains test-only — pass;
 - no inventory mutation was introduced — pass.
 
-Compatibility note: F7.2A preserved the already-deployed bootstrap PBKDF2 password hash specifically so the Owner could migrate without plaintext access. New credential creation/upgrade policy belongs to F7.2C.
+Compatibility note: F7.2A preserved the already-deployed bootstrap PBKDF2 password hash specifically so the Owner could migrate without plaintext access. F7.2C now owns normal credential maintenance through product UI.
 
 ## F7.2B — User Management — **VERIFIED COMPLETE**
 
@@ -176,7 +195,7 @@ The Web implementation follows the pinned UI/UX Pro Max skill together with the 
 - User Management shows textual `PENDING` / `ACTIVE` / `DISABLED` states and does not rely on color alone;
 - controls are responsive and preserve the read-only inventory UI boundary.
 
-Profile-image upload/editing is intentionally deferred and is not automatically part of F7.2C.
+Profile-image upload/editing remains separately deferred.
 
 ### Verified exit criteria
 
@@ -192,39 +211,56 @@ Profile-image upload/editing is intentionally deferred and is not automatically 
 - account-security and notification events persist — pass;
 - User Management remains separate from operational Audit and AI Agent Management — pass;
 - drawer profile UI contract — pass;
-- no credential-reset lifecycle or inventory mutation was introduced — pass.
+- no inventory mutation was introduced — pass.
 
-## F7.2C — Credential lifecycle — **NEXT**
+## F7.2C — Credential lifecycle — **VERIFIED COMPLETE**
 
-Purpose: credential maintenance without VPS/terminal intervention.
+Purpose: normal username/password maintenance and assisted recovery without VPS/terminal intervention.
 
-### Tasks
+### Implemented
 
+- authenticated username change with current-password re-authentication;
+- existing 3–64 character username contract and case-insensitive uniqueness;
+- stable `user_id`, role, and state preserved across username change;
+- initial bootstrap username `owner` may be replaced through product UI without changing the `OWNER` role;
 - authenticated password change with current-password re-authentication;
-- forgotten-password reset request that does not reveal whether a username exists;
-- Owner-assisted v1 reset approval/issuance;
-- short-lived single-use reset token/link;
-- store only reset-token digest/verifier material after issuance boundary;
-- successful password change/reset increments credential version and invalidates old sessions;
-- security/account event recording;
-- product UI for user change-password and Owner-assisted reset workflow;
-- verified-email recovery only if separate email infrastructure is deliberately added later.
+- new password stored only as a one-way hash;
+- credential-version increment and old-session invalidation after username/password change;
+- public forgotten-password request that does not reveal whether a username exists;
+- durable pending reset request grants no access;
+- Owner-assisted reset review/issuance;
+- cryptographically random short-lived single-use reset token/link;
+- persistent storage retains only keyed reset-token digest/verifier material;
+- reset link uses `/dashboard/login#reset=<token>` so plaintext token is not sent in ordinary HTTP request URLs;
+- reset completion validates expiry/one-use state, replaces the password hash, increments credential version, revokes sessions, consumes the reset, and records security/account events;
+- reusable reset notification events;
+- signed-in `Account` page with separate Change username / Change password cards;
+- login-page `Forgot password?` and one-time reset completion UI;
+- Owner User Management reset queue and copyable issuance-only reset link;
+- UI follows Dashboard v2.4 + pinned UI/UX Pro Max rules.
 
-### Exit criteria
+### Verified exit criteria
 
-- password change works through product UI and requires the correct current password;
-- reset request is enumeration-safe;
-- reset flow is durable, short-lived, and one-use;
-- expired/consumed tokens fail;
-- old sessions fail after change/reset;
-- successful reset permits login only with the new credential;
-- security/account and reusable notification events are verified;
-- normal credential maintenance requires no VPS/terminal intervention;
-- inventory authority flags/read-only boundary remain unchanged.
+- username change works through product UI and requires the correct current password — pass;
+- old username and prior session fail after username change — pass;
+- new username authenticates with unchanged password — pass;
+- password change works through product UI and requires the correct current password — pass;
+- old password and prior session fail after password change — pass;
+- reset request is enumeration-safe — pass;
+- non-Owner cannot list reset requests — pass;
+- Owner can review and issue an eligible reset — pass;
+- reset verifier persists as digest, not plaintext token — pass;
+- reset flow is short-lived and one-use — pass;
+- token reuse fails — pass;
+- old sessions fail after reset — pass;
+- successful reset permits login only with the new credential — pass;
+- security/account and reusable notification events are verified — pass;
+- normal credential maintenance requires no VPS/terminal intervention — pass;
+- inventory authority flags/read-only boundary remain unchanged — pass.
 
-F7.2C must not silently include profile-image upload/editing, F7.2D Agent Management, F7.3 operational Audit, or inventory writes unless separately authorized.
+F7.2C did not include profile-image upload/editing, F7.2D Agent Management, F7.3 operational Audit, or inventory writes.
 
-## F7.2D — AI Agent Management & delegated authority
+## F7.2D — AI Agent Management & delegated authority — **NEXT**
 
 Purpose: create the Owner-only control plane for named AI/service principals while preserving the low-friction `$msa` workflow.
 
@@ -494,8 +530,8 @@ Flutter may provide mobile-optimized card/table views, Smart Calculator, receipt
 
 1. **F7.2A — Canonical multi-user identity** — verified complete
 2. **F7.2B — User Management** — verified complete
-3. **F7.2C — Credential lifecycle** — next
-4. **F7.2D — AI Agent Management & delegated authority**
+3. **F7.2C — Credential lifecycle** — verified complete
+4. **F7.2D — AI Agent Management & delegated authority** — next
 5. **F7.3 — Actor-aware Audit / operation ledger**
 6. **F7.4 — Inventory Locations, Store Policy & Preferences**
 7. **F7.5 — Smart Calculator / receipts, calculation-only**
@@ -510,4 +546,4 @@ Flutter may provide mobile-optimized card/table views, Smart Calculator, receipt
 
 ## Immediate work boundary
 
-The next authorized slice is **F7.2C Credential Lifecycle**. Reuse the verified F7.2A canonical human identity/session/RBAC foundation and F7.2B User Management/security-event foundation. Do not implement F7.2D AI Agent Management, F7.3 operational Audit, production inventory writes, AI writes, store transfers, Calculator deduction, Telegram/Flutter mutation, Sheet mirror conversion, or canonical promotion as part of this slice unless a strict prerequisite is separately authorized.
+The next authorized slice is **F7.2D AI Agent Management & delegated authority**. Reuse the verified F7.2A canonical human identity/session/RBAC foundation, F7.2B User Management/security-event foundation, and F7.2C credential lifecycle. Do not implement F7.3 operational Audit, production inventory writes, AI inventory writes, store transfers, Calculator deduction, Telegram/Flutter mutation, Sheet mirror conversion, or canonical promotion as part of this slice unless a strict prerequisite is separately authorized.
