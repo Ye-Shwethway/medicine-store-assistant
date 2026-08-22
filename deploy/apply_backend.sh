@@ -45,7 +45,7 @@ docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm \
   api python -c 'from app.dashboard_auth import ensure_bootstrap_owner; u=ensure_bootstrap_owner(); print("canonical_owner_bootstrap=pass user_id=" + u["user_id"] + " username=" + u["username"])'
 
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm \
-  api sh -c 'grep -Fq "user-profile-card" app/dashboard_assets/dashboard.html && grep -Fq "User Management" app/dashboard_assets/dashboard.html && grep -Fq "Account security" app/dashboard_assets/dashboard.html && grep -Fq "Change username" app/dashboard_assets/dashboard.html && grep -Fq "Change password" app/dashboard_assets/dashboard.html && grep -Fq "Request access" app/dashboard_assets/login.html && grep -Fq "Forgot password" app/dashboard_assets/login.html && grep -Fq "One-time reset" app/dashboard_assets/login.html && echo "f7_2c_ui_contract=pass"'
+  api sh -c 'grep -Fq "user-profile-card" app/dashboard_assets/dashboard.html && grep -Fq "User Management" app/dashboard_assets/dashboard.html && grep -Fq "Account security" app/dashboard_assets/dashboard.html && grep -Fq "Change username" app/dashboard_assets/dashboard.html && grep -Fq "Change password" app/dashboard_assets/dashboard.html && grep -Fq "Request access" app/dashboard_assets/login.html && grep -Fq "Confirm password" app/dashboard_assets/login.html && grep -Fq "Forgot password" app/dashboard_assets/login.html && grep -Fq "verified recovery email" app/dashboard_assets/login.html && grep -Fq "One-time reset" app/dashboard_assets/login.html && grep -Fq "Recovery email" app/dashboard_assets/recovery_email.html && echo "f7_2c1_ui_contract=pass"'
 
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d api
 
@@ -81,6 +81,7 @@ for route in \
   '/dashboard/api/rows' \
   '/dashboard/api/review-reasons' \
   '/dashboard/api/access-requests' \
+  '/dashboard/api/access-requests/confirmed' \
   '/dashboard/api/users' \
   '/dashboard/api/users/{user_id}/approve' \
   '/dashboard/api/users/{user_id}/reject' \
@@ -90,6 +91,9 @@ for route in \
   '/dashboard/api/users/{user_id}/revoke-sessions' \
   '/dashboard/api/account/username' \
   '/dashboard/api/account/password' \
+  '/dashboard/api/account/recovery-email' \
+  '/dashboard/api/recovery-email-verifications/complete' \
+  '/dashboard/api/password-recovery/request' \
   '/dashboard/api/password-reset-requests' \
   '/dashboard/api/password-reset-requests/{request_id}/issue' \
   '/dashboard/api/password-resets/complete'; do
@@ -100,8 +104,21 @@ LOGIN_BODY="$(curl --fail --silent --show-error "http://127.0.0.1:${API_PORT}/da
 grep -Fq 'Secure dashboard access' <<<"$LOGIN_BODY"
 grep -Fq '>Username<' <<<"$LOGIN_BODY"
 grep -Fq '>Password<' <<<"$LOGIN_BODY"
+grep -Fq 'Confirm password' <<<"$LOGIN_BODY"
 grep -Fq 'Request access' <<<"$LOGIN_BODY"
 grep -Fq 'Forgot password' <<<"$LOGIN_BODY"
+
+CONFIRM_MISMATCH_STATUS="$(curl --silent --output /dev/null --write-out '%{http_code}' -X POST -H 'Content-Type: application/json' -d '{"display_name":"Verifier","username":"confirm-mismatch-verifier","password":"abcdefghij","confirm_password":"abcdefghik"}' "http://127.0.0.1:${API_PORT}/dashboard/api/access-requests/confirmed")"
+if [[ "$CONFIRM_MISMATCH_STATUS" != "400" ]]; then
+  echo "error: confirmed access request mismatch returned HTTP ${CONFIRM_MISMATCH_STATUS}, expected 400" >&2
+  exit 1
+fi
+
+RECOVERY_UNKNOWN_STATUS="$(curl --silent --output /dev/null --write-out '%{http_code}' -X POST -H 'Content-Type: application/json' -d '{"username":"msa-definitely-unknown-recovery-user"}' "http://127.0.0.1:${API_PORT}/dashboard/api/password-recovery/request")"
+if [[ "$RECOVERY_UNKNOWN_STATUS" != "202" ]]; then
+  echo "error: unknown-user automated recovery returned HTTP ${RECOVERY_UNKNOWN_STATUS}, expected enumeration-safe 202" >&2
+  exit 1
+fi
 
 ANON_STATUS="$(curl --silent --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:${API_PORT}/v1/shadow/batches")"
 if [[ "$ANON_STATUS" != "401" ]]; then
@@ -118,6 +135,12 @@ fi
 ANON_ACCOUNT_STATUS="$(curl --silent --output /dev/null --write-out '%{http_code}' -X POST -H 'Content-Type: application/json' -d '{"current_password":"x","new_password":"1234567890"}' "http://127.0.0.1:${API_PORT}/dashboard/api/account/password")"
 if [[ "$ANON_ACCOUNT_STATUS" != "401" && "$ANON_ACCOUNT_STATUS" != "503" ]]; then
   echo "error: anonymous account credential change returned HTTP ${ANON_ACCOUNT_STATUS}, expected 401 or fail-closed 503" >&2
+  exit 1
+fi
+
+ANON_RECOVERY_EMAIL_STATUS="$(curl --silent --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:${API_PORT}/dashboard/api/account/recovery-email")"
+if [[ "$ANON_RECOVERY_EMAIL_STATUS" != "401" && "$ANON_RECOVERY_EMAIL_STATUS" != "503" ]]; then
+  echo "error: anonymous recovery-email state returned HTTP ${ANON_RECOVERY_EMAIL_STATUS}, expected 401 or fail-closed 503" >&2
   exit 1
 fi
 
@@ -162,5 +185,6 @@ echo "shadow_routes=pass shadow_test_batch=pass anonymous_auth_guard=pass"
 echo "f7_2a_identity=pass canonical_owner=pass username_password=pass durable_sessions=pass backend_rbac=pass access_denied_403=pass disabled_user_denied=pass"
 echo "f7_2b_user_management=pass request_pending=pass approval=pass rejection=pass role_assignment=pass disable_reactivate=pass session_revoke=pass owner_escalation_guard=pass account_events=pass notification_events=pass profile_ui=pass"
 echo "f7_2c_credential_lifecycle=pass username_change=pass password_change=pass current_password_reauth=pass reset_enumeration_safe=pass owner_reset_issue=pass reset_token_digest_only=pass reset_single_use=pass credential_session_revoke=pass credential_events=pass account_ui=pass"
+echo "f7_2c1_email_recovery_foundation=pass confirm_password=pass automated_recovery_enumeration_safe=pass recovery_email_auth_guard=pass provider_activation_optional=pass"
 echo "dashboard_public_route=pass dashboard_public_private_gate=pass:${PUBLIC_PRIVATE_STATUS} user_management_public_gate=pass:${PUBLIC_USERS_STATUS} public_base=${PUBLIC_BASE_URL}"
 echo "MSA backend deployed at ${CURRENT_SHA}; inventory remains read-only; no live workbook import executed."
