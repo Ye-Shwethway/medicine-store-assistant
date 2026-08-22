@@ -31,7 +31,7 @@ F7.2A is deployed and runtime-verified. Human accounts use the existing F2 canon
 
 F7.2B is deployed and runtime-verified. It adds pending-only access requests, Owner-only human User Management, approval/rejection and `ADMIN` / `STAFF` / `READ_ONLY` assignment, non-Owner role changes with session revocation, disable/reactivate/session revoke, OWNER ordinary-flow escalation protection, account-security events, reusable notification events, and a signed-in drawer/sidebar profile card with circular avatar area, deterministic initials fallback, canonical username, and role. User Management remains separate from operational Audit.
 
-F7.2C is deployed and runtime-verified. Username is now a mutable sign-in/display credential while stable `user_id`, role, and state remain authoritative. Active users can change username or password through the signed-in Account surface after current-password re-authentication. Credential changes increment credential version and revoke prior sessions. Public forgot-password requests are enumeration-safe. Owner User Management can review and issue short-lived single-use reset links; persistent storage retains only keyed token digest/verifier material. The initial bootstrap username `owner` can be replaced through Account without changing the `OWNER` role. Profile-image upload/edit remains separately deferred.
+F7.2C is deployed and runtime-verified. Username is a mutable sign-in/display credential while stable `user_id`, role, and state remain authoritative. Active users can change username/password from Account after current-password re-authentication. Password change includes explicit confirmation and revokes prior sessions. Recovery email is now product-native: users can verify/change a recovery address through Account, Forgot password accepts either username or verified recovery email, and automated reset links are sent through the verified Resend domain `msamail.drthorne.uk`. Owner-assisted reset issuance remains a fallback. Request Access now collects a recovery email and can verify it while the account remains `PENDING`; email verification never grants a role or protected access. The final verified production source SHA is `371936e0c7088c76f692292d31318cfd972a1a46`.
 
 Current direction continues with:
 
@@ -51,7 +51,7 @@ Verified F7.2A anchor: PR #36, merge `c3aa75d65e0bc6d1836227fe8450b0b3de5b2651`,
 
 Verified F7.2B anchor: PR #38, merge `e4671c75ab2ece2a6f5065a78779413ef3e9f38b`, deploy run `32588170791`, job `97067607202`.
 
-Verified F7.2C anchor: PR #40, merge `a910658efc3cbc214b30a1f5ed946fdd34ffe4a2`, deploy run `32589571152`, job `97071112514`. Alembic `0006_user_management -> 0007_credential_lifecycle`, username/password self-service, enumeration-safe reset request, Owner reset issuance, digest-only token persistence, single-use reset, credential-session invalidation, and Account UI all passed runtime acceptance. Deployment preserved `database_canonical=false`, `migration_baseline_accepted=false`, F6B test-only status, anonymous private/User Management gate 401, and performed no live workbook import or inventory mutation.
+Verified F7.2C base anchor: PR #40, merge `a910658efc3cbc214b30a1f5ed946fdd34ffe4a2`, deploy run `32589571152`, job `97071112514`. Final recovery/account refinements are recorded in `../design/F7_2C_CREDENTIAL_LIFECYCLE_DESIGN.md`; the final runtime source SHA `371936e0c7088c76f692292d31318cfd972a1a46` deployed successfully through issue #26. The final state includes verified recovery email, Resend delivery, username-or-email reset, password confirmation, pending-access email verification, and the same read-only/non-canonical boundaries.
 
 ## Documents
 
@@ -67,7 +67,7 @@ Verified F7.2C anchor: PR #40, merge `a910658efc3cbc214b30a1f5ed946fdd34ffe4a2`,
 10. [DECISIONS_AND_OPEN_QUESTIONS.md](DECISIONS_AND_OPEN_QUESTIONS.md) — locked direction and unresolved gates.
 11. [F7_WEB_DASHBOARD.md](F7_WEB_DASHBOARD.md) — locked Dashboard v2.4 read-only foundation.
 12. `../design/F7_2_AUTH_RBAC_DESIGN.md` — canonical human identity/RBAC design and verified account lifecycle.
-13. `../design/F7_2C_CREDENTIAL_LIFECYCLE_DESIGN.md` — verified F7.2C username/password/reset lifecycle contract and evidence.
+13. `../design/F7_2C_CREDENTIAL_LIFECYCLE_DESIGN.md` — verified username/password/recovery-email lifecycle, Resend delivery, automated reset, and access-request email verification.
 14. [F7_2D_AI_AGENT_MANAGEMENT.md](F7_2D_AI_AGENT_MANAGEMENT.md) — Owner-only AI/service principal management, capabilities, delegation, Main/Sub scope, and `$msa` workflow parity.
 15. [F7_3_ACTOR_AUDIT_AND_OPERATION_LEDGER.md](F7_3_ACTOR_AUDIT_AND_OPERATION_LEDGER.md) — human/AI/system/integration provenance and operation ledger.
 16. [F7_4_F7_8_STORE_AND_INTELLIGENCE_ARCHITECTURE.md](F7_4_F7_8_STORE_AND_INTELLIGENCE_ARCHITECTURE.md) — Main/Sub locations, Settings/preferences, Smart Calculator, Smart Analysis, AI Chat, Alerts.
