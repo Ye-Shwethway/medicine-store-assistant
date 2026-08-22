@@ -24,13 +24,14 @@ docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" build api
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d db
 
 for _ in $(seq 1 30); do
-  if docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T db pg_isready \
-      -U "${POSTGRES_USER:-msa}" -d "${POSTGRES_DB:-msa}" >/dev/null 2>&1; then
+  if docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T db \
+      sh -c 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"' >/dev/null 2>&1; then
     break
   fi
   sleep 1
-docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T db pg_isready \
-  -U "${POSTGRES_USER:-msa}" -d "${POSTGRES_DB:-msa}" >/dev/null
+done
+docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T db \
+  sh -c 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"' >/dev/null
 
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm api alembic upgrade head
 
