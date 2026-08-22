@@ -54,6 +54,7 @@ def _cleanup_users(engine, user_ids: list[str]) -> None:
     with engine.begin() as connection:
         for user_id in user_ids:
             params = {"user_id": user_id}
+            connection.execute(text("DELETE FROM password_reset_requests WHERE user_id = CAST(:user_id AS uuid)"), params)
             connection.execute(text("DELETE FROM notification_events WHERE subject_user_id = CAST(:user_id AS uuid)"), params)
             connection.execute(text("DELETE FROM account_security_events WHERE target_user_id = CAST(:user_id AS uuid)"), params)
             connection.execute(text("DELETE FROM access_requests WHERE user_id = CAST(:user_id AS uuid)"), params)
@@ -89,17 +90,19 @@ def main() -> None:
     engine = _engine()
     created_user_ids: list[str] = []
     active_cookie: str | None = None
-    reject_username = f"f72b-reject-{secrets.token_hex(5)}"
-    username = f"f72b-verify-{secrets.token_hex(5)}"
+    reject_username = f"f72c-reject-{secrets.token_hex(5)}"
+    username = f"f72c-verify-{secrets.token_hex(5)}"
+    changed_username = f"f72c-renamed-{secrets.token_hex(5)}"
     password = secrets.token_urlsafe(18)
+    password_after_change = secrets.token_urlsafe(18)
+    password_after_reset = secrets.token_urlsafe(18)
     try:
-        # Public request creates PENDING identity only; it cannot authenticate yet.
         requested = _request_json(
             base_url,
             "/dashboard/api/access-requests",
             expected_status=202,
             method="POST",
-            payload={"display_name": "F7.2B verification user", "username": username, "password": password},
+            payload={"display_name": "F7.2C verification user", "username": username, "password": password},
         )
         if requested.get("requested") is not True:
             raise SystemExit("F7.2B verification failed: request access response was not accepted")
@@ -149,7 +152,6 @@ def main() -> None:
         if denied.get("detail") != "Access denied":
             raise SystemExit("F7.2B verification failed: non-Owner User Management did not return Access denied")
 
-        # Ordinary User Management cannot alter the Owner role/account.
         owner_protected = _request_json(
             base_url,
             f"/dashboard/api/users/{owner['user_id']}/role",
@@ -199,6 +201,133 @@ def main() -> None:
         _request_json(base_url, "/dashboard/api/overview", active_cookie, expected_status=401)
         active_cookie = None
 
+        # F7.2C: username maintenance requires current-password re-authentication and invalidates prior sessions.
+        active_cookie = create_session_token(user_id)
+        wrong_username_change = _request_json(
+            base_url,
+            "/dashboard/api/account/username",
+            active_cookie,
+            expected_status=401,
+            method="PATCH",
+            payload={"current_password": "definitely-wrong", "new_username": changed_username},
+        )
+        if wrong_username_change.get("detail") != "Current password is incorrect":
+            raise SystemExit("F7.2C verification failed: username change did not re-authenticate current password")
+        username_change = _request_json(
+            base_url,
+            "/dashboard/api/account/username",
+            active_cookie,
+            method="PATCH",
+            payload={"current_password": password, "new_username": changed_username},
+        )
+        if username_change.get("username") != changed_username or username_change.get("sessions_revoked") is not True:
+            raise SystemExit("F7.2C verification failed: username change failed")
+        _request_json(base_url, "/dashboard/api/overview", active_cookie, expected_status=401)
+        active_cookie = None
+        if authenticate_user(username, password) is not None:
+            raise SystemExit("F7.2C verification failed: old username still authenticated")
+        if authenticate_user(changed_username, password) is None:
+            raise SystemExit("F7.2C verification failed: new username did not authenticate")
+
+        # Password change also re-authenticates and invalidates every existing session.
+        active_cookie = create_session_token(user_id)
+        wrong_password_change = _request_json(
+            base_url,
+            "/dashboard/api/account/password",
+            active_cookie,
+            expected_status=401,
+            method="POST",
+            payload={"current_password": "definitely-wrong", "new_password": password_after_change},
+        )
+        if wrong_password_change.get("detail") != "Current password is incorrect":
+            raise SystemExit("F7.2C verification failed: password change did not re-authenticate current password")
+        password_change = _request_json(
+            base_url,
+            "/dashboard/api/account/password",
+            active_cookie,
+            method="POST",
+            payload={"current_password": password, "new_password": password_after_change},
+        )
+        if password_change.get("changed") is not True or password_change.get("sessions_revoked") is not True:
+            raise SystemExit("F7.2C verification failed: password change failed")
+        _request_json(base_url, "/dashboard/api/overview", active_cookie, expected_status=401)
+        active_cookie = None
+        if authenticate_user(changed_username, password) is not None:
+            raise SystemExit("F7.2C verification failed: old password still authenticated after password change")
+        if authenticate_user(changed_username, password_after_change) is None:
+            raise SystemExit("F7.2C verification failed: new password did not authenticate")
+
+        # Forgot-password request is enumeration-safe for unknown and eligible usernames.
+        unknown_reset = _request_json(
+            base_url,
+            "/dashboard/api/password-reset-requests",
+            expected_status=202,
+            method="POST",
+            payload={"username": f"missing-{secrets.token_hex(6)}"},
+        )
+        known_reset = _request_json(
+            base_url,
+            "/dashboard/api/password-reset-requests",
+            expected_status=202,
+            method="POST",
+            payload={"username": changed_username},
+        )
+        if unknown_reset != known_reset:
+            raise SystemExit("F7.2C verification failed: password reset request disclosed account existence")
+
+        reset_requests = _request_json(base_url, "/dashboard/api/password-reset-requests", owner_cookie)
+        pending_reset = next((item for item in reset_requests.get("items", []) if item.get("user_id") == user_id and item.get("status") == "PENDING"), None)
+        if pending_reset is None:
+            raise SystemExit("F7.2C verification failed: Owner did not see pending password reset request")
+        _request_json(base_url, "/dashboard/api/password-reset-requests", create_session_token(user_id), expected_status=403)
+
+        active_cookie = create_session_token(user_id)
+        issued = _request_json(
+            base_url,
+            f"/dashboard/api/password-reset-requests/{pending_reset['request_id']}/issue",
+            owner_cookie,
+            method="POST",
+        )
+        reset_fragment = issued.get("reset_fragment", "")
+        if not reset_fragment.startswith("#reset=") or not issued.get("expires_at"):
+            raise SystemExit("F7.2C verification failed: reset issuance did not return a short-lived one-time link")
+        reset_token = reset_fragment.split("=", 1)[1]
+        with engine.connect() as connection:
+            persisted = connection.execute(
+                text(
+                    """
+                    SELECT token_digest, status
+                    FROM password_reset_requests
+                    WHERE password_reset_request_id = CAST(:request_id AS uuid)
+                    """
+                ),
+                {"request_id": pending_reset["request_id"]},
+            ).mappings().one()
+        if persisted["status"] != "ISSUED" or not persisted["token_digest"] or persisted["token_digest"] == reset_token:
+            raise SystemExit("F7.2C verification failed: reset token persistence boundary is invalid")
+
+        completed = _request_json(
+            base_url,
+            "/dashboard/api/password-resets/complete",
+            method="POST",
+            payload={"token": reset_token, "new_password": password_after_reset},
+        )
+        if completed.get("completed") is not True or completed.get("sessions_revoked") is not True:
+            raise SystemExit("F7.2C verification failed: reset completion failed")
+        _request_json(base_url, "/dashboard/api/overview", active_cookie, expected_status=401)
+        active_cookie = None
+        _request_json(
+            base_url,
+            "/dashboard/api/password-resets/complete",
+            expected_status=400,
+            method="POST",
+            payload={"token": reset_token, "new_password": secrets.token_urlsafe(18)},
+        )
+        if authenticate_user(changed_username, password_after_change) is not None:
+            raise SystemExit("F7.2C verification failed: pre-reset password still authenticated")
+        if authenticate_user(changed_username, password_after_reset) is None:
+            raise SystemExit("F7.2C verification failed: reset password did not authenticate")
+
         # Rejection path remains non-authenticating and durable.
         reject_password = secrets.token_urlsafe(18)
         _request_json(
@@ -206,7 +335,7 @@ def main() -> None:
             "/dashboard/api/access-requests",
             expected_status=202,
             method="POST",
-            payload={"display_name": "F7.2B rejected user", "username": reject_username, "password": reject_password},
+            payload={"display_name": "F7.2C rejected user", "username": reject_username, "password": reject_password},
         )
         with engine.connect() as connection:
             rejected_id = connection.execute(
@@ -227,9 +356,34 @@ def main() -> None:
                     {"user_id": user_id},
                 ).all()
             }
-        expected_events = {"ACCESS_REQUEST_CREATED", "ACCESS_APPROVED", "ROLE_CHANGED", "ACCOUNT_DISABLED", "ACCOUNT_REACTIVATED", "SESSIONS_REVOKED"}
+            reset_notification_count = connection.execute(
+                text(
+                    """
+                    SELECT COUNT(*)
+                    FROM notification_events
+                    WHERE subject_user_id = CAST(:user_id AS uuid)
+                      AND event_type IN ('PASSWORD_RESET_REQUESTED','PASSWORD_RESET_ISSUED')
+                    """
+                ),
+                {"user_id": user_id},
+            ).scalar_one()
+        expected_events = {
+            "ACCESS_REQUEST_CREATED",
+            "ACCESS_APPROVED",
+            "ROLE_CHANGED",
+            "ACCOUNT_DISABLED",
+            "ACCOUNT_REACTIVATED",
+            "SESSIONS_REVOKED",
+            "USERNAME_CHANGED",
+            "PASSWORD_CHANGED",
+            "PASSWORD_RESET_REQUESTED",
+            "PASSWORD_RESET_ISSUED",
+            "PASSWORD_RESET_COMPLETED",
+        }
         if not expected_events.issubset(event_types):
-            raise SystemExit("F7.2B verification failed: account security event history incomplete")
+            raise SystemExit("F7.2 verification failed: account security event history incomplete")
+        if int(reset_notification_count) < 2:
+            raise SystemExit("F7.2C verification failed: reset notification events incomplete")
     finally:
         if active_cookie:
             revoke_session_token(active_cookie)
@@ -247,6 +401,12 @@ def main() -> None:
         "F7.2B user_management_runtime=pass request_pending=pass pending_denied=pass owner_list=pass approve=pass "
         "assign_role=pass non_owner_403=pass owner_escalation_guard=pass role_change_revokes=pass disable=pass "
         "reactivate=pass explicit_session_revoke=pass reject=pass account_events=pass notification_events=pass"
+    )
+    print(
+        "F7.2C credential_lifecycle_runtime=pass username_change=pass username_reauth=pass username_session_revoke=pass "
+        "password_change=pass password_reauth=pass password_session_revoke=pass reset_enumeration_safe=pass "
+        "owner_reset_review=pass token_digest_only=pass reset_single_use=pass reset_session_revoke=pass "
+        "credential_events=pass reset_notifications=pass"
     )
 
 
