@@ -27,6 +27,9 @@ docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm \
   api python -m app.dashboard_verify
 
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm \
+  api python -m app.dashboard_login_verify
+
+docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm \
   api python -m app.shadow_read_verify
 
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d api
@@ -48,7 +51,7 @@ wait_for_url() {
 
 wait_for_url "http://127.0.0.1:${API_PORT}/health"
 wait_for_url "http://127.0.0.1:${API_PORT}/ready"
-wait_for_url "http://127.0.0.1:${API_PORT}/dashboard"
+wait_for_url "http://127.0.0.1:${API_PORT}/dashboard/login"
 wait_for_url "http://127.0.0.1:${API_PORT}/dashboard/api/session"
 
 OPENAPI="$(curl --fail --silent --show-error "http://127.0.0.1:${API_PORT}/openapi.json")"
@@ -70,15 +73,20 @@ if [[ "$ANON_STATUS" != "401" ]]; then
   exit 1
 fi
 
+DASHBOARD_REDIRECT="$(curl --silent --output /dev/null --write-out '%{http_code}:%{redirect_url}' "http://127.0.0.1:${API_PORT}/dashboard")"
+case "$DASHBOARD_REDIRECT" in
+  307:*'/dashboard/login') ;;
+  *) echo "error: unauthenticated dashboard did not redirect to dedicated login: ${DASHBOARD_REDIRECT}" >&2; exit 1 ;;
+esac
+
 DASHBOARD_PRIVATE_STATUS="$(curl --silent --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:${API_PORT}/dashboard/api/overview")"
 if [[ "$DASHBOARD_PRIVATE_STATUS" != "401" && "$DASHBOARD_PRIVATE_STATUS" != "503" ]]; then
   echo "error: unauthenticated dashboard BFF returned HTTP ${DASHBOARD_PRIVATE_STATUS}, expected 401 or fail-closed 503" >&2
   exit 1
 fi
 
-# Verify the same application surface through the managed Cloudflare Tunnel/public HTTPS route.
 wait_for_url "${PUBLIC_BASE_URL}/health"
-wait_for_url "${PUBLIC_BASE_URL}/dashboard"
+wait_for_url "${PUBLIC_BASE_URL}/dashboard/login"
 wait_for_url "${PUBLIC_BASE_URL}/dashboard/api/session"
 
 PUBLIC_SESSION="$(curl --fail --silent --show-error "${PUBLIC_BASE_URL}/dashboard/api/session")"
@@ -91,7 +99,7 @@ if [[ "$PUBLIC_PRIVATE_STATUS" != "401" && "$PUBLIC_PRIVATE_STATUS" != "503" ]];
   exit 1
 fi
 
-echo "shadow_routes=pass anonymous_auth_guard=pass"
-echo "dashboard_auth_foundation=pass dashboard_shell=pass dashboard_session_state=pass dashboard_private_gate=pass:${DASHBOARD_PRIVATE_STATUS}"
+echo "shadow_routes=pass shadow_test_batch=pass anonymous_auth_guard=pass"
+echo "dashboard_auth_foundation=pass dedicated_login=pass dashboard_private_gate=pass:${DASHBOARD_PRIVATE_STATUS}"
 echo "dashboard_public_route=pass dashboard_public_private_gate=pass:${PUBLIC_PRIVATE_STATUS} public_base=${PUBLIC_BASE_URL}"
 echo "MSA backend deployed at ${CURRENT_SHA}; no live workbook import executed."
