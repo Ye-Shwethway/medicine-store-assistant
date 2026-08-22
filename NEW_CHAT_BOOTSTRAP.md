@@ -50,15 +50,32 @@ F6B remains test-only:
 - `migration_baseline_accepted=false`
 - `database_canonical=false`
 
-The F7.2 bootstrap Owner flow is now live-verified: dedicated login works, authenticated dashboard data reads work, logout returns to login, and the test snapshot remains intact. The temporary password-only Owner bridge is therefore proven but is **not** the final multi-user credential model.
+The F7.2 bootstrap Owner flow is live-verified: dedicated login works, authenticated dashboard data reads work, logout returns to login, and the test snapshot remains intact. The temporary password-only Owner bridge is proven but is **not** the final multi-user credential model.
 
-## F7 Web Dashboard and identity
+## Product direction
 
-Read before auth/user-management work:
+MSA is being developed as a multi-client intelligent operations system rather than only a database-backed spreadsheet replacement.
+
+Humans, AI agents, integrations, and system jobs will eventually collaborate through the same typed backend across Web, Telegram, Flutter, internal AI, and Custom GPT clients.
+
+The architecture must always preserve:
+
+- canonical actor identity;
+- server-side authorization/delegation;
+- deterministic database truth;
+- actor-aware operation provenance;
+- no arbitrary SQL/client DB credentials;
+- clear separation between calculated facts and AI interpretation.
+
+## F7 Web Application roadmap
+
+Read before current/future work:
 
 - `docs/architecture/F7_WEB_DASHBOARD.md`
 - `docs/design/UI_UX_PRO_MAX_INTEGRATION.md`
 - `docs/design/F7_2_AUTH_RBAC_DESIGN.md`
+- `docs/architecture/F7_3_ACTOR_AUDIT_AND_OPERATION_LEDGER.md`
+- `docs/architecture/F7_4_F7_6_INTELLIGENCE_ARCHITECTURE.md`
 - `design-system/medicine-store-assistant/MASTER.md`
 - `design-system/medicine-store-assistant/pages/dashboard.md`
 - `docs/architecture/F2_SCHEMA_DECISION_PROPOSAL.md`
@@ -67,14 +84,14 @@ Dashboard v2.4 remains the locked visual/interaction baseline.
 
 ## Next authorized slice — F7.2A canonical multi-user identity
 
-Implement the durable identity/session foundation before any production write capability:
+Implement durable identity/session foundation before production writes:
 
 - stable backend `user_id`;
 - username + password;
 - roles `OWNER`, `ADMIN`, `STAFF`, `READ_ONLY`;
 - states `PENDING`, `ACTIVE`, `DISABLED`;
 - user-bound revocable sessions;
-- migrate/bootstrap the existing Owner into the canonical user model;
+- migrate/bootstrap existing Owner into canonical user model;
 - normal Owner login becomes username + password;
 - backend-enforced role authorization;
 - explicit authenticated `403 / Access denied` state;
@@ -100,18 +117,53 @@ Then continue:
 - short-lived single-use reset;
 - revoke old sessions after reset/disable.
 
-### F7.3 — Audit
+### F7.3 — Actor-aware Audit / Operation Ledger
 
-`Audit` is separate from User Management and is reserved for store/database operational history: stock operations, corrections/reversals, imports/syncs, operation IDs, actor/client provenance, timestamps, outcomes, and relevant before/after references.
+`Audit` is separate from User Management and reserved for store/database operational history.
 
-## Future write/sync sequence
+Canonical actor classes are `HUMAN`, `AI_AGENT`, `SYSTEM`, and `INTEGRATION`.
 
-- **F8**: Custom GPT/private API read-only experiment.
-- **F9**: first controlled typed write experiment after RBAC/ledger/idempotency/audit are verified.
+Every meaningful operation should eventually carry stable operation identity plus actor/source provenance. When an AI agent acts for a human, the delegated/authorizing `user_id` must be retained so Audit can distinguish human actions from AI-assisted or autonomous actions.
+
+Audit covers stock operations, corrections/reversals, imports/syncs, operation IDs, actor/client provenance, timestamps, outcomes, affected records, and relevant before/after or ledger references.
+
+### F7.4 — Smart Analysis
+
+Read-only deterministic analytics plus professional dashboard charts/KPIs.
+
+Initial v1 modules:
+
+- Stock Health
+- Usage Trends
+- Expiry Risk
+- Reorder Outlook
+- Price Movement
+- Data Quality
+
+Metrics must be reproducible from SQL/domain formulas/business rules and remain useful if AI is unavailable.
+
+### F7.5 — Internal AI Assistant
+
+Read-only conversational analysis grounded in typed backend analytics/tools.
+
+The Assistant is an identifiable `AI_AGENT`, respects current-user RBAC scope, may explain/drill down/chart database facts, and never receives arbitrary SQL or raw DB credentials.
+
+### F7.6 — Alerts & Notifications
+
+Deterministic alert/event generation first, optional AI explanation second.
+
+Initial direction includes low stock, expiry, unusual usage, data-quality/mapping problems, reconciliation/sync failures, and User Management access/reset notifications.
+
+One backend event should later be reusable across Web, Telegram, Flutter, and other notification channels.
+
+## Future integration/write sequence
+
+- **F8**: external/Custom GPT read-only integration reusing approved read/analytics APIs.
+- **F9**: first controlled typed write experiment after identity/RBAC/ledger/idempotency/actor-audit are verified.
 - **F10**: dual real-workflow + Google Sheet sync/mirror validation.
 - **F11**: explicit canonical promotion only after fresh migration, parity, backup/restore, audit, sync, and rollback proof.
 
-Clients such as Web, Telegram, ChatGPT/Custom GPT, and Flutter must use typed Inventory API operations. No arbitrary SQL, no direct LLM-to-DB credentials, and no direct LLM-to-Sheet mutation.
+Clients and AI agents must use typed Inventory API operations. No arbitrary SQL, no direct LLM-to-DB credentials, and no direct LLM-to-Sheet mutation.
 
 ## Safety boundary
 
