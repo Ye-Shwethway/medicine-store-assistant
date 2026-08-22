@@ -20,7 +20,7 @@ Future clients/actors include Web, Telegram, Flutter, internal MSA AI Assistant,
 
 All clients use the same typed backend contracts, canonical identities, role/delegation rules, store-location scope, preferences, audit, analytics, calculator/receipt flows, and later controlled inventory operations. No client or AI agent receives arbitrary SQL or raw database credentials.
 
-The new architecture preserves the useful `$msa` workflow: source evidence is reconciled against current truth, classified as `SAFE` / `REVIEW` / `CONFLICT` / `NEW_UNMAPPED`, routine SAFE operations may run inside an Owner-preauthorized workflow, ambiguous/high-risk cases return for human review, successful writes require read-back verification, and significant operations remain auditable. fileciteturn431file0 fileciteturn431file2
+The new architecture preserves the useful `$msa` workflow: source evidence is reconciled against current truth, classified as `SAFE` / `REVIEW` / `CONFLICT` / `NEW_UNMAPPED`, routine SAFE operations may run inside an Owner-preauthorized workflow, ambiguous/high-risk cases return for human review, successful writes require read-back verification, and significant operations remain auditable.
 
 ## Verified foundation
 
