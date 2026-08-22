@@ -1,184 +1,222 @@
 # Medicine Store Assistant — Implementation Plan
 
-Status: **planning complete enough for foundation work; production write authority not yet authorized**
+Status: **foundation and read-only dashboard verified; F7.2A canonical multi-user identity is the next implementation slice; production write authority is not yet authorized**
 
 This plan translates the approved architecture into small, reversible implementation slices. It does not replace `ROADMAP.md`; it defines execution order and exit criteria.
 
 ## Global rules
 
 - Preserve `skills/medicine-store-assistant/` unchanged as the canonical Git-backed skill source.
-- No production database canonicality until shadow validation and explicit promotion.
+- Google Sheets remains operationally authoritative until explicit canonical promotion.
+- PostgreSQL deployment alone does not make the database canonical.
 - No client receives arbitrary SQL or database credentials.
+- LLM/Custom GPT/Telegram/Flutter clients call typed backend operations only.
 - Secrets never enter the public repository.
-- Every slice must leave `NEW_CHAT_BOOTSTRAP.md`, `ROADMAP.md`, and relevant canonical docs current.
-- Prefer the smallest runnable slice; avoid Redis, queues, microservices, managed paid databases, or other infrastructure without a concrete need.
+- Every significant slice leaves `NEW_CHAT_BOOTSTRAP.md`, `ROADMAP.md`, `IMPLEMENTATION_PLAN.md`, and relevant canonical docs current.
+- Prefer the smallest runnable slice; avoid unnecessary infrastructure.
+- Normal continuation uses connected tools + repository automation + self-hosted runner; do not require Termux/SSH/Bamboo/manual Actions from the owner.
 
-## Slice F0 — Infrastructure inspection and safe host preparation
+## Completed foundation — F0 through F6C
 
-Purpose: prepare the existing VPS without deploying inventory logic.
+F0, F1, F2, F3, F4, F5, F5.1, F6A, and F6C are verified complete.
 
-Tasks:
-- inspect OS, CPU/RAM/disk, Docker/Compose, reverse proxy, firewall, existing services, free ports, backup storage, and Git access;
-- choose a dedicated host path and service user;
-- install only missing baseline packages required for Docker/Compose/PostgreSQL deployment;
-- do not expose a public inventory port yet;
-- do not create production data or credentials in Git.
+F6B is a verified **test-only** live-workbook staging exercise. It is not an accepted migration baseline and must not be promoted.
 
-Exit criteria:
-- documented VPS inventory and conflicts;
-- reserved service path;
-- Docker/Compose usable;
-- no existing production service disturbed.
+## F7 — Web Dashboard, identity, management, and audit
 
-## Slice F1 — Repository runtime skeleton
+### F7.1 — Read-only Web Dashboard — verified complete
 
-Purpose: establish sibling implementation areas while preserving the skill.
+Verified public HTTPS dashboard, dedicated Owner login, authenticated test-only data reads, logout flow, and non-canonical/test-data indicators.
 
-Create minimal structure:
-- `backend/`
-- `deploy/`
-- `integrations/custom-gpt/`
-- `integrations/google-sheets/`
-- `docs/operations/`
+### F7.2A — Canonical multi-user identity and sessions — next
 
-Add a minimal API service with:
-- `/health`
-- build/version metadata
-- no canonical inventory writes
-- no production database dependency required for the health endpoint.
-
-Exit criteria:
-- local build passes;
-- container starts;
-- health endpoint returns deterministic response.
-
-## Slice F2 — PostgreSQL foundation
-
-Purpose: create an isolated database foundation without importing live inventory yet.
+Purpose: replace the bootstrap password-only Owner bridge with durable human accounts before any production write capability is considered.
 
 Tasks:
-- PostgreSQL container/service on private Docker network;
-- database/user created through runtime secrets;
-- migration mechanism;
-- connection health/readiness;
-- initial schema only after gated domain decisions are locked;
-- no public database port.
+
+- add canonical human-account schema with stable `user_id`;
+- unique mutable username;
+- password hash and password metadata;
+- role enum/constraint: `OWNER`, `ADMIN`, `STAFF`, `READ_ONLY`;
+- status: `PENDING`, `ACTIVE`, `DISABLED`;
+- canonical user-bound session model or equivalent revocable session state;
+- migrate/bootstrap the existing Owner into the user model without exposing the plaintext password;
+- change Owner login to username + password;
+- implement backend role authorization helpers;
+- explicit `403 / Access denied` UX/state;
+- session revocation on disable/security events;
+- preserve read-only inventory boundary.
 
 Exit criteria:
-- migrations can apply from empty database;
-- clean reset works in non-production environment;
-- API can connect with least-privilege application credentials.
 
-## Slice F3 — Core read-only domain model
+- canonical Owner login uses username + password;
+- Owner session resolves to stable `user_id` and `OWNER` role;
+- role checks are server-side;
+- disabled user cannot continue using protected sessions;
+- READ_ONLY/STAFF/ADMIN/OWNER policy tests are deterministic;
+- no inventory write capability added.
 
-Purpose: encode stable identity and deterministic reads before real writes.
+### F7.2B — User Management
 
-Initial entities:
-- products;
-- product lots;
-- operating months;
-- CMS catalogue versions/items;
-- audit metadata foundation.
-
-Add read-only API endpoints for diagnostics and empty/test fixtures only.
-
-Exit criteria:
-- constraints enforce stable identity rules;
-- no spreadsheet row number is a primary identity;
-- no CMS code is a local primary key.
-
-## Slice F4 — Ledger primitives in isolated test mode
-
-Purpose: implement receipt, usage, opening, and adjustment mechanics with synthetic data only.
-
-Requirements:
-- typed domain operations;
-- idempotency keys;
-- atomic transactions;
-- reversal/correction links;
-- deterministic balance calculation;
-- audit event for every committed operation.
-
-Exit criteria:
-- duplicate replay cannot duplicate stock movement;
-- failed multi-step operation rolls back;
-- derived balance exactly reconciles with ledger.
-
-## Slice F5 — CMS catalogue versioning
-
-Purpose: prove full catalogue import/version/diff capability.
+Purpose: create durable account provisioning and access approval without unrestricted active self-registration.
 
 Tasks:
-- import a non-sensitive sample catalogue first;
-- hash/version metadata;
-- deterministic diff for new/removed/changed rows;
-- current-version projection;
-- no automatic local product remapping from code alone.
+
+- dedicated `User Management` navigation/screen;
+- `Request access` flow creates pending request/account only;
+- pending account receives no private inventory access;
+- Owner sees pending requests in product UI;
+- Owner can approve/reject and assign `ADMIN`, `STAFF`, or `READ_ONLY`;
+- ADMIN cannot grant or promote `OWNER`;
+- Owner creation/promotion uses a separate high-risk flow, not an ordinary dropdown;
+- disable/reactivate behavior;
+- account/role/status changes recorded as security events;
+- define notification event contract so Telegram can later mirror pending approvals without becoming the authorization source.
 
 Exit criteria:
-- repeated same import is idempotent;
-- historical versions remain queryable.
 
-## Slice F6 — Shadow migration adapter
+- pending request cannot access inventory;
+- Owner approval activates correct role;
+- rejection remains denied;
+- role escalation boundaries are enforced by backend tests;
+- User Management is separate from store Audit.
 
-Purpose: import a verified snapshot of current Main Stock/Daily Usage into a shadow database.
+### F7.2C — Credential lifecycle
+
+Purpose: make credentials maintainable without terminal/VPS intervention.
+
+Tasks:
+
+- authenticated change-password flow with re-authentication;
+- forgotten-password reset-request flow;
+- Owner-assisted v1 reset approval/issuance;
+- short-lived single-use reset token/link;
+- revoke old sessions after reset;
+- security/account event recording;
+- later verified-email recovery only if email delivery infrastructure is deliberately added.
+
+Exit criteria:
+
+- user can change password from browser;
+- forgotten password can be recovered through durable product flow;
+- reset tokens expire and are one-use;
+- old sessions fail after reset.
+
+### F7.3 — Store/database Audit UI
+
+Purpose: provide operational traceability for store/database actions independently of User Management.
+
+Audit covers:
+
+- inventory movements and typed stock operations;
+- receipts, usage, adjustments, reversals/corrections;
+- imports/migrations/sync jobs;
+- operation/idempotency IDs;
+- actor `user_id` or service principal;
+- client/source such as Web, Telegram, ChatGPT/Custom GPT, Flutter, or system job;
+- timestamp, outcome, reason, and relevant before/after references.
 
 Rules:
-- Google Sheet remains authoritative;
-- migration is repeatable/idempotent;
-- no Sheet mutation required for import;
-- preserve provenance and migration batch ID;
-- produce mismatch report rather than silently repairing.
+
+- do not use Audit as account-management UI;
+- do not destructively delete historical ledger/audit records merely to “edit” history;
+- use reversal/correction semantics where historical integrity matters.
 
 Exit criteria:
-- all rows/lots classified;
-- unexplained parity differences are surfaced;
-- rerun does not duplicate entities or movements.
 
-## Slice F7 — Shadow projection parity
+- an authorized read-only audit view can answer who/what/when/source/result for representative synthetic/test operations;
+- User Management remains a separate surface.
 
-Generate backend projections equivalent to:
-- Main Stock;
-- Daily Usage;
-- This Month Received;
-- Reorder working projection once its formula contract is encoded.
+## F8 — Private Custom GPT read-only Action experiment
 
-Compare backend output against the live workbook while the workbook remains canonical.
+Only after F7.2 identity/RBAC is stable.
 
-## Slice F8 — Private Custom GPT Action experiment
+Tasks:
 
-Only after the read-only API is stable:
-- expose a private HTTPS API through the chosen custom subdomain;
 - version-control `integrations/custom-gpt/openapi.yaml`;
-- start with read-only Actions (`health`, stock lookup, lot lookup, audit/summary reads);
-- use a revocable scoped bearer key;
-- do not enable stock writes in the first GPT experiment.
+- expose scoped read-only typed API operations;
+- use revocable service/client credential or delegated authorization as designed;
+- start with health, stock lookup, lot lookup, audit/summary reads;
+- no writes in first GPT experiment.
 
 Exit criteria:
-- Custom GPT can call the VPS API reliably;
-- authentication, timeout, and response behavior are verified.
 
-## Slice F9 — Controlled write Action experiment
+- Custom GPT can reliably call allowed read endpoints;
+- auth, timeout, and error behavior are verified;
+- no DB or Sheet credentials are exposed.
 
-Only after ledger/idempotency/audit tests pass:
-- add one low-risk typed write operation first;
-- require server-side validation and operation ID;
-- read back committed state;
-- do not make the DB canonical yet.
+## F9 — Controlled typed write Action experiment
 
-## Slice F10 — Dual real-workflow validation
+Only after ledger/idempotency/audit + identity/RBAC tests pass.
 
-Run representative live operations through current Sheet workflow plus backend shadow path and compare results. No automatic cutover.
+Purpose: prove one safe end-to-end write before broad inventory mutation is allowed.
 
-## Slice F11 — Canonical promotion
+First operation should be one low-risk typed domain command, not arbitrary CRUD/SQL.
 
-Requires explicit approval, tested backups/restores, measurable parity acceptance, and rollback/cutback procedure.
+Required write pipeline:
+
+`Client -> typed Inventory API -> authentication/RBAC -> validation -> idempotency -> atomic DB transaction -> audit event -> committed-state readback -> result`
+
+Requirements:
+
+- operation ID/idempotency key;
+- backend validation;
+- server-side authorization;
+- no arbitrary SQL;
+- no direct LLM-to-DB connection;
+- no direct LLM-to-Sheet write;
+- failure never becomes conversational success;
+- PostgreSQL remains non-canonical.
+
+Exit criteria:
+
+- duplicate replay cannot duplicate movement;
+- failed operation rolls back;
+- successful operation has auditable actor/source/result;
+- readback matches committed state.
+
+## F10 — Dual real-workflow and Sheet sync validation
+
+Purpose: prove backend operations against the current operational Sheet truth before cutover.
+
+Tasks:
+
+- run representative real operations through the existing Sheet workflow and backend shadow path;
+- compare balances/lots/history;
+- define Google Sheet mirror/sync contract behind the backend;
+- backend owns sync orchestration; clients never bypass it;
+- include retry/idempotency/reconciliation behavior for sync failures;
+- produce mismatch reports rather than silent repairs.
+
+Exit criteria:
+
+- representative workflows reconcile measurably;
+- sync failure is observable/recoverable;
+- no automatic canonical cutover.
+
+## F11 — Canonical promotion
+
+Requires explicit approval.
+
+Before promotion:
+
+- import a fresh real migration baseline;
+- verify parity acceptance criteria;
+- prove backup + restore;
+- verify audit completeness;
+- verify realistic read/write workflows;
+- verify Sheet mirror/rebuild/reconciliation;
+- document rollback/cutback.
+
+Promotion may be operation-scope based rather than all-at-once if explicitly designed and approved.
 
 ## Recommended immediate order
 
-1. Finish architecture gates that affect schema.
-2. Run Slice F0 via a one-time VPS setup assistant/agent relay.
-3. Implement F1 in this repository.
-4. Implement F2/F3 after schema decisions are locked.
-5. Configure Cloudflare/custom subdomain only when an API health endpoint exists to target.
-6. Create the dedicated MSA Custom GPT only when the read-only OpenAPI contract is ready; creating it earlier adds no useful capability and creates manual rework.
+1. Complete and verify **F7.2A** canonical multi-user identity.
+2. Implement **F7.2B** User Management/access approval.
+3. Implement **F7.2C** credential lifecycle.
+4. Implement **F7.3** store/database Audit read surface.
+5. Stabilize RBAC/audit verification.
+6. Begin **F8** Custom GPT read-only integration.
+7. Only then authorize **F9** first controlled write experiment.
+8. Continue F10 dual-workflow/sync validation before any F11 promotion.

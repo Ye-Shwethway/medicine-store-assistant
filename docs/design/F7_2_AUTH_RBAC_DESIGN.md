@@ -1,128 +1,192 @@
-# F7.2 — Authentication & Role-Based Access Design
+# F7.2 — Authentication, RBAC & User Management Design
 
-Status: **authorized design slice; implementation not yet promoted**
+Status: **authorized design slice; canonical planning updated before implementation**
 
 ## Goal
 
-Extend the locked Dashboard v2.4 experience with a dedicated sign-in experience and role-aware access without redesigning the existing Medicine Store Assistant dashboard.
+Replace the temporary Owner-only password bridge with a durable multi-user authentication and role model while preserving the locked Dashboard v2.4 visual system and the read-only data-authority boundary.
 
-This slice preserves the current clinical/operations visual system and read-only data authority boundary while replacing the temporary owner-only modal concept with a durable user/account model aligned to the approved F2 identity decisions.
+F7.2 answers two questions only:
+
+1. **Who is this user?**
+2. **What is this user allowed to access?**
+
+Inventory write authority remains deferred to later slices.
 
 ## Canonical role model
 
 Use the locked v1 roles from F2:
 
-- `OWNER` — full system authority, user/admin management, high-risk approvals, canonical promotion/month-close authority.
-- `ADMIN` — operational administration and approved inventory management; cannot implicitly become Owner.
-- `STAFF` — routine inventory reads and approved normal operational entry; no privileged historical correction, role management, or system configuration.
+- `OWNER` — full system authority, user-management authority, high-risk approvals, later canonical promotion/month-close authority.
+- `ADMIN` — operational administration and approved inventory management; cannot implicitly become or create an Owner.
+- `STAFF` — routine inventory reads and approved normal operational entry once write slices are separately authorized.
 - `READ_ONLY` — inventory/history/report reads only.
 
-No arbitrary permission editor in v1. Backend policy remains the source of truth for authorization.
+No arbitrary permission editor in v1. Backend authorization policy is the source of truth.
+
+## F7.2A — Canonical multi-user identity and sessions
+
+Introduce the durable human-account model:
+
+- stable backend `user_id` is the canonical identity;
+- username is unique credential metadata and may be changed without changing historical identity;
+- password is stored only as a one-way password hash;
+- account status includes at least `PENDING`, `ACTIVE`, `DISABLED`;
+- role is one of `OWNER`, `ADMIN`, `STAFF`, `READ_ONLY`;
+- authenticated sessions resolve to `user_id`, role, account status, and session metadata;
+- disabling an account invalidates future authorization and should revoke active sessions;
+- historical actors are never deleted merely because an account is disabled.
+
+### Owner bootstrap migration
+
+The current runtime-only bridge:
+
+- `MSA_DASHBOARD_OWNER_PASSWORD_HASH`
+- `MSA_DASHBOARD_SESSION_SECRET`
+
+is temporary bootstrap infrastructure, not the final credential store.
+
+F7.2A must migrate the bootstrap Owner into the canonical user model and then move normal Owner login to **username + password**. The password-only bridge may remain only long enough to perform a controlled migration/verification, then should be retired from normal login flow.
 
 ## Authentication UX
 
 ### Dedicated sign-in page
 
-Add a dedicated `/dashboard/login` experience rather than relying on an in-dashboard modal as the primary entry path.
+`/dashboard/login` remains the primary login experience.
 
-Visual rules:
+Required fields:
 
-- reuse Dashboard v2.4 typography, spacing, controls, surface treatment, light/dark tokens, and clinical/operations tone;
-- Medicine Store Assistant identity is prominent but restrained;
-- no marketing content or decorative complexity;
-- username and password fields are explicit and accessible;
-- password visibility toggle is optional but must be keyboard/touch accessible;
-- primary action is `Sign in`;
-- login errors remain inline next to the form and never reveal whether a username exists;
-- no public `Sign up` action;
+- Username
+- Password
+
+Rules:
+
+- reuse Dashboard v2.4 visual language;
+- inline generic login errors that do not reveal whether a username exists;
+- accessible password visibility control if included;
 - no social/OAuth login in v1;
-- no password-reset email workflow in this slice;
-- if authentication is not provisioned, show a clear unavailable/configuration state rather than a broken form.
-
-### Session behavior
-
-- unauthenticated navigation to protected dashboard pages redirects to `/dashboard/login`;
-- successful sign-in returns the user to the intended dashboard view when safe;
 - authenticated users visiting `/dashboard/login` redirect to `/dashboard`;
-- sign out clears only the browser session and returns to the sign-in page;
-- session expiry returns to sign-in without exposing private data;
-- never store passwords, F3 Bearer credentials, or session signing secrets in browser storage.
+- unauthenticated access to protected pages redirects to `/dashboard/login`;
+- session expiry and sign-out return to login;
+- passwords, service credentials, and session signing secrets never enter browser storage.
+
+## F7.2B — User Management
+
+`User Management` is a standalone navigation/surface. It is **not combined with Audit**.
+
+Primary responsibilities:
+
+- list users and account status;
+- review access requests;
+- approve or reject requests;
+- assign allowed roles;
+- change role within authorized boundaries;
+- disable/reactivate accounts;
+- inspect basic security/account state;
+- initiate or approve credential-recovery workflows.
+
+### Access-request model
+
+Do not expose unrestricted public self-registration that immediately creates an active account.
+
+Instead expose **Request access**:
+
+1. applicant submits requested username, password, and minimal identity/display information;
+2. backend creates a `PENDING` account/access request;
+3. pending account has no private inventory access;
+4. Owner receives an in-product notification in User Management;
+5. later Telegram integration may mirror the same pending notification;
+6. authorized approver chooses an allowed role or rejects the request;
+7. approval activates the account;
+8. approval, rejection, role changes, and account-status changes are recorded as security/account events.
+
+### Grant boundaries
+
+- `OWNER` can approve `ADMIN`, `STAFF`, and `READ_ONLY` accounts.
+- `ADMIN` may only manage account operations explicitly delegated by backend policy and can never grant or promote to `OWNER`.
+- OWNER creation/promotion is a separate high-risk operation and must not be an ordinary role dropdown action.
+- No client-side visibility rule is treated as authorization.
+
+User-facing terminology should use **Approve access**, **Assign role**, **Promote**, **Disable account**, etc.; do not use Unix `sudo` terminology in the product UI.
+
+## F7.2C — Credential lifecycle
+
+Initial durable credential lifecycle:
+
+- logged-in user can change their password after re-authentication;
+- forgotten-password recovery does not depend on email infrastructure in v1;
+- user may create a password-reset request;
+- authorized Owner workflow issues or approves a short-lived one-time reset flow;
+- reset token is single-use, expires, and is never stored in plaintext after issuance if avoidable;
+- successful password reset invalidates old sessions;
+- password change/reset events are security/account events.
+
+A verified-email reset flow may be added later only when real email delivery/verification infrastructure is intentionally introduced.
 
 ## Role-aware dashboard behavior
-
-The interface may hide or disable controls the current role cannot use, but backend authorization is mandatory for every protected operation.
 
 ### OWNER
 
 - full navigation visibility;
-- `Audit & Access` includes user/access management entry points once implemented;
-- future high-risk/canonical actions remain separately gated and are not authorized by this design slice alone.
+- User Management visible;
+- future high-risk/canonical actions remain separately gated and are not authorized by F7.2 alone.
 
 ### ADMIN
 
-- operational/admin navigation appropriate to current backend capabilities;
-- user-role escalation to OWNER is never available;
-- no canonical promotion/month-close authority unless separately authorized by backend policy.
+- operational/admin surfaces appropriate to backend capabilities;
+- no Owner escalation;
+- no canonical promotion/month-close authority unless separately authorized later.
 
 ### STAFF
 
 - inventory and approved routine operational surfaces only;
-- no user management, system configuration, privileged historical correction, or migration promotion UI.
+- no User Management authority unless a later explicit policy adds a narrow capability;
+- no privileged historical correction, migration promotion, or system configuration.
 
 ### READ_ONLY
 
 - read surfaces only;
 - no write/edit/save/approve controls;
-- protected admin/access screens are hidden or replaced with an explicit access-denied state.
+- protected management screens return an explicit access-denied state.
 
 ## Access-denied state
 
 Use a first-class `403 / Access denied` page/state that:
 
-- states the user lacks permission for the requested area;
-- identifies the current signed-in role without exposing internal policy detail;
+- states that the signed-in user lacks permission;
+- may identify the current role without exposing internal policy detail;
 - offers a safe return to Overview;
-- never suggests retrying credentials for a valid authenticated-but-unauthorized user.
+- never suggests retrying credentials for an authenticated-but-unauthorized user.
 
-## Account management direction
+## Audit separation
 
-`Audit & Access` becomes the future role-aware account surface.
+`Audit` and `User Management` are separate product surfaces.
 
-For v1:
+`Audit` is reserved for store/database operational history: inventory movements, corrections/reversals, imports/syncs, typed API operations, actor/client provenance, before/after references where appropriate, operation IDs, timestamps, and outcomes.
 
-- accounts are created/provisioned by authorized Owner/Admin workflow only;
-- public self-registration is prohibited;
-- canonical identity is stable backend `user_id`;
-- login name is mutable credential metadata, not historical identity;
-- disable/revoke accounts rather than delete users with audit history;
-- role changes and account status changes must be audited;
-- future Telegram identity linkage and Flutter authentication attach to canonical user identity rather than creating separate user records.
+User-account administration belongs in `User Management`. Security/account events may be retained in backend security history, but the primary user-facing `Audit` area is not an account-management screen.
 
-## Credential/runtime bootstrap boundary
+## Telegram and future clients
 
-The existing owner-only runtime values remain valid as a temporary bootstrap bridge for the first authenticated deployment verification:
+Web, Telegram, Flutter, ChatGPT, and Custom GPT must attach actions to canonical backend identities rather than create separate user stores.
 
-- `MSA_DASHBOARD_OWNER_PASSWORD_HASH`
-- `MSA_DASHBOARD_SESSION_SECRET`
+A future Telegram approval message may provide buttons such as Approve / Reject, but Telegram is only a client of the backend approval operation. The backend remains authoritative for identity, role, state, and authorization.
 
-They are not the final multi-user credential store. The first bootstrap Owner session may be used to prove the protected dashboard path while the canonical `users` / roles / sessions implementation is added in a later implementation step.
+## F7.2 acceptance criteria
 
-Do not put either runtime value, the plaintext Owner password, or generated session material in Git, browser code, CI logs, or documentation evidence.
+F7.2 is complete only when:
 
-## F7.2 design acceptance criteria
-
-The design slice is complete when canonical docs cover:
-
-1. dedicated sign-in page;
-2. no public signup;
-3. OWNER / ADMIN / STAFF / READ_ONLY roles;
-4. role-aware navigation and control visibility;
-5. explicit access-denied state;
-6. session expiry/sign-out behavior;
-7. bootstrap-owner runtime secret boundary;
-8. backend-enforced authorization requirement;
-9. continuity docs identify F7.2 as authentication/RBAC rather than owner-password provisioning only.
+1. canonical multi-user `user_id` model exists;
+2. Owner uses username + password through the canonical account model;
+3. `OWNER / ADMIN / STAFF / READ_ONLY` authorization is backend-enforced;
+4. User Management exists as a separate surface;
+5. access requests can remain pending and be approved/rejected safely;
+6. role and account-status changes obey escalation boundaries;
+7. explicit 403 behavior is verified;
+8. change-password and initial reset lifecycle are verified;
+9. session revocation works for disable/reset cases;
+10. the bootstrap Owner bridge is no longer the normal multi-user credential store.
 
 ## Safety boundary
 
-This design does not authorize inventory writes, Google Sheet mutation, database canonical promotion, Telegram/Flutter rollout, Custom GPT write Actions, or arbitrary role/permission editing.
+F7.2 does **not** authorize inventory writes, Google Sheet mutation, PostgreSQL canonical promotion, Telegram inventory writes, Flutter rollout, Custom GPT write Actions, arbitrary SQL, or arbitrary permission editing.
