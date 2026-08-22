@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="light dark">
   <title>Medicine Store Assistant</title>
-  <link rel="stylesheet" href="/dashboard/assets/dashboard.css?v=f72-live-3">
+  <link rel="stylesheet" href="/dashboard/assets/dashboard.css?v=f72b-1">
+  <link rel="stylesheet" href="/dashboard/assets/dashboard_users.css?v=f72b-1">
 </head>
 <body>
 <div id="msa" data-theme="light">
@@ -20,13 +21,24 @@
     <aside class="sidebar" aria-label="Primary navigation">
       <button class="drawer-close" id="drawerClose" type="button" aria-label="Close navigation">×</button>
       <div class="brand"><div class="mark">MS</div><div><strong>Medicine Store</strong><span>Assistant</span></div></div>
+
+      <div class="user-profile-card" id="userProfileCard" aria-label="Signed-in user profile">
+        <div class="profile-avatar" id="profileAvatar" aria-hidden="true">—</div>
+        <div class="profile-copy">
+          <span class="profile-label">Signed in as</span>
+          <strong id="profileUsername">Loading…</strong>
+          <small id="profileRole">—</small>
+        </div>
+      </div>
+
       <nav>
         <button class="nav-btn active" data-view="overview" type="button">Overview</button>
         <button class="nav-btn" data-view="inventory" type="button">Inventory</button>
         <button class="nav-btn" data-view="alerts" type="button">Expiry &amp; Alerts</button>
         <button class="nav-btn" data-view="shadow" type="button">Shadow Inspection</button>
         <button class="nav-btn" data-view="catalogue" type="button">Catalogue</button>
-        <button class="nav-btn" data-view="audit" type="button">Audit &amp; Access</button>
+        <button class="nav-btn owner-only" data-view="users" type="button" hidden>User Management</button>
+        <button class="nav-btn" data-view="audit" type="button">Audit</button>
       </nav>
       <div class="authority"><b>Current authority</b><p>Google Sheet remains the operational source of truth.</p><small>Database is read-only test/shadow.</small></div>
     </aside>
@@ -37,7 +49,7 @@
         <div class="top-actions"><div class="badges"><span class="badge test">TEST DATA</span><span class="badge noncanonical">DB NON-CANONICAL</span></div><button class="theme-toggle theme-control" type="button" aria-label="Switch to dark theme"><span class="sun">☀</span><span class="moon">☾</span><span class="knob"></span></button></div>
       </header>
       <section class="content">
-        <div class="session-banner" id="sessionBanner"><span id="sessionText">Checking owner access…</span><button id="loginOpen" type="button">Sign in</button><button id="logout" type="button" hidden>Sign out</button></div>
+        <div class="session-banner" id="sessionBanner"><span id="sessionText">Checking access…</span><button id="loginOpen" type="button">Sign in</button><button id="logout" type="button" hidden>Sign out</button></div>
 
         <section class="view active" data-panel="overview">
           <div class="metrics">
@@ -47,7 +59,7 @@
             <article class="card metric"><label>Unmapped</label><strong id="mUnmapped">—</strong><small class="info-text">CMS mapping needed</small></article>
           </div>
           <div class="overview-grid">
-            <article class="card panel"><h2>Attention queue</h2><p class="sub">Prioritized issues from the current test snapshot.</p><div class="health"><strong>Read-only web foundation</strong><p id="healthCopy">Private data stays behind the owner session gate.</p></div><div id="attention" class="queue"><div class="empty-copy">Loading test/shadow review summaries…</div></div></article>
+            <article class="card panel"><h2>Attention queue</h2><p class="sub">Prioritized issues from the current test snapshot.</p><div class="health"><strong>Read-only web foundation</strong><p id="healthCopy">Private data stays behind the authenticated session gate.</p></div><div id="attention" class="queue"><div class="empty-copy">Loading test/shadow review summaries…</div></div></article>
             <article class="card panel"><h2>Data authority</h2><p class="sub">How the workflow works today.</p><div class="flow"><div><b>01</b><span><strong>Google Sheet</strong><small>Operational source of truth</small></span></div><div><b>02</b><span><strong>Explicit snapshot</strong><small>Test / migration tool only</small></span></div><div><b>03</b><span><strong>PostgreSQL</strong><small>Shadow/test storage</small></span></div><div><b>04</b><span><strong>Dashboard BFF</strong><small>Authenticated server-side reads</small></span></div></div><div class="warning-box"><strong>Migration baseline not accepted</strong><p>This dataset remains workflow test data.</p></div></article>
           </div>
         </section>
@@ -58,18 +70,35 @@
           <div class="table-wrap"><table><thead><tr><th class="item-col">Item</th><th>Expiry</th><th>CMS code</th><th>Sheet</th><th>Class</th><th>Status</th></tr></thead><tbody id="inventoryRows"></tbody></table><div id="tableEmpty" class="table-empty">Loading inventory rows…</div></div>
         </section>
 
-        <section class="view" data-panel="alerts"><article class="card panel"><h2>Expiry &amp; alerts</h2><p class="sub">Read-only attention queues.</p><p class="muted">This screen is reserved for the next read-only slice. No write controls are enabled.</p></article></section>
+        <section class="view" data-panel="alerts"><article class="card panel"><h2>Expiry &amp; alerts</h2><p class="sub">Read-only attention queues.</p><p class="muted">This screen is reserved for the next read-only slice. No inventory write controls are enabled.</p></article></section>
         <section class="view" data-panel="shadow"><article class="card panel"><h2>Shadow inspection</h2><p class="sub">Test-only staged data visibility.</p><div id="shadowReasons" class="queue"><div class="empty-copy">Loading review reasons…</div></div></article></section>
-        <section class="view" data-panel="catalogue"><article class="card panel"><h2>Catalogue</h2><p class="sub">CMS catalogue inspection.</p><p class="muted">Read-only catalogue UI follows after the shadow dashboard path is verified live.</p></article></section>
-        <section class="view" data-panel="audit"><article class="card panel"><h2>Audit &amp; access</h2><p class="sub">Safe operational visibility.</p><p class="muted">No credentials or secret material are rendered in the browser.</p></article></section>
+        <section class="view" data-panel="catalogue"><article class="card panel"><h2>Catalogue</h2><p class="sub">CMS catalogue inspection.</p><p class="muted">Inventory remains read-only and non-canonical.</p></article></section>
+
+        <section class="view" data-panel="users">
+          <div class="management-head">
+            <div><h2>User Management</h2><p>Owner-only human accounts, access requests, roles, and account state.</p></div>
+            <button class="secondary" id="usersRefresh" type="button">Refresh</button>
+          </div>
+          <div id="usersDenied" class="access-denied" hidden><strong>Access denied</strong><p>Your signed-in role does not have permission to manage human accounts.</p><button class="secondary" id="deniedOverview" type="button">Return to Overview</button></div>
+          <div id="usersContent">
+            <div class="management-metrics">
+              <article class="card metric"><label>Pending requests</label><strong id="uPending">—</strong><small>Awaiting Owner review</small></article>
+              <article class="card metric"><label>Active users</label><strong id="uActive">—</strong><small>Protected access enabled</small></article>
+              <article class="card metric"><label>Disabled</label><strong id="uDisabled">—</strong><small>Protected access blocked</small></article>
+            </div>
+            <article class="card panel users-panel"><div class="users-panel-head"><div><h2>Human accounts</h2><p class="sub">OWNER promotion and Owner-account disable are intentionally outside this ordinary management flow.</p></div></div><div class="user-list" id="userList"><div class="empty-copy">Loading users…</div></div></article>
+          </div>
+        </section>
+
+        <section class="view" data-panel="audit"><article class="card panel"><h2>Audit</h2><p class="sub">Operational Audit remains a separate later slice.</p><p class="muted">F7.2B account/security events are retained separately and do not turn this surface into User Management.</p></article></section>
       </section>
     </main>
   </div>
 
   <div class="detail-back" id="detailBack" role="dialog" aria-modal="true" aria-labelledby="detailTitle"><aside class="detail-drawer"><div class="detail-head"><h3 id="detailTitle">Inventory detail</h3><button id="detailClose" type="button" aria-label="Close details">×</button></div><div id="detailContent"></div></aside></div>
-  <div class="modal-back" id="loginModal" role="dialog" aria-modal="true" aria-labelledby="loginTitle"><form class="login-card" id="loginForm"><h2 id="loginTitle">Owner sign in</h2><p>Use the dedicated sign-in page to authenticate.</p><div class="form-error" id="loginError"></div><div class="login-actions"><button class="secondary" id="loginCancel" type="button">Cancel</button><button class="primary" type="submit">Open sign in</button></div></form></div>
+  <div class="modal-back" id="loginModal" role="dialog" aria-modal="true" aria-labelledby="loginTitle"><form class="login-card" id="loginForm"><h2 id="loginTitle">Sign in</h2><p>Use the dedicated sign-in page to authenticate.</p><div class="form-error" id="loginError"></div><div class="login-actions"><button class="secondary" id="loginCancel" type="button">Cancel</button><button class="primary" type="submit">Open sign in</button></div></form></div>
   <div id="live" class="sr-only" aria-live="polite"></div>
 </div>
-<script src="/dashboard/assets/dashboard.js?v=f72-live-3" defer></script>
+<script src="/dashboard/assets/dashboard.js?v=f72b-1" defer></script>
 </body>
 </html>

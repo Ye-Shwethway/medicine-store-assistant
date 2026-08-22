@@ -11,6 +11,7 @@ from app.dashboard_login import router as dashboard_login_router
 from app.db import database_readiness
 from app.read_api import router as read_router
 from app.shadow_read_api import router as shadow_read_router
+from app.user_management import router as user_management_router
 
 SERVICE_NAME = "medicine-store-assistant-api"
 SERVICE_VERSION = os.getenv("MSA_SERVICE_VERSION", "0.1.0-dev")
@@ -22,8 +23,8 @@ app = FastAPI(
     version=SERVICE_VERSION,
     description=(
         "Typed API boundary for the Medicine Store Assistant backend. "
-        "Authenticated inventory, catalogue, test-only shadow reads, and the F7 read-only dashboard "
-        "are available; canonical inventory writes remain disabled."
+        "Authenticated inventory, canonical human identity/User Management, catalogue, test-only shadow reads, "
+        "and the F7 read-only dashboard are available; canonical inventory writes remain disabled."
     ),
 )
 
@@ -44,6 +45,7 @@ async def dashboard_login_gate(request: Request, call_next):
 
 app.include_router(dashboard_login_router)
 app.include_router(dashboard_router)
+app.include_router(user_management_router)
 app.include_router(read_router)
 app.include_router(shadow_read_router)
 

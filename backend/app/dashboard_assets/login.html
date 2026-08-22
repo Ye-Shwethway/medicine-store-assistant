@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="light dark">
   <title>Sign in — Medicine Store Assistant</title>
-  <link rel="stylesheet" href="/dashboard/login.css">
+  <link rel="stylesheet" href="/dashboard/login.css?v=f72b-1">
 </head>
 <body>
   <main class="login-shell" id="loginRoot" data-theme="light">
@@ -18,20 +18,50 @@
         </div>
       </div>
 
-      <div class="login-heading">
-        <p class="eyebrow">Secure dashboard access</p>
-        <h1 id="loginTitle">Sign in</h1>
-        <p>Use your Medicine Store Assistant username and password to continue.</p>
+      <div id="signInPanel">
+        <div class="login-heading">
+          <p class="eyebrow">Secure dashboard access</p>
+          <h1 id="loginTitle">Sign in</h1>
+          <p>Use your Medicine Store Assistant username and password to continue.</p>
+        </div>
+
+        <form id="loginForm" novalidate>
+          <label for="username">Username</label>
+          <input id="username" name="username" type="text" autocomplete="username" maxlength="64" required autofocus>
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" required>
+          <p class="form-error" id="loginError" role="alert" aria-live="polite"></p>
+          <button class="primary-submit" type="submit" id="submitButton">Sign in</button>
+        </form>
+
+        <div class="access-request-entry">
+          <span>Need an account?</span>
+          <button class="text-action" id="requestOpen" type="button">Request access</button>
+        </div>
       </div>
 
-      <form id="loginForm" novalidate>
-        <label for="username">Username</label>
-        <input id="username" name="username" type="text" autocomplete="username" maxlength="64" required autofocus>
-        <label for="password">Password</label>
-        <input id="password" name="password" type="password" autocomplete="current-password" required>
-        <p class="form-error" id="loginError" role="alert" aria-live="polite"></p>
-        <button type="submit" id="submitButton">Sign in</button>
-      </form>
+      <section id="requestPanel" hidden aria-labelledby="requestTitle">
+        <div class="login-heading request-heading">
+          <p class="eyebrow">Owner-reviewed access</p>
+          <h1 id="requestTitle">Request access</h1>
+          <p>Your request stays pending until the Owner approves it and assigns a role.</p>
+        </div>
+
+        <form id="requestForm" novalidate>
+          <label for="requestDisplayName">Display name</label>
+          <input id="requestDisplayName" name="display_name" type="text" autocomplete="name" maxlength="160" required>
+          <label for="requestUsername">Username</label>
+          <input id="requestUsername" name="username" type="text" autocomplete="username" maxlength="64" pattern="[A-Za-z0-9._-]{3,64}" required>
+          <p class="field-help">3–64 letters, numbers, dots, dashes, or underscores.</p>
+          <label for="requestPassword">Password</label>
+          <input id="requestPassword" name="password" type="password" autocomplete="new-password" minlength="10" required>
+          <p class="field-help">At least 10 characters. This password is stored only as a one-way hash.</p>
+          <p class="form-error" id="requestError" role="alert" aria-live="polite"></p>
+          <p class="form-success" id="requestSuccess" role="status" aria-live="polite"></p>
+          <button class="primary-submit" type="submit" id="requestSubmit">Submit request</button>
+          <button class="secondary-submit" id="requestCancel" type="button">Back to sign in</button>
+        </form>
+      </section>
 
       <div class="authority-note">
         <span class="status-dot"></span>
@@ -41,6 +71,6 @@
       <button class="theme-toggle" id="themeToggle" type="button" aria-label="Switch theme">☀︎ / ☾</button>
     </section>
   </main>
-  <script src="/dashboard/login.js" defer></script>
+  <script src="/dashboard/login.js?v=f72b-1" defer></script>
 </body>
 </html>
