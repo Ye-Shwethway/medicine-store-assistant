@@ -23,6 +23,9 @@ docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" build api
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d db
 
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm \
+  api python -m app.dashboard_verify
+
+docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm \
   api python -m app.shadow_read_verify
 
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d api
@@ -74,5 +77,5 @@ if [[ "$DASHBOARD_PRIVATE_STATUS" != "401" && "$DASHBOARD_PRIVATE_STATUS" != "50
 fi
 
 echo "shadow_routes=pass anonymous_auth_guard=pass"
-echo "dashboard_shell=pass dashboard_session_state=pass dashboard_private_gate=pass:${DASHBOARD_PRIVATE_STATUS}"
+echo "dashboard_auth_foundation=pass dashboard_shell=pass dashboard_session_state=pass dashboard_private_gate=pass:${DASHBOARD_PRIVATE_STATUS}"
 echo "MSA backend deployed at ${CURRENT_SHA}; no live workbook import executed."
