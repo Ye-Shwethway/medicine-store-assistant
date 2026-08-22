@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Recovery email — Medicine Store Assistant</title>
+  <link rel="stylesheet" href="/dashboard/recovery-email.css?v=1">
+</head>
+<body>
+  <main class="shell" id="recoveryRoot">
+    <section class="card" aria-labelledby="title">
+      <a class="back" href="/dashboard">Back to dashboard</a>
+      <p class="eyebrow">Account security</p>
+      <h1 id="title">Recovery email</h1>
+      <p class="intro">Add and verify an email address so password reset links can be delivered automatically without Owner intervention.</p>
+
+      <div class="state-box" id="stateBox" aria-live="polite">
+        <strong id="stateTitle">Checking recovery status…</strong>
+        <p id="stateText"></p>
+      </div>
+
+      <form id="recoveryForm" novalidate>
+        <label for="recoveryEmail">Recovery email</label>
+        <input id="recoveryEmail" type="email" autocomplete="email" maxlength="320" required>
+        <label for="currentPassword">Current password</label>
+        <input id="currentPassword" type="password" autocomplete="current-password" required>
+        <p class="help">We send a verification link first. The address becomes a recovery destination only after that link is confirmed.</p>
+        <p class="error" id="formError" role="alert" aria-live="polite"></p>
+        <p class="success" id="formSuccess" role="status" aria-live="polite"></p>
+        <button id="submit" type="submit">Send verification email</button>
+      </form>
+
+      <div class="note"><strong>Security note</strong><p>Password-reset tokens remain short-lived, single-use, and stored only as server-side digests. Email is only the delivery channel.</p></div>
+    </section>
+  </main>
+  <script src="/dashboard/recovery-email.js?v=1" defer></script>
+</body>
+</html>
