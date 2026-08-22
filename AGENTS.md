@@ -21,3 +21,6 @@ Treat `skills/medicine-store-assistant/` as the canonical Git-backed plugin skil
 - Update `NORMAL_CHAT_BOOTSTRAP.md` whenever the canonical skill path or startup contract changes.
 - Do not add Telegram or autonomous write behavior until its authentication, dry-run/preview where appropriate, approval, idempotency, audit, rollback, and read-back design is explicit.
 - Do not declare PostgreSQL the canonical source of truth merely because it is deployed. Canonical promotion requires the staged reconciliation and shadow-validation process in `docs/architecture/MIGRATION_AND_SHADOW_VALIDATION.md`.
+- **Do not use Bamboo/Bamboo Claw as part of the normal MSA implementation, deployment, verification, or continuity workflow.** It may be used only if the owner explicitly asks for it again.
+- **Do not require the owner to run Termux, SSH, tmux, shell commands, or manual GitHub Actions as part of normal implementation.** Prefer connected tools, repository automation, self-hosted runner automation, application-native setup/admin UI, and safe server-side workflows that require at most ordinary browser interaction from the owner.
+- If a future runtime-secret or privileged VPS task cannot be completed through the normal automated path, design a durable product/admin mechanism first rather than falling back to repeated ad-hoc terminal instructions.
