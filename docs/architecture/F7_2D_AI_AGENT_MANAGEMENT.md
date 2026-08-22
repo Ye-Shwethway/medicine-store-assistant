@@ -1,12 +1,14 @@
-# F7.2D — AI Agent Management, Provider Registry & Delegated Authority
+# F7.2D — AI Agent Management, MCP Access, Provider Registry & Delegated Authority
 
 Status: **approved architecture direction; implement after F7.2A/B/C and before broad AI writes**
 
 ## Purpose
 
-Medicine Store Assistant must support multiple AI execution paths without tying authority to one model vendor or one client. The same backend policy must govern internal provider-backed agents, Custom GPT Actions, future Telegram/Flutter AI features, scheduled jobs, and other external integrations.
+Medicine Store Assistant must support multiple AI execution paths without tying authority to one model vendor or one client. The same backend policy must govern ChatGPT through a custom MCP connection, internal provider-backed agents, optional Custom GPT Actions, future Telegram/Flutter AI features, scheduled jobs, and other external integrations.
 
 AI Agent Management is therefore a separate **Owner-only control plane** for named AI/service principals. Human users, AI agents, provider connections, models, and external clients are different concepts and must not be collapsed into one table or one role system.
+
+The first implementation objective is now to prove the **custom MCP path** end-to-end. Custom GPT Actions remain an optional secondary external-access path and are no longer required before Agent Management/provider work can continue.
 
 ## Canonical separation
 
@@ -28,19 +30,113 @@ A model resource discovered or configured under a provider connection. Model ide
 
 ### External client/runtime
 
-A client such as a Custom GPT, Telegram bot, Flutter client, Web AI Chat, integration, or future external service. External clients call typed MSA APIs and do not receive raw database credentials.
+A client/runtime such as ChatGPT through a custom MCP connector, an optional Custom GPT Action client, Telegram bot, Flutter client, Web AI Chat, integration, or future external service. External clients call typed MSA capabilities and do not receive raw database credentials.
 
-**Custom GPT is an external Action client/runtime, not a model provider.**
+**Custom MCP and Custom GPT are access/runtime paths, not model providers.**
 
 ## Runtime modes
 
-F7.2D supports three execution patterns under the same authority engine:
+F7.2D supports four execution patterns under the same authority engine:
 
-1. `INTERNAL_MODEL` — the MSA backend invokes an assigned provider/model.
-2. `EXTERNAL_ACTION_CLIENT` — an external agent/client such as a Custom GPT invokes the MSA typed API.
-3. `SYSTEM_AUTOMATION` — a future scheduled/background workflow executes under an Owner-configured autonomous policy.
+1. `EXTERNAL_MCP_CLIENT` — ChatGPT or another MCP-capable client invokes typed MSA tools through the remote MCP service.
+2. `INTERNAL_MODEL` — the MSA backend invokes an assigned provider/model.
+3. `EXTERNAL_ACTION_CLIENT` — an optional external agent/client such as a Custom GPT invokes the MSA typed HTTPS API through an Action.
+4. `SYSTEM_AUTOMATION` — a future scheduled/background workflow executes under an Owner-configured autonomous policy.
 
 Runtime mode does not define authority. Authority is always derived from registered principal/policy state.
+
+## Custom MCP path — primary external-access direction
+
+The preferred first external access path is a custom remote MCP service hosted on the MSA VPS.
+
+Conceptual architecture:
+
+`ChatGPT Developer Mode -> HTTPS remote MCP -> MSA MCP adapter -> scoped external-client identity -> capability policy -> existing deterministic read services -> PostgreSQL/test-shadow reads`
+
+The MCP layer is a protocol adapter, not a second business-logic implementation and not a raw database gateway.
+
+The MCP service must never expose:
+
+- PostgreSQL credentials;
+- arbitrary SQL execution;
+- arbitrary table browsing;
+- VPS shell/SSH access;
+- Google Sheet credentials;
+- provider API keys;
+- unrestricted internal admin functions.
+
+The first proof is read-only and intentionally small. Suggested initial tools:
+
+- `msa_whoami` — returns external-client identity/state/granted capabilities without secret material;
+- `get_system_status` — returns bounded service/canonicality status;
+- `get_inventory_summary` — returns the current authorized test/shadow inventory summary and canonicality flags;
+- optional bounded `search_inventory` / `get_inventory_item` after basic connectivity is proven.
+
+The remote MCP transport should be hosted as a small deployable service on the VPS and may use either a dedicated subdomain or a stable HTTPS path. Exact route choice is an implementation detail, but the public endpoint must be TLS-protected and independently revocable without exposing the database.
+
+### MCP service boundary
+
+Prefer a small separate MCP adapter/service rather than embedding MCP protocol details directly into inventory business logic. The adapter may reuse existing backend service functions or typed API contracts.
+
+Reasons:
+
+- MCP protocol/runtime changes remain isolated from core inventory API behavior;
+- connection/debug/deploy failures are easier to localize;
+- MCP credentials and capability policy can be revoked independently;
+- future clients can reuse the same typed operations without duplicating business rules.
+
+This separation is architectural, not an excuse to duplicate data-access logic.
+
+### MCP authentication
+
+The first proof uses one named, scoped, revocable external-client credential unless current ChatGPT MCP connection requirements force a different supported auth mechanism.
+
+Requirements:
+
+- high-entropy credential;
+- plaintext secret shown/provisioned only at issuance;
+- server-side digest/verifier or secret-reference storage only;
+- client state `ACTIVE` / `REVOKED`;
+- explicit capability allowlist;
+- missing/invalid credential denied;
+- valid credential without requested capability denied;
+- revocation blocks later MCP calls immediately;
+- no secret values in Git, logs, audit payloads, docs, or browser storage.
+
+At implementation time, re-check current OpenAI/ChatGPT MCP authentication and Developer Mode requirements before choosing the exact connector authentication configuration.
+
+## F7.2D0 — MCP connectivity proof
+
+The first implementation slice inside F7.2D is **F7.2D0 Custom MCP Read-Only Connectivity Proof**.
+
+It passes only when the real ChatGPT Developer Mode connection can invoke the deployed MSA remote MCP service and receive current authorized MSA data.
+
+Minimum proof:
+
+1. deploy a small remote MCP endpoint on the VPS;
+2. register one scoped external MCP client/credential;
+3. verify transport/health locally and through public HTTPS;
+4. connect the custom MCP server from ChatGPT Developer Mode;
+5. prove `msa_whoami` from ChatGPT;
+6. prove a real `get_inventory_summary` read from ChatGPT;
+7. preserve `database_canonical=false`, `migration_baseline_accepted=false`, and F6B test-only boundaries in relevant results;
+8. prove a deliberately ungranted capability is denied;
+9. revoke the MCP client/credential and prove a subsequent ChatGPT invocation fails;
+10. confirm no inventory mutation/provider model call/workbook import occurs.
+
+If ChatGPT cannot connect because of current MCP product/auth/network restrictions, document the exact constraint immediately. Do not weaken MSA security to force the proof to pass.
+
+## Optional Custom GPT Action path
+
+Custom GPT Actions remain a valid secondary external path but are no longer the first required proof.
+
+Architecture:
+
+`Custom GPT -> HTTPS Action -> MSA typed API -> external-client credential -> capability policy -> deterministic service -> response`
+
+If MCP proves reliable and gives sufficient ChatGPT access/freedom for the intended workflow, the project may defer or omit the Custom GPT Action path unless a concrete product need appears.
+
+The existing `F7_2D1_CUSTOM_GPT_ACTION_PROOF.md` remains as the optional Action proof contract.
 
 ## AI agent principal model
 
@@ -140,31 +236,12 @@ Fallback is allowed only when the fallback satisfies the agent operation's requi
 
 Changing provider/model assignment changes runtime implementation, not `agent_id` or agent authority.
 
-## External Custom GPT Action path
-
-The first F7.2D implementation proof is deliberately the external Custom GPT Action path.
-
-Architecture:
-
-`Custom GPT -> HTTPS Action -> MSA typed API -> external-client credential -> agent/capability policy -> deterministic read service -> response`
-
-The Custom GPT receives **no direct PostgreSQL credential** and no generic SQL endpoint.
-
-The first proof is read-only and should expose the smallest useful typed API surface, for example:
-
-- service/agent identity check;
-- current test/shadow inventory summary;
-- bounded item lookup or another already-authorized read endpoint.
-
-The proof must demonstrate that a Custom GPT can authenticate to `inventory.drthorne.uk`, invoke the Action from GPT Preview/normal use, receive real MSA backend data, and be denied outside its registered capability scope.
-
-Current OpenAI GPT Actions support OpenAPI schemas and API-key or OAuth authentication. For the first single-Owner server-to-server proof, use a revocable scoped API/service credential unless a concrete requirement forces OAuth. OAuth may be introduced later when per-human delegated identity is required.
-
 ## Owner-only control plane
 
 Only `OWNER` may:
 
 - create/register AI agent principals;
+- register/revoke external MCP clients and credentials;
 - create/configure/disable provider connections;
 - provision/replace provider credential references;
 - fetch/test provider models;
@@ -174,7 +251,7 @@ Only `OWNER` may:
 - change location scope;
 - change authority ceiling or execution mode;
 - change delegated/autonomous policy;
-- register/revoke external Action clients/service credentials;
+- optionally register/revoke external Action clients/service credentials;
 - configure which humans may use shared AI features.
 
 An AI agent or external client may never modify its own grant, secret, authority ceiling, Owner/security policy, Provider Registry, Agent Management, or global Settings.
@@ -185,7 +262,7 @@ For a human-delegated action:
 
 `effective_authority = human_authority ∩ agent_capability_scope ∩ location_scope ∩ operation_policy`
 
-For an external service/client without a live human session:
+For an external MCP/Action client without a live human session:
 
 `effective_authority = registered_client_scope ∩ agent_capability_scope ∩ location_scope ∩ operation_policy`
 
@@ -219,14 +296,14 @@ Pre-authorized SAFE workflows may later run without per-row confirmation once pr
 
 Google Sheets remains operationally authoritative and PostgreSQL remains non-canonical. F7.2D does **not** authorize production stock mutation, AI inventory writes, transfers, Smart Calculator deduction, Sheet mirror conversion, or DB canonical promotion.
 
-The first Custom GPT Action proof is read-only.
+The MCP connectivity proof is read-only.
 
 ## Audit direction
 
 F7.3 must be able to record, as applicable:
 
 - `agent_id`;
-- external client/runtime type;
+- external client/runtime type including MCP vs Action;
 - provider/model assignment used for internal execution;
 - `authorized_by_user_id` for delegated actions;
 - capability/action invoked;
@@ -239,17 +316,19 @@ Secrets and unrestricted prompts are not operational audit payloads.
 
 ## Implementation order inside F7.2D
 
-1. **F7.2D1 — Custom GPT Action read-only connectivity proof**: scoped external-client credential, minimal OpenAPI schema, typed read endpoint(s), real GPT invocation, capability denial test.
+1. **F7.2D0 — Custom MCP read-only connectivity proof**: remote MCP service, scoped external-client credential, ChatGPT Developer Mode connection, `msa_whoami`, real inventory summary, denial/revocation tests.
 2. **F7.2D2 — AI agent principal/control-plane foundation**: agent lifecycle, capability and location policy, external-client registration.
 3. **F7.2D3 — Provider Registry + model catalog**: OpenAI, Gemini, OpenRouter, NanoGPT, generic OpenAI-compatible provider; secret references; test/fetch/save.
 4. **F7.2D4 — Internal model assignment**: primary/fallback models, capability-aware assignment, test agent.
-5. F7.3 actor-aware Audit / operation ledger.
-6. Later read-only AI Assistant and richer external integrations.
-7. Write capabilities only through later explicitly authorized controlled-write slices.
+5. **Optional F7.2D1 — Custom GPT Action proof** only if MCP does not meet the product need or an Action-specific integration is later desired.
+6. F7.3 actor-aware Audit / operation ledger.
+7. Later read-only AI Assistant and richer external integrations.
+8. Write capabilities only through later explicitly authorized controlled-write slices.
 
 ## F7.2D exit criteria
 
-- Custom GPT Action can read authorized MSA data through the public typed API and cannot access ungranted operations;
+- ChatGPT through the custom MCP path can read authorized MSA data and cannot access ungranted operations;
+- MCP credential/client revocation is effective;
 - Owner can manage named AI agents separately from human users;
 - Owner can configure built-in or custom OpenAI-compatible providers without hard-coded model IDs;
 - model fetch/test/save/assign works for supported provider types;
