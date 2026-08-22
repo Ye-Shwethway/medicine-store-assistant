@@ -1,6 +1,6 @@
 # F7.2 — Authentication, RBAC & User Management Design
 
-Status: **authorized design slice; canonical planning aligned before implementation**
+Status: **F7.2A verified complete; F7.2B User Management is next; F7.2C/F7.2D remain later slices**
 
 ## Goal
 
@@ -21,24 +21,43 @@ Inventory write authority remains deferred to later slices.
 
 No arbitrary human permission editor in v1. Backend authorization policy is authoritative.
 
-## F7.2A — Canonical multi-user identity and sessions
+## F7.2A — Canonical multi-user identity and sessions — **VERIFIED COMPLETE**
 
-Introduce the durable human-account model:
+The deployed implementation reuses and evolves the existing F2 human-identity foundation rather than creating a parallel user store:
 
-- stable backend `user_id` is canonical human identity;
-- username is unique credential metadata and may change without changing historical identity;
-- password stored only as a one-way hash;
-- account state includes `PENDING`, `ACTIVE`, `DISABLED`;
-- role is `OWNER`, `ADMIN`, `STAFF`, or `READ_ONLY`;
-- authenticated sessions resolve to `user_id`, role, status, and session metadata;
-- disabling an account revokes protected authorization/sessions;
-- historical actors are not deleted when accounts are disabled.
+- `users.user_id` UUID remains stable canonical human identity;
+- existing `roles` and `user_roles` carry `OWNER`, `ADMIN`, `STAFF`, `READ_ONLY`;
+- current v1 policy enforces one role per canonical human user;
+- `login_name` evolved to username credential metadata without changing `user_id`;
+- account state is canonicalized as `PENDING`, `ACTIVE`, `DISABLED`;
+- password is stored only as a one-way hash;
+- `credential_version` supports session invalidation boundaries;
+- durable `user_sessions` bind an opaque browser token to `user_id` through a server-side keyed token digest, expiry, revocation state, credential version, and last-seen metadata;
+- every protected session resolution re-checks current user state and role;
+- disabling an account immediately blocks protected access even when an issued browser token still exists;
+- historical actors are not deleted merely because access is disabled.
 
-### Owner bootstrap migration
+### Owner bootstrap migration — verified
 
-Current runtime-only bridge values are temporary bootstrap infrastructure, not the final credential store.
+The former runtime-only password bridge has been superseded for normal login.
 
-F7.2A migrates the bootstrap Owner into the canonical user model and moves normal Owner login to **username + password**. The password-only bridge remains only long enough for controlled migration/verification and is then retired from normal login.
+F7.2A materialized the existing Owner password hash into the canonical F2 `users` model and assigned the canonical `OWNER` role without exposing plaintext credentials. Normal Owner sign-in is now **username + password**; the deployed bootstrap username is `owner` unless explicitly overridden by protected runtime configuration.
+
+Compatibility boundary: the already-deployed Owner PBKDF2 hash was preserved specifically to permit plaintext-free migration. This is not authorization to expand credential lifecycle work. New password-change/reset/hash-upgrade policy belongs to F7.2C.
+
+Verified implementation evidence:
+
+- PR #36;
+- merge `c3aa75d65e0bc6d1836227fe8450b0b3de5b2651`;
+- deploy run `32586385336`, job `97063270146` — success;
+- Alembic migration `0004_shadow -> 0005_identity` — pass;
+- canonical Owner bootstrap — pass;
+- username/password auth — pass;
+- durable revocable session — pass;
+- Owner RBAC — pass;
+- authenticated 403 / `Access denied` — pass;
+- disabled-user denial — pass;
+- inventory authority flags unchanged.
 
 ## Authentication UX
 
@@ -60,7 +79,17 @@ Rules:
 - session expiry/sign-out return to login;
 - passwords, service credentials, and signing secrets never enter browser storage.
 
-## F7.2B — User Management
+## Backend authorization contract
+
+F7.2A establishes backend authorization helpers as the enforcement boundary.
+
+- authenticated session resolution returns stable `user_id`, username, role, state, and session identity;
+- `require_roles(...)` accepts only canonical human roles;
+- insufficient authenticated role returns HTTP `403` with `Access denied`;
+- missing/invalid/disabled session returns unauthenticated denial rather than a client-side role decision;
+- UI visibility is convenience only and never substitutes for backend enforcement.
+
+## F7.2B — User Management — **NEXT**
 
 `User Management` is a standalone human-account surface. It is not combined with Audit or AI Agent Management.
 
@@ -72,8 +101,9 @@ Responsibilities:
 - assign allowed roles;
 - change role within authorized boundaries;
 - disable/reactivate accounts;
-- inspect basic account/security state;
-- initiate/approve credential recovery.
+- inspect basic account/security state.
+
+Credential recovery belongs to F7.2C and must not be implemented as part of the F7.2B minimum runnable slice.
 
 ### Access request
 
@@ -84,7 +114,7 @@ Responsibilities:
 5. later Telegram/Flutter may mirror the same backend notification;
 6. authorized approver chooses allowed role or rejects;
 7. approval activates account;
-8. approval/rejection/role/status changes become security/account events.
+8. approval/rejection/role/status changes become security/account events using only the minimum prerequisite interface needed for this slice.
 
 ### Grant boundaries
 
@@ -135,8 +165,8 @@ Therefore AI Chat never becomes a permission bypass. An Owner may later grant an
 
 - full ordinary navigation visibility;
 - User Management visible;
-- AI Agent Management visible;
-- global Settings visible;
+- AI Agent Management visible only when F7.2D is implemented;
+- global Settings visible only when its authorized slice is implemented;
 - later high-risk/canonical actions remain separately gated and are not authorized by F7.2 alone.
 
 ### ADMIN
@@ -151,14 +181,14 @@ Therefore AI Chat never becomes a permission bypass. An Owner may later grant an
 ### STAFF
 
 - inventory and approved routine operational surfaces;
-- AI Chat may be visible only if Owner enables it;
+- AI Chat may be visible only if Owner enables it in its later slice;
 - AI Chat remains bounded by Staff role/location authority;
 - no User Management, Agent Management, global Settings, migration promotion, or privileged historical correction.
 
 ### READ_ONLY
 
 - read surfaces only;
-- AI Chat may only be exposed if Owner policy allows read-only assistant use;
+- AI Chat may only be exposed if later Owner policy allows read-only assistant use;
 - no write/edit/save/approve controls;
 - management screens return explicit access-denied state.
 
@@ -171,11 +201,13 @@ Use a first-class `403 / Access denied` state that:
 - provides a safe return to Overview;
 - does not suggest credential retry for authenticated-but-unauthorized users.
 
+The backend 403 behavior is verified in F7.2A. A polished visual Access Denied management-screen state may be added with the relevant UI slice without changing the backend contract.
+
 ## Surface separation
 
-- `User Management` — human accounts, roles, status, credential recovery.
-- `AI Agent Management` — Owner-only agent capabilities/delegation/control plane.
-- `Settings` — Owner-only global policy, including later reorder/store/agent policy.
+- `User Management` — human accounts, roles, status; credential recovery is F7.2C.
+- `AI Agent Management` — Owner-only agent capabilities/delegation/control plane, later F7.2D.
+- `Settings` — Owner-only global policy in later authorized slices.
 - `Audit` — store/database operational history, not account/agent management.
 
 Security/account/control-plane events may be retained in backend security history while the primary `Audit` product surface remains operational/store focused.
@@ -188,20 +220,20 @@ Future Telegram approval controls remain clients of backend approval operations;
 
 ## F7.2 acceptance criteria
 
-F7.2A/B/C human-account work is complete only when:
+### F7.2A — complete
 
-1. canonical `user_id` model exists;
-2. Owner uses username + password through canonical account model;
-3. human role authorization is backend-enforced;
-4. User Management is separate;
-5. access requests remain pending until approved/rejected;
-6. role/status changes obey escalation boundaries;
-7. explicit 403 behavior is verified;
-8. change-password/reset lifecycle is verified;
-9. session revocation works;
-10. bootstrap bridge is no longer normal credential store.
+1. canonical stable `user_id` model exists — pass;
+2. Owner uses username + password through canonical account model — pass;
+3. human role authorization is backend-enforced — pass;
+4. explicit authenticated 403 behavior is verified — pass;
+5. user-bound revocable session exists — pass;
+6. disabled users lose protected access — pass;
+7. bootstrap bridge is no longer the normal password-only login path — pass;
+8. no inventory write authority was introduced — pass.
 
-F7.2D is a subsequent companion slice and must not be conflated with the human-account implementation.
+### Remaining F7.2 human-account work
+
+F7.2B must verify User Management and access-request/approval/escalation boundaries. F7.2C must separately verify change-password/reset lifecycle and related session revocation. F7.2D remains a subsequent companion slice and must not be conflated with human-account implementation.
 
 ## Safety boundary
 
