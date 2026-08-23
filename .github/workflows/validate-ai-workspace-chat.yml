@@ -16,6 +16,7 @@ on:
       - 'backend/app/dashboard_assets/dashboard_ai_workspace.css'
       - 'backend/alembic/versions/0018_ai_workspace_conversations.py'
       - 'backend/alembic/versions/0019_ai_workspace_attachments.py'
+      - 'backend/alembic/versions/0020_work_review_substrate.py'
       - '.github/workflows/validate-ai-workspace-chat.yml'
 
 permissions:
@@ -45,10 +46,12 @@ jobs:
 
           conversations=load('backend/alembic/versions/0018_ai_workspace_conversations.py','m0018')
           attachments=load('backend/alembic/versions/0019_ai_workspace_attachments.py','m0019')
+          head=load('backend/alembic/versions/0020_work_review_substrate.py','m0020')
           assert conversations.revision == '0018_ai_workspace_conversations'
           assert attachments.revision == '0019_ai_workspace_attachments'
           assert attachments.down_revision == conversations.revision
-          assert EXPECTED_MIGRATION == attachments.revision
+          assert head.down_revision == attachments.revision
+          assert EXPECTED_MIGRATION == head.revision
 
           paths=set(app.openapi()['paths'])
           required={
