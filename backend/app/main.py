@@ -11,6 +11,7 @@ from app.account_password_confirmed import router as account_password_confirmed_
 from app.agent_management import router as agent_management_router
 from app.agent_model_assignments import router as agent_model_assignments_router
 from app.ai_workspace_access import router as ai_workspace_access_router
+from app.ai_workspace_chat import router as ai_workspace_chat_router
 from app.audit_events import router as audit_events_router
 from app.credential_lifecycle import router as credential_lifecycle_router
 from app.dashboard import ASSET_DIR, DASHBOARD_CSP, router as dashboard_router
@@ -41,6 +42,7 @@ SAVED_MODEL_ASSET_VERSION = "f72d31-2"
 AGENT_ASSIGNMENT_GUARD_ASSET_VERSION = "f72d4-preflight-1"
 NATIVE_AGENT_TEST_ASSET_VERSION = "f72d4d-native-test-1"
 AI_WORKSPACE_ACCESS_ASSET_VERSION = "f72d4-access-1"
+AI_WORKSPACE_ASSET_VERSION = "f72d4e-chat-1"
 AGENT_POLISH_ASSET_VERSION = "f72d31-agentui-1"
 MCP_BINDING_ASSET_VERSION = "f72d4a-mcpbind-1"
 AUDIT_ASSET_VERSION = "f73a-mcpaudit-1"
@@ -58,7 +60,7 @@ app = FastAPI(
     description=(
         "Typed API boundary for the Medicine Store Assistant backend. "
         "Authenticated inventory, human identity/User Management, native AI Agent Management, "
-        "Provider Registry/model assignments, MCP-independent internal-agent inference, AI Workspace access policy, "
+        "Provider Registry/model assignments, MCP-independent internal-agent inference, AI Workspace access policy and durable Chat, "
         "external MCP/OAuth typed operations and audit evidence are available; canonical inventory writes remain disabled."
     ),
     lifespan=app_lifespan,
@@ -86,13 +88,60 @@ def _dashboard_security_headers(response: Response) -> None:
     response.headers["X-Content-Type-Options"] = "nosniff"
 
 
+AI_WORKSPACE_NAV = '<button class="workspace-nav-btn" id="aiWorkspaceNav" type="button">AI Workspace</button>'
+AI_WORKSPACE_PANEL = r'''
+        <section class="view" data-panel="ai-workspace">
+          <div class="management-head">
+            <div><h2>AI Workspace</h2><p>Operational Chat with native Medicine Store Assistant agents. ChatGPT and public MCP are not required for this path.</p></div>
+          </div>
+          <div class="ai-workspace-tabs">
+            <button class="ai-workspace-tab active" data-ai-tab="chat" type="button">Chat</button>
+            <button class="ai-workspace-tab owner-only" id="aiMultiTab" data-ai-tab="multi" type="button" hidden>Multi-Agent</button>
+          </div>
+          <div id="aiWorkspaceBody">
+            <div id="aiChatMode">
+              <div class="ai-workspace-shell">
+                <article class="card panel ai-workspace-sidebar">
+                  <div class="ai-workspace-toolbar"><select id="aiAgentSelect" aria-label="Select AI agent"><option>Loading agents…</option></select><button id="aiNewConversation" type="button">New chat</button></div>
+                  <div id="aiConversationList" class="ai-conversation-list"><div class="empty-copy">Loading conversations…</div></div>
+                </article>
+                <article class="card panel ai-chat-panel">
+                  <div class="ai-chat-head"><div><h2 id="aiChatTitle">New conversation</h2><p class="sub" id="aiChatAgent">Select an agent and start a chat.</p></div></div>
+                  <div class="ai-chat-thread" id="aiChatThread"><div class="ai-workspace-empty">Open AI Workspace to load your conversations.</div></div>
+                  <form class="ai-chat-form" id="aiChatForm" hidden>
+                    <textarea id="aiMessageInput" maxlength="20000" placeholder="Message your selected MSA agent…" aria-label="AI Chat message" required></textarea>
+                    <button id="aiSend" type="submit">Send</button>
+                  </form>
+                  <p class="ai-runtime-note">Native internal-agent inference only. MSA typed tools are not attached yet, so this Chat cannot execute store-side operations in this slice.</p>
+                </article>
+              </div>
+            </div>
+            <div id="aiMultiMode" hidden>
+              <article class="card panel ai-multi-placeholder"><h2>Multi-Agent Workspace</h2><p class="sub">Owner-only execution surface.</p><p>Reusable participant sets already live in AI Agent Management. Group, compare, review, and debate execution will be wired in a later slice.</p></article>
+            </div>
+          </div>
+        </section>
+'''
+
+
 @app.get("/dashboard", include_in_schema=False)
 def dashboard_shell_with_saved_model_assets() -> HTMLResponse:
     html = (ASSET_DIR / "dashboard.html").read_text(encoding="utf-8")
     html = html.replace(
+        '<button class="nav-btn owner-only" data-view="agents" type="button" hidden>AI Agent Management</button>',
+        '<button class="nav-btn owner-only" data-view="agents" type="button" hidden>AI Agent Management</button>\n        ' + AI_WORKSPACE_NAV,
+        1,
+    )
+    html = html.replace(
+        '<section class="view" data-panel="account">',
+        AI_WORKSPACE_PANEL + '\n        <section class="view" data-panel="account">',
+        1,
+    )
+    html = html.replace(
         "</head>",
         f'<link rel="stylesheet" href="/dashboard/assets/dashboard_saved_models.css?v={SAVED_MODEL_ASSET_VERSION}">\n'
         f'<link rel="stylesheet" href="/dashboard/assets/dashboard_agent_polish.css?v={AGENT_POLISH_ASSET_VERSION}">\n'
+        f'<link rel="stylesheet" href="/dashboard/assets/dashboard_ai_workspace.css?v={AI_WORKSPACE_ASSET_VERSION}">\n'
         f'<link rel="stylesheet" href="/dashboard/assets/dashboard_mcp_binding.css?v={MCP_BINDING_ASSET_VERSION}">\n'
         f'<link rel="stylesheet" href="/dashboard/assets/dashboard_audit.css?v={AUDIT_ASSET_VERSION}">\n</head>',
         1,
@@ -103,6 +152,7 @@ def dashboard_shell_with_saved_model_assets() -> HTMLResponse:
         f'<script src="/dashboard/assets/dashboard_agent_assignment_guard.js?v={AGENT_ASSIGNMENT_GUARD_ASSET_VERSION}" defer></script>\n'
         f'<script src="/dashboard/assets/dashboard_native_agent_test.js?v={NATIVE_AGENT_TEST_ASSET_VERSION}" defer></script>\n'
         f'<script src="/dashboard/assets/dashboard_ai_workspace_access.js?v={AI_WORKSPACE_ACCESS_ASSET_VERSION}" defer></script>\n'
+        f'<script src="/dashboard/assets/dashboard_ai_workspace.js?v={AI_WORKSPACE_ASSET_VERSION}" defer></script>\n'
         f'<script src="/dashboard/assets/dashboard_mcp_binding.js?v={MCP_BINDING_ASSET_VERSION}" defer></script>\n'
         f'<script src="/dashboard/assets/dashboard_audit.js?v={AUDIT_ASSET_VERSION}" defer></script>\n</body>',
         1,
@@ -129,6 +179,11 @@ def saved_model_css() -> FileResponse:
 @app.get("/dashboard/assets/dashboard_agent_polish.css", include_in_schema=False)
 def agent_polish_css() -> FileResponse:
     return _asset_file("dashboard_agent_polish.css", "text/css")
+
+
+@app.get("/dashboard/assets/dashboard_ai_workspace.css", include_in_schema=False)
+def ai_workspace_css() -> FileResponse:
+    return _asset_file("dashboard_ai_workspace.css", "text/css")
 
 
 @app.get("/dashboard/assets/dashboard_mcp_binding.css", include_in_schema=False)
@@ -168,6 +223,11 @@ def ai_workspace_access_js() -> FileResponse:
     return _asset_file("dashboard_ai_workspace_access.js", "text/javascript")
 
 
+@app.get("/dashboard/assets/dashboard_ai_workspace.js", include_in_schema=False)
+def ai_workspace_js() -> FileResponse:
+    return _asset_file("dashboard_ai_workspace.js", "text/javascript")
+
+
 @app.get("/dashboard/assets/dashboard_mcp_binding.js", include_in_schema=False)
 def mcp_binding_js() -> FileResponse:
     return _asset_file("dashboard_mcp_binding.js", "text/javascript")
@@ -186,6 +246,7 @@ app.include_router(agent_management_router)
 app.include_router(agent_model_assignments_router)
 app.include_router(native_agent_runtime_router)
 app.include_router(ai_workspace_access_router)
+app.include_router(ai_workspace_chat_router)
 app.include_router(mcp_agent_binding_router)
 app.include_router(audit_events_router)
 app.include_router(provider_registry_router)
@@ -223,6 +284,7 @@ def health() -> dict[str, object]:
         "native_internal_agent_inference": "f7.2d4c",
         "native_internal_agent_test_ui": "f7.2d4d",
         "ai_workspace_access_policy": "f7.2d4-access",
+        "ai_workspace_chat": "f7.2d4e",
         "native_internal_agent_tools": False,
         "nanogpt_detailed_catalog": "enabled",
         "production_inventory_writes": False,
