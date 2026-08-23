@@ -105,7 +105,8 @@ jobs:
           grep -Fq '"production_mutation": False' backend/app/multi_agent_review.py
           grep -Fq 'Depends(require_owner_session)' backend/app/multi_agent_review_ui_api.py
           grep -Fq "w.work_type='NATIVE_REVIEW'" backend/app/multi_agent_review_ui_api.py
-          grep -Fq 'w.created_by_actor_id=:owner_user_id' backend/app/multi_agent_review_ui_api.py
+          grep -Fq 'CAST(w.created_by_actor_id AS text)=CAST(:owner_user_id AS text)' backend/app/multi_agent_review_ui_api.py
+          grep -Fq '"artifact_count": 0' backend/app/multi_agent_review_ui_api.py
           echo 'ai_workspace_review_security=pass'
       - name: Validate Dashboard Chat and Review assets
         run: |
