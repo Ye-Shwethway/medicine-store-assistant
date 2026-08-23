@@ -1,0 +1,72 @@
+name: Validate AI Workspace Chat
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'backend/app/ai_workspace_chat.py'
+      - 'backend/app/ai_workspace_access.py'
+      - 'backend/app/native_agent_runtime.py'
+      - 'backend/app/main.py'
+      - 'backend/app/db.py'
+      - 'backend/app/dashboard_assets/dashboard_ai_workspace.js'
+      - 'backend/app/dashboard_assets/dashboard_ai_workspace.css'
+      - 'backend/alembic/versions/0018_ai_workspace_conversations.py'
+      - '.github/workflows/validate-ai-workspace-chat.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate-ai-workspace-chat:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install backend requirements
+        run: python -m pip install --disable-pip-version-check -q -r backend/requirements.txt
+      - name: Compile backend
+        run: python -m compileall -q backend/app backend/alembic
+      - name: Validate API and migration contract
+        run: |
+          PYTHONPATH=backend python - <<'PY'
+          import importlib.util
+          from pathlib import Path
+          from app.db import EXPECTED_MIGRATION
+          from app.main import app
+
+          spec=importlib.util.spec_from_file_location('m0018', Path('backend/alembic/versions/0018_ai_workspace_conversations.py'))
+          mod=importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+          assert mod.revision == '0018_ai_workspace_conversations'
+          assert mod.down_revision == '0017_ai_workspace_access'
+          assert EXPECTED_MIGRATION == mod.revision
+
+          paths=set(app.openapi()['paths'])
+          required={
+              '/dashboard/api/ai-workspace/access',
+              '/dashboard/api/ai-workspace/chat/agents',
+              '/dashboard/api/ai-workspace/conversations',
+              '/dashboard/api/ai-workspace/conversations/{conversation_id}',
+              '/dashboard/api/ai-workspace/conversations/{conversation_id}/messages',
+          }
+          assert required <= paths, sorted(required-paths)
+          print('ai_workspace_chat_api=pass')
+          PY
+      - name: Validate backend security ordering
+        run: |
+          grep -Fq 'Depends(require_ai_chat_access)' backend/app/ai_workspace_chat.py
+          grep -Fq 'owner_user_id=CAST(:owner_user_id AS uuid)' backend/app/ai_workspace_chat.py
+          grep -Fq 'Do not reveal whether another user' backend/app/ai_workspace_chat.py
+          grep -Fq '_eligible_agent(connection, conversation["agent_id"])' backend/app/ai_workspace_chat.py
+          grep -Fq 'invoke_native_agent(' backend/app/ai_workspace_chat.py
+          grep -Fq 'MSA typed tools are not attached yet' backend/app/main.py
+          echo 'ai_workspace_chat_security=pass'
+      - name: Validate Dashboard Chat assets
+        run: |
+          node --check backend/app/dashboard_assets/dashboard_ai_workspace.js
+          grep -Fq 'AI Workspace' backend/app/main.py
+          grep -Fq 'id="aiWorkspaceNav"' backend/app/main.py
+          grep -Fq 'data-panel="ai-workspace"' backend/app/main.py
+          grep -Fq 'dashboard_ai_workspace.js' backend/app/main.py
+          grep -Fq 'dashboard_ai_workspace.css' backend/app/main.py
+          grep -Fq 'Multi-Agent Workspace' backend/app/main.py
+          echo 'ai_workspace_chat_ui=pass'
