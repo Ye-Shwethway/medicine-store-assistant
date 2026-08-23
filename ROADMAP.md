@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Project Roadmap
 
-Status: **F0/F1/F2/F3/F4/F5/F5.1/F6A/F6C/F7.1/F7.2A/F7.2B/F7.2C/F7.2D0/F7.2D2/F7.2D3/F7.2D4A/F7.2D4B/F7.2D4C/F7.2D4E/F7.2D4F/F7.2D4G verified; F7.3A minimal MCP audit evidence and F7.3B broad typed reads verified; current work is D4.7 fallback management + failover provenance; F6B remains test-only; PostgreSQL remains non-canonical**
+Status: **F0/F1/F2/F3/F4/F5/F5.1/F6A/F6C/F7.1/F7.2A/F7.2B/F7.2C/F7.2D0/F7.2D2/F7.2D3/F7.2D4A/F7.2D4B/F7.2D4C/F7.2D4E/F7.2D4F/F7.2D4G verified; F7.3A minimal MCP audit evidence and F7.3B broad typed reads verified; current refinement is D4.7A hybrid deterministic + model-driven native tool calling before live failover proof; F6B remains test-only; PostgreSQL remains non-canonical**
 
 The live Google workbook/source documents remain operationally authoritative. F6B is test-only and not an accepted migration baseline.
 
@@ -35,6 +35,7 @@ No AI/client receives arbitrary SQL, DB credentials, VPS shell/filesystem, Sheet
 - F7.2D4E durable top-level AI Workspace Chat
 - F7.2D4F bounded native internal-agent reads and grounding
 - F7.2D4G Chat UX/lifecycle: long output, deterministic USER -> ASSISTANT sequence, clean display, Copy/select, conversation preview/time, owner-scoped delete
+- D4.7 Owner UI exposes PRIMARY + ordered FALLBACK assignment chain; live failover proof remains pending
 - F7.3A minimal external-MCP actor audit evidence
 - F7.3B broad typed row/detail reads
 
@@ -67,21 +68,29 @@ Native internal agent:
 
 These are peer paths. Direct MCP actions do not require an internal-agent hop. Internal agents do not use public MCP as their ordinary tool gateway. `msa_agent_invoke` is optional delegation/orchestration only.
 
-## F7.2D4 current work — D4.7 fallback management
+## F7.2D4 current refinement — D4.7A native tool calling
 
-Canonical checkpoint: `docs/checkpoints/F7_2D47_FALLBACK_MANAGEMENT_PLAN_2026-08-23.md`.
+Canonical checkpoint: `docs/checkpoints/F7_2D47A_NATIVE_TOOL_CALLING_PLAN_2026-08-23.md`.
 
-The backend already stores and executes one PRIMARY plus up to five ordered FALLBACK models. The missing product work is Owner-facing configuration and live failover acceptance.
+Keep the already accepted deterministic native-read router as a fast path, but add a bounded model-driven native tool loop for tool-capable internal models.
 
 Current work:
 
-- expose PRIMARY + ordered FALLBACK chain in Owner-only AI Agent Management;
-- use canonical `/model-assignments` chain endpoint;
-- select only saved, healthy, currently-discovered models from enabled providers;
-- add/remove/reorder up to five fallbacks;
-- show fallback count on internal-agent cards;
-- preserve backend rejection for non-internal agents and invalid chains;
-- once a second healthy saved model is available, force/observe primary failure and verify fallback order + provenance + `fallback_used=true`.
+- expose every currently implemented and backend-authorized native read tool to a tool-capable internal model;
+- initial registry remains `inventory_summary`, `new_unmapped_rows`, `review_reasons`;
+- allow the model to request these tools for contextual/ambiguous follow-ups even when the current user message does not contain a deterministic routing keyword;
+- validate every requested tool name server-side before execution;
+- preserve deterministic fast-path prefetch for explicit inventory/NEW_UNMAPPED/review requests;
+- persist exposed-tool and model-tool-call provenance;
+- keep native tool execution Owner-only during this refinement until human/location authority intersection is implemented for staff;
+- public MCP remains unused for native tools;
+- no write/control tools are exposed.
+
+The external MCP 106-action manifest is not automatically copied into the internal model runtime. Only native typed adapters that exist and pass backend authority checks are exposed.
+
+## D4.7 fallback management / failover
+
+Owner fallback configuration UI is implemented. A second saved healthy provider/model can be configured in ordered fallback position. After D4.7A is accepted, run live PRIMARY failure -> FALLBACK success acceptance with full provenance and `fallback_used=true`.
 
 Provider/model assignment never changes agent identity or authority.
 
@@ -93,15 +102,15 @@ Non-owner Chat:
 
 `authenticated user -> global gate -> per-user entitlement -> agent eligibility -> native runtime/tool authority`
 
-Owner always bypasses the global user Chat gate. Global OFF blocks all non-owner Chat before provider calls. Tool authority is an intersection, never a union.
+Owner always bypasses the global user Chat gate. Global OFF blocks all non-owner Chat before provider calls. Tool authority is an intersection, never a union. During D4.7A, non-owner Chat is reasoning-only for native store tools until explicit human/location authority intersection is wired.
 
 ## Immediate implementation order
 
-1. D4.7 fallback configuration UI + persistence/order acceptance.
-2. D4.7 live failover proof when two healthy saved models are configured.
+1. D4.7A hybrid fast-path + model-driven native tool-calling deployment and manual contextual-follow-up acceptance.
+2. D4.7 live failover proof with two healthy saved models.
 3. D4.8 Owner-only Multi-Agent GROUP/COMPARE/REVIEW/DEBATE execution.
-4. Per-user Chat entitlement/allowed-agent UI before staff rollout.
-5. Expand native typed reads over shared MSA service contracts as needed.
+4. Per-user Chat entitlement/allowed-agent UI and human/location tool-authority intersection before staff tool rollout.
+5. Expand native typed tools over shared MSA service contracts as product workflows require.
 6. D4.9 optional MCP -> native-agent delegation.
 7. Continue full actor-aware audit and later controlled writes only after prerequisites.
 
@@ -121,6 +130,6 @@ Owner always bypasses the global user Chat gate. Global OFF blocks all non-owner
 
 ## Immediate boundary
 
-Proceed with **D4.7 fallback management + failover provenance**.
+Proceed with **D4.7A native tool-calling refinement**, then return to D4.7 live failover proof.
 
 Do not enable production inventory writes, AI inventory writes, transfers, Smart Calculator deductions, Telegram/Flutter stock mutations, Sheet mirror conversion, or PostgreSQL canonical promotion.
