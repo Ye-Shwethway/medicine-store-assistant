@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Implementation Plan
 
-Status: **F7.2D4F grounded native reads and F7.2D4G Chat UX/lifecycle are production/manual accepted; D4.7 fallback configuration UI is implemented; current refinement is D4.7A hybrid deterministic + model-driven native tool calling before live failover proof; production inventory write authority remains unauthorized**
+Status: **F7.2D4F grounded native reads and F7.2D4G Chat UX/lifecycle are production/manual accepted; D4.7 fallback configuration UI is implemented; D4.7A hybrid native tool calling is deployed/manual accepted; current refinement is D4.7B human-friendly response normalization + attachment-ready AI Workspace; production inventory write authority remains unauthorized**
 
 This file is the execution contract for current MSA implementation order and boundaries.
 
@@ -47,6 +47,7 @@ Verified in production/manual acceptance:
 - bounded native read tools for inventory/shadow summary, `NEW_UNMAPPED`, and review reasons;
 - real F6B shadow evidence read by native internal agent without public MCP;
 - long Chat replies, deterministic USER -> ASSISTANT order, clean display, Copy/select, conversation preview/time, and owner-scoped delete;
+- deterministic fast-path native reads plus bounded model-driven tool calls for contextual follow-ups;
 - Multi-Agent UI remains Owner-only and execution is not yet wired;
 - production inventory writes remain closed.
 
@@ -67,6 +68,8 @@ Top-level **AI Workspace** is the operational surface.
 - `Chat` — single selected internal agent; Owner plus authorized users.
 - `Multi-Agent` — future GROUP/COMPARE/REVIEW/DEBATE execution; Owner-only for this phase.
 
+Both composer contracts include photo/file attachment controls. Upload evidence never changes agent or human authority.
+
 ## 5. AI Workspace access policy
 
 1. Owner -> always ALLOW.
@@ -77,7 +80,7 @@ Top-level **AI Workspace** is the operational surface.
 
 Effective typed-tool authority remains an intersection of system gate, authenticated human authority, selected-agent capability/ceiling, location scope, operation class, and confirmation policy. Never union privileges.
 
-During D4.7A, native store-tool execution is additionally restricted server-side to Owner sessions until the human/location authority intersection for staff is implemented. Non-owner Chat may still reason but receives no store-tool execution authority.
+Native store-tool execution is currently restricted server-side to Owner sessions until the human/location authority intersection for staff is implemented. Non-owner Chat may still reason but receives no store-tool execution authority.
 
 ## 6. Current implementation slices
 
@@ -110,54 +113,69 @@ Canonical checkpoint: `docs/checkpoints/F7_2D4G_CHAT_UX_LIFECYCLE_PLAN_2026-08-2
 
 Canonical checkpoint: `docs/checkpoints/F7_2D47_FALLBACK_MANAGEMENT_PLAN_2026-08-23.md`.
 
-The Owner UI now exposes the existing backend PRIMARY + up to five ordered FALLBACK assignments. Live failover acceptance remains pending until two healthy saved models are configured and a primary failure is forced/observed.
+The Owner UI exposes PRIMARY + up to five ordered FALLBACK assignments. Live failover acceptance remains pending until a stable secondary model/provider is available and a primary failure is forced/observed.
 
-### D4.7A — Hybrid native tool calling — CURRENT
+### D4.7A — Hybrid native tool calling — VERIFIED
 
 Canonical checkpoint: `docs/checkpoints/F7_2D47A_NATIVE_TOOL_CALLING_PLAN_2026-08-23.md`.
 
+Production/manual acceptance confirmed:
+
+- deterministic keyword routing remains the fast path for explicit requests;
+- tool-capable internal models can request the native read-tool registry for contextual follow-ups;
+- unknown tools are backend rejected;
+- tool loop is bounded;
+- public MCP remains unused;
+- no write/control tool is exposed.
+
+### D4.7B — Human response contract + attachments — CURRENT
+
+Canonical checkpoint: `docs/checkpoints/F7_2D47B_RESPONSE_AND_ATTACHMENTS_PLAN_2026-08-24.md`.
+
 Implement now:
 
-- preserve deterministic keyword routing as a low-latency fast path for explicit inventory/NEW_UNMAPPED/review requests;
-- add a bounded model-driven tool-calling loop for OpenAI-compatible saved models that advertise tool support;
-- expose every currently implemented and backend-authorized native read tool definition to the model: `inventory_summary`, `new_unmapped_rows`, `review_reasons`;
-- allow tool-capable models to request those tools for contextual follow-ups even when the current message does not match a deterministic keyword;
-- validate every model-requested tool against the native allowlist before execution;
-- cap the loop at four tool rounds;
-- persist tools exposed, model-requested tools/arguments, execution status, provider/model attempts, latency, and `mcp_used=false`;
-- keep non-owner store-tool execution disabled until human/location authority intersection is implemented;
-- do not expose write/control tools;
-- do not route internal tools through public MCP.
+- native read tools return a human-facing `presentation` layer while retaining raw evidence/provenance;
+- backend may provide deterministic display derivations such as spreadsheet serial -> calendar date while preserving the original serial;
+- prompt contract answers the question first and suppresses raw UUIDs/source labels/JSON keys unless explicitly requested or required;
+- clearly distinguish retrieved facts, deterministic derived values, and inference;
+- never claim that fixing one blocker automatically changes classification; revalidation/reclassification must run and pass;
+- single-agent Chat supports photo/image and generic file upload buttons, up to four pending attachments and 8 MB each;
+- attachments are ownership-scoped to the authenticated conversation, stored as evidence, and bound to the sent user message;
+- only pending/unbound attachments can be individually removed; deleting the conversation cascades its messages and attachments;
+- current Multi-Agent composer shows the same attachment contract but remains disabled until D4.8 execution is wired;
+- attachment bytes are not yet supplied to provider models, OCR, or vision processing; the model receives metadata only and must not claim it inspected contents;
+- no attachment workflow may mutate inventory in this slice.
 
-Provider/model tool support is a capability signal, not authority. Backend authorization remains decisive.
+Attachment persistence is groundwork for later typed workflows: issue-paper photo batch intake, Daily Usage evidence/extraction, and stock-transfer evidence/proposals.
 
 ### D4.8 — Owner-only Multi-Agent execution
 
 Use persisted session presets for actual `GROUP`, `COMPARE`, `REVIEW`, `DEBATE` inference in `AI Workspace -> Multi-Agent`.
 
-Backend Owner authorization is mandatory. Each participant keeps separate identity, assignment, and authority; never union privileges.
+Backend Owner authorization is mandatory. Each participant keeps separate identity, assignment, and authority; never union privileges. Reuse the same attachment contract rather than creating a second upload system.
 
 ### D4.9 — Optional MCP delegation
 
 Only after the native workspace is stable, connect MCP delegation slots to the same native runtime for explicit delegation. Direct MCP operations remain direct.
 
-## 7. D4.7A acceptance
+## 7. D4.7B acceptance
 
 This refinement passes when:
 
-1. explicit supported requests still execute the deterministic fast-path read tools;
-2. a contextual follow-up such as `investigate this further` can trigger a model-requested native read tool without requiring the user to manually supply facts;
-3. the model sees the full currently authorized native read-tool registry;
-4. unknown/non-exposed tool names are rejected by the backend and never execute arbitrary code/SQL;
-5. selected agent still requires READ capability + READ-or-higher authority ceiling;
-6. native store tools execute only for Owner sessions in this slice;
-7. provenance records exposed tools and model tool calls;
-8. no public MCP call occurs;
-9. no production inventory write or canonical DB promotion occurs.
+1. NEW_UNMAPPED/inventory answers default to human-facing names, dates, counts and concise canonicality warnings instead of developer/debug dumps;
+2. raw IDs/provenance remain available in tool evidence and can be surfaced when requested;
+3. deterministic date conversion is backend-supplied and raw serial remains preserved;
+4. an agent does not promise a classification transition merely because a blocker is identified;
+5. single-agent Chat can upload allowed photo/file types, display pending chips, remove pending attachments, send them with a message, reload and show bound attachment metadata;
+6. oversized/unsupported uploads are backend rejected and max pending count is enforced;
+7. attachment ownership prevents cross-user/cross-conversation access;
+8. provider model is explicitly told attachment bytes are not available yet and must not claim vision/OCR;
+9. Multi-Agent UI visibly reserves the same attachment contract while execution remains Owner-only/not yet wired;
+10. no public MCP or production write is introduced by attachment handling.
 
-## 8. D4.7 live failover acceptance after D4.7A
+## 8. D4.7 live failover acceptance after D4.7B
 
-When two healthy saved models are configured:
+When a stable secondary model is configured:
 
 1. primary attempt fails;
 2. fallback is attempted in stored order;
@@ -167,6 +185,6 @@ When two healthy saved models are configured:
 
 ## 9. Immediate execution boundary
 
-Proceed with **D4.7A hybrid native tool calling**, deploy and manually verify both fast-path and contextual model-driven tool execution. Then return to the D4.7 live failover test.
+Proceed with **D4.7B response normalization + attachment-ready AI Workspace**, deploy and manually verify presentation plus attachment persistence. Then return to D4.7 live failover when a stable secondary provider/model is available.
 
-Do not enable production inventory writes, AI inventory writes, transfers, Smart Calculator deductions, Telegram/Flutter stock mutations, Sheet mirror conversion, or PostgreSQL canonical promotion in this work.
+Do not enable production inventory writes, AI inventory writes, transfers, Smart Calculator deductions, Telegram/Flutter stock mutations, Sheet mirror conversion, automatic OCR/vision commits, or PostgreSQL canonical promotion in this work.
