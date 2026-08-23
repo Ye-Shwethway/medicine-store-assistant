@@ -1,0 +1,33 @@
+name: One-shot D4.8 visible PR patcher
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'docs/checkpoints/d4-8-root-fix-trigger.txt'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'fix/d4-8-review-root-cause'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: fix/d4-8-review-root-cause
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Apply asserted patch
+        run: |
+          set -euo pipefail
+          python scripts/d4_8_root_fix_patch.py
+          python -m compileall -q backend/app
+          node --check backend/app/dashboard_assets/dashboard_multi_agent_review.js
+          git diff --check
+          git config user.name 'MSA D4.8 Root Fix'
+          git config user.email 'actions@users.noreply.github.com'
+          git add -A
+          git commit -m 'Fix D4.8 Review root cause and saved role state'
+          git push origin HEAD:fix/d4-8-review-root-cause
