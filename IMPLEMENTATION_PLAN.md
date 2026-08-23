@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Implementation Plan
 
-Status: **F7.2A/B/C, F7.2D0 custom MCP connectivity + finalized 106-action schema v2.1, F7.2D2 named Agent Management/multi-agent sessions, F7.2D3 Provider Registry/saved-model catalog, F7.2D4A external MCP named-agent binding, F7.3A minimal MCP audit evidence, and F7.3B broad typed reads are verified foundations; F7.2D4 internal model assignment/fallback/runtime identity continues next; production inventory write authority remains unauthorized**
+Status: **F7.2A/B/C, F7.2D0 custom MCP connectivity + finalized 106-action schema v2.1 + replacement ChatGPT acceptance, F7.2D2 named Agent Management/multi-agent sessions, F7.2D3 Provider Registry/saved-model catalog, F7.2D4A external MCP named-agent binding, F7.3A minimal MCP audit evidence, and F7.3B broad typed reads are verified foundations; F7.2D4 internal model assignment/fallback/runtime identity continues next; production inventory write authority remains unauthorized**
 
 This file is the execution contract for current MSA implementation order and boundaries.
 
@@ -47,11 +47,12 @@ Verified complete/foundational:
 - F7.2C Credential + Recovery Lifecycle
 - F7.2D0 custom MCP/OAuth connectivity
 - F7.2D0 MCP schema finalization **v2.1 — 106 runtime actions**
+- F7.2D0 replacement ChatGPT MCP scan/manifest/read/audit acceptance — **verified 2026-08-23**
 - F7.2D2 named Agent Management + multi-agent session topology
 - F7.2D3 Provider Registry + dynamic detailed discovery + tested saved-model catalog
 - F7.2D4A external MCP OAuth grant -> named-agent binding
 - F7.3A minimal external-MCP actor audit evidence
-- F7.3B broad typed row-level shadow reads
+- F7.3B broad typed row-level shadow reads, including live replacement-client acceptance proof
 
 F6B remains test-only: 1,646 rows; SAFE 1,417; REVIEW 222; CONFLICT 0; NEW_UNMAPPED 7; `migration_baseline_accepted=false`; `database_canonical=false`.
 
@@ -67,7 +68,7 @@ Current granted external-client scopes are `mcp:connect`, `mcp:read`, and `offli
 
 Canonical design: `docs/architecture/F7_2D0_MCP_SCHEMA_FINALIZATION_V2.md`
 
-Runtime evidence:
+Schema runtime evidence:
 
 - PR #78
 - merge `4e523645ab05063577b0e3fbc4c6ca5f870ce1dd`
@@ -109,7 +110,7 @@ Explicit MCP exclusions:
 - shell/filesystem access;
 - generic unrestricted HTTP proxy.
 
-Long-lived schema rule after the Owner recreates the ChatGPT MCP app:
+Long-lived schema rule after the replacement ChatGPT MCP app acceptance:
 
 1. implement an existing published action where possible;
 2. for extensible domain `query/manage` actions, add a backend-allowlisted action-string value rather than changing the client schema;
@@ -118,7 +119,27 @@ Long-lived schema rule after the Owner recreates the ChatGPT MCP app:
 5. CI must keep runtime tools identical to the v2.1 manifest;
 6. `msa_system_schema_manifest` is the runtime source for version/count/hash diagnosis.
 
-Before deleting the existing ChatGPT app, create and scan a replacement against `https://inventory.drthorne.uk/mcp`. The replacement must show 106 Actions including `msa_system_schema_manifest` and `msa_shadow_read_rows`; then verify the manifest version/count/hash, a row-level `NEW_UNMAPPED` read, and the resulting Audit event before the old app is removed.
+### 4.2 Replacement ChatGPT MCP acceptance — VERIFIED
+
+The one-time replacement-client gate is complete.
+
+Cleanup/deploy evidence:
+
+- PR #80 `Revoke stale duplicate ChatGPT OAuth grants`;
+- merge/deploy SHA `a669890d4cf34c061f28296f64c306d95d4ee012`;
+- production deploy run `32639464966` — success;
+- Alembic head `0016_revoke_stale_chatgpt_oauth`;
+- PR #80 validation runs all passed: backend, saved-model catalog, MCP audit, MCP agent-binding;
+- production deploy steps all passed, including public MCP OAuth metadata and unauthenticated endpoint boundary verification.
+
+Acceptance proof:
+
+- replacement app scanned the finalized **106-action** v2.1 catalog;
+- manifest/identity test resolves named agent `IANEO`, binding `BOUND`, read enabled, write/control disabled;
+- a live `NEW_UNMAPPED` `msa_shadow_read_rows` read succeeded;
+- Dashboard Audit independently shows `IANEO -> msa_shadow_read_rows -> SUCCESS`, `EXTERNAL_MCP`, `EXTERNAL_MCP_CLIENT`, `mcp:read`, timestamp 2026-08-23 19:02:38 local.
+
+No further ChatGPT MCP connector recreation is required for the current v2.1 contract. Future schema work should preserve this scanned contract whenever safely possible.
 
 ## 5. F7.2D2 — VERIFIED COMPLETE
 
@@ -158,7 +179,8 @@ Runtime evidence:
 - merge `5f00458b55e85cfe4e3a78f5fb7b2f8517e159e2`
 - deploy run `32631778542`
 - issue #26 `status=success`
-- migration head `0014_mcp_agent_bindings`
+- binding migration `0014_mcp_agent_bindings`
+- current production Alembic head `0016_revoke_stale_chatgpt_oauth` after PR #80 duplicate OAuth cleanup
 
 Implemented:
 
@@ -172,7 +194,8 @@ Implemented:
 - external MCP binding remains inbound-only; MSA cannot call back into ChatGPT through MCP;
 - production inventory/control-plane system write gates remain closed;
 - versioned/no-store MCP binding UI and robust danger style for Revoke;
-- direct-child-only MutationObserver rule to prevent self-trigger UI freeze loops.
+- direct-child-only MutationObserver rule to prevent self-trigger UI freeze loops;
+- replacement-client cleanup preserves the newest ACTIVE ChatGPT grant and revokes older duplicate grants/tokens/stale bindings and retired client registrations with no active grant.
 
 ## 8. F7.3A/B — VERIFIED EARLY FOUNDATIONS
 
@@ -183,9 +206,8 @@ Full F7.3 remains later, but these foundations were intentionally front-loaded:
 - `mcp:read` means broad authorized typed operational reads rather than summary-only;
 - `msa_shadow_read_rows` supports bounded row-level `SAFE`, `REVIEW`, `CONFLICT`, `NEW_UNMAPPED` inspection plus batch/sheet/search filters;
 - detail-read events can be audited;
-- raw SQL and secret-bearing auth/security tables remain excluded.
-
-The replacement ChatGPT MCP app must scan the finalized v2.1 catalog before F7.3B is considered externally usable from ChatGPT.
+- raw SQL and secret-bearing auth/security tables remain excluded;
+- replacement ChatGPT acceptance has now proven F7.3B externally usable: live `NEW_UNMAPPED` detail retrieval succeeded and its named-agent audit event was recorded.
 
 ## 9. Web UI workflow
 
@@ -289,6 +311,6 @@ Monthly archive/history navigation should preserve records; it must not silently
 
 ## Immediate execution boundary
 
-Proceed next with **F7.2D4 internal model assignment/fallback/runtime identity** after the Owner recreates/scans the replacement ChatGPT MCP app against schema v2.1 and confirms the 106-action list plus manifest/read/audit acceptance.
+Proceed next with **F7.2D4 internal model assignment/fallback/runtime identity**. The replacement ChatGPT MCP v2.1 scan/manifest/read/audit acceptance prerequisite is complete.
 
 Do not enable production inventory writes, AI inventory writes, transfers, Smart Calculator deduction, Telegram/Flutter stock mutation, Sheet mirror conversion, or PostgreSQL canonical promotion during F7.2D4.

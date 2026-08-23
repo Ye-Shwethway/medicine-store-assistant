@@ -2,11 +2,15 @@
 
 ## Runtime anchor
 
-- PR #70
+- binding implementation PR #70
 - merge SHA `5f00458b55e85cfe4e3a78f5fb7b2f8517e159e2`
-- deploy run `32631778542`
+- binding deploy run `32631778542`
 - issue #26 `status=success`
-- migration head `0014_mcp_agent_bindings`
+- binding migration `0014_mcp_agent_bindings`
+- replacement OAuth cleanup PR #80
+- current production merge/deploy SHA `a669890d4cf34c061f28296f64c306d95d4ee012`
+- cleanup deploy run `32639464966` — success
+- current production migration head `0016_revoke_stale_chatgpt_oauth`
 
 ## Verified implementation
 
@@ -18,9 +22,44 @@
 - Disabled/revoked/non-external agents contribute no named-agent capability authority.
 - Unbound OAuth transport remains authenticated but reports `agent_binding_status=UNBOUND`; no agent identity is invented.
 - Production inventory writes and control-plane writes remain system-gated off.
-- Agent Management now has explicit MCP connection binding UI for external MCP agents.
+- Agent Management has explicit MCP connection binding UI for external MCP agents.
 - Destructive `Revoke` styling is normalized through the MSA danger-action design rather than browser-default styling.
 - MCP binding overlay observes direct list replacement only (`subtree:false`) to avoid the prior MutationObserver self-trigger freeze failure mode.
+
+## Replacement registration cleanup — VERIFIED
+
+When the ChatGPT MCP app was replaced, duplicate same-name OAuth registrations/grants were visible in the binding selector. PR #80 added a one-time migration to reconcile that stale server-side state without changing the newest replacement connection.
+
+Cleanup behavior:
+
+- rank ACTIVE `ChatGPT` grants per user/client-name by newest creation;
+- keep the newest ACTIVE grant;
+- remove stale bindings attached to older duplicates;
+- revoke tokens for older duplicate grants;
+- mark older duplicate grants `REVOKED`;
+- revoke an old client registration when no ACTIVE grant remains for it;
+- leave the newest replacement grant untouched.
+
+PR #80 validation runs for backend, saved-model catalog, MCP audit, and MCP agent binding all passed. Production deploy run `32639464966` also passed backend verification and the public MCP OAuth boundary checks.
+
+## Live named-agent acceptance — VERIFIED
+
+The replacement client now passes the full named-agent acceptance path:
+
+`ChatGPT replacement MCP -> newest ACTIVE OAuth grant -> IANEO binding -> mcp:read typed operation -> append-only Audit evidence`
+
+Verified results:
+
+- schema `2026-08-23.v2.1`;
+- 106 scanned MCP actions;
+- named agent `IANEO`;
+- binding `BOUND`;
+- read enabled;
+- write/control disabled;
+- `msa_shadow_read_rows` successfully returned live `NEW_UNMAPPED` detail;
+- Dashboard Audit recorded `IANEO -> msa_shadow_read_rows -> SUCCESS`, transport `EXTERNAL_MCP`, runtime `EXTERNAL_MCP_CLIENT`, capability `mcp:read`, timestamp 2026-08-23 19:02:38 local.
+
+No additional connector recreation is required for the current v2.1 schema contract.
 
 ## Direction boundary
 
@@ -30,9 +69,9 @@ MSA does not call back into ChatGPT through this binding. Internal/outbound AI e
 
 ## Audit hand-off
 
-This slice resolves the durable named actor identity required by F7.3 but does not yet persist the full actor-aware operation ledger.
+The external actor path now has both durable named-agent resolution and minimal append-only read evidence. Full F7.3 still expands the Audit product surface and operation ledger.
 
-F7.3 Audit should later expose/filter by at least:
+F7.3 Audit should expose/filter by at least:
 
 - date/time and month;
 - human/delegating user;
@@ -47,4 +86,4 @@ Historical month navigation/archive must preserve audit records rather than sile
 
 ## Current next work
 
-Continue F7.2D4 with internal provider/model assignment, fallback policy, canonical runtime identity injection, and a narrow real provider-backed inference proof. F7.3 actor-aware Audit/operation ledger follows after the Agent/Provider control-plane foundation is complete.
+Continue F7.2D4 with internal provider/model assignment, fallback policy, canonical runtime identity injection, and a narrow real provider-backed inference proof. The replacement external-MCP acceptance prerequisite is complete. F7.3 actor-aware Audit/operation ledger follows after the Agent/Provider control-plane foundation is complete.
