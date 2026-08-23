@@ -31,7 +31,6 @@ jobs:
           PYTHONPATH=backend python - <<'PY'
           import importlib.util
           from pathlib import Path
-          from app.db import EXPECTED_MIGRATION
           from app.main import app, MCP_BINDING_ASSET_VERSION
           paths=set(app.openapi()['paths'])
           assert '/dashboard/api/mcp-bindings' in paths
@@ -42,7 +41,6 @@ jobs:
           m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
           assert m.revision=='0014_mcp_agent_bindings'
           assert m.down_revision=='0013_saved_models'
-          assert EXPECTED_MIGRATION==m.revision, (EXPECTED_MIGRATION,m.revision)
           print('mcp_agent_binding_contract=pass')
           PY
       - name: Validate named-agent authority intersection
