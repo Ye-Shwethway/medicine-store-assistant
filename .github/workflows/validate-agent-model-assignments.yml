@@ -1,0 +1,25 @@
+name: Validate internal agent model assignments
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'backend/app/agent_model_assignments.py'
+      - 'backend/app/agent_model_assignments_verify.py'
+      - 'backend/app/main.py'
+      - '.github/workflows/validate-agent-model-assignments.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate-agent-model-assignments:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install backend requirements
+        run: python -m pip install --disable-pip-version-check -q -r backend/requirements.txt
+      - name: Compile assignment runtime
+        run: python -m compileall -q backend/app
+      - name: Validate assignment chain contract
+        run: PYTHONPATH=backend python backend/app/agent_model_assignments_verify.py
