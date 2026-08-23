@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Project Roadmap
 
-Status: **F0/F1/F2/F3/F4/F5/F5.1/F6A/F6C/F7.1/F7.2A/F7.2B/F7.2C/F7.2D0/F7.2D2/F7.2D3 verified complete; F6B remains test-only; F7.2D4 model assignment/fallback/runtime identity is next; PostgreSQL remains non-canonical**
+Status: **F0/F1/F2/F3/F4/F5/F5.1/F6A/F6C/F7.1/F7.2A/F7.2B/F7.2C/F7.2D0/F7.2D2/F7.2D3/F7.2D4A verified complete; F6B remains test-only; F7.2D4 internal model assignment/fallback/runtime identity continues next; PostgreSQL remains non-canonical**
 
 The live Google workbook/source documents remain operationally authoritative. The current F6B snapshot is test-only and is not an accepted migration baseline. A fresh migration candidate is imported only after the redesigned operational workflow, location model, management surfaces, and shadow-validation path are ready and explicitly approved.
 
@@ -44,6 +44,7 @@ No client or AI agent receives arbitrary SQL, raw database credentials, VPS shel
 - F7.2D0 custom MCP full-schema/OAuth connectivity — verified 2026-08-23
 - F7.2D2 named AI Agent Management + multi-agent session topology — verified 2026-08-23 via PR #58
 - F7.2D3 Provider Registry + dynamic model catalog — verified 2026-08-23 via PR #60
+- F7.2D4A external MCP OAuth-grant -> named-agent binding — verified 2026-08-23 via PR #70
 
 ## Current F6B test-only snapshot
 
@@ -98,22 +99,39 @@ Verified capabilities:
 - provider credentials are write-only from the Web control plane and never returned to the browser;
 - server-side connection-test and dynamic model-fetch endpoints;
 - normalized model catalog with bounded metadata and explicit unknown capability states;
+- tested Owner-approved saved-model catalog separated from provider discovery;
 - provider state/health remains distinct from model/agent state;
 - enable gate requires configured credential, healthy connection test, and successful model fetch;
 - custom provider URL validation blocks non-HTTPS/private/loopback/link-local/reserved destinations and redirects;
 - provider responses are bounded/sanitized;
 - public anonymous Provider Registry returns 401;
-- deploy verifier made no real provider API call and no inventory mutation/workbook import occurred.
+- deploy verifier made no inventory mutation/workbook import.
 
-Agent Management UI was also refined to match the approved dashboard language:
-
-- `Create agent` and `New session` use the same secondary-button family as `Refresh`;
-- agents are visibly grouped into `External / MCP agents` and `Internal / provider-backed agents`;
-- each agent card shows `Agent name`, `Origin`, and `Model` primary metadata;
-- unassigned internal agents show `Not assigned`; external client models remain `Client-managed` rather than guessed;
-- Provider Registry lives in the same Owner-only AI control-plane page.
+Agent Management UI also separates `External / MCP agents` from `Internal / provider-backed agents`, and agent cards expose `Agent name`, `Origin`, and `Model` metadata.
 
 Canonical checkpoint: `docs/checkpoints/F7_2D3_PROVIDER_REGISTRY_VERIFIED_2026-08-23.md`.
+
+## F7.2D4A — External MCP named-agent binding — **VERIFIED COMPLETE**
+
+PR #70 merged as `5f00458b55e85cfe4e3a78f5fb7b2f8517e159e2`; deploy run `32631778542` succeeded and issue #26 reported `status=success`. Alembic head is `0014_mcp_agent_bindings`.
+
+Verified direction:
+
+`ChatGPT/custom MCP client -> OAuth grant -> named EXTERNAL_MCP_CLIENT agent -> live authority intersection -> typed MSA operation`
+
+Key behavior:
+
+- Owner can bind/rebind/unbind a live MCP OAuth grant to a named external MCP agent without reconnecting ChatGPT;
+- `msa_identity_whoami` resolves the stable named-agent identity when bound and returns `UNBOUND` rather than inventing identity otherwise;
+- effective MCP authority intersects live OAuth grant capability with live agent capability scope and authority ceiling;
+- disabled/revoked/non-external agents contribute no named-agent capability authority;
+- binding does not make MSA call back into ChatGPT; outbound/internal AI remains provider-backed;
+- production inventory write and control-plane system gates remain closed;
+- Agent Management includes explicit MCP connection binding UI;
+- destructive `Revoke` uses the MSA danger style rather than browser-default styling;
+- MCP binding UI uses direct-child MutationObserver semantics only to prevent self-trigger freeze loops.
+
+Canonical checkpoint: `docs/checkpoints/F7_2D4A_MCP_AGENT_BINDING_VERIFIED_2026-08-23.md`.
 
 ## Web implementation workflow
 
@@ -127,15 +145,16 @@ Every Web release must additionally satisfy `docs/design/WEB_ASSET_RELEASE_INTEG
 
 ## F7.2D4 — Internal model assignment, fallback & runtime identity — **NEXT**
 
-Next slice:
+Next continuation:
 
-- assign a primary provider/model to a named internal agent;
+- assign a primary provider/saved-tested model to a named internal agent;
 - optional ordered fallback chain;
 - capability compatibility checks;
 - timeout/output policy and optional usage/cost metadata;
 - server-side injection of canonical agent identity (`display_name` + stable `agent_id`) on every invocation;
 - preserve authority independently from provider/model assignment;
-- prepare real single-agent inference and future multi-agent compare/review/debate execution across same or different providers.
+- prove a narrow real provider-backed inference using Owner-configured credentials;
+- prepare multi-agent compare/review/debate execution across same or different providers.
 
 Changing provider/model never changes `agent_id` or authority. External MCP identities remain separate from internal provider-backed agents.
 
@@ -143,11 +162,13 @@ Changing provider/model never changes `agent_id` or authority. External MCP iden
 
 Operational/database Audit remains separate from User Management and Agent Management. Actor classes: `HUMAN`, `AI_AGENT`, `SYSTEM`, `INTEGRATION`.
 
-Meaningful operations retain actor/client/delegation/location/policy/outcome/read-back provenance. Historical committed facts use correction/reversal semantics rather than silent destructive rewriting.
+Meaningful operations retain human/delegation, named agent, client/transport, provider/model where relevant, location/policy/outcome/read-back provenance.
+
+The Audit UI must support filtering by date/time or month, human, agent, runtime/client, provider/model where relevant, operation, result, location/target, and operation ID. Historical month/archive navigation preserves records rather than silently deleting or rewriting them.
 
 ## Later sequence
 
-1. **F7.2D4** — model assignment/fallback/runtime identity — next
+1. **F7.2D4** — internal model assignment/fallback/runtime identity — next
 2. **F7.3** — actor-aware Audit / operation ledger
 3. **F7.4** — Inventory Locations / Store Policy / Preferences
 4. **F7.5** — Smart Calculator / receipts, calculation-only first
@@ -174,9 +195,11 @@ Do not enable production inventory writes, AI inventory writes, transfers, Smart
 - `docs/architecture/F7_2D_AI_AGENT_MANAGEMENT.md`
 - `docs/architecture/F7_2D0_MCP_FULL_CAPABILITY_SCHEMA.md`
 - `docs/architecture/F7_2D2_AGENT_MANAGEMENT_AND_MULTI_AGENT_SESSIONS.md`
+- `docs/architecture/F7_2D4A_EXTERNAL_MCP_AGENT_BINDING.md`
 - `docs/checkpoints/F7_2D0_MCP_CONNECTIVITY_VERIFIED_2026-08-23.md`
 - `docs/checkpoints/F7_2D2_AGENT_MANAGEMENT_2026-08-23.md`
 - `docs/checkpoints/F7_2D3_PROVIDER_REGISTRY_VERIFIED_2026-08-23.md`
+- `docs/checkpoints/F7_2D4A_MCP_AGENT_BINDING_VERIFIED_2026-08-23.md`
 - `docs/architecture/F7_3_ACTOR_AUDIT_AND_OPERATION_LEDGER.md`
 - `design-system/medicine-store-assistant/MASTER.md`
 - `design-system/medicine-store-assistant/pages/dashboard.md`
