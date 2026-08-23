@@ -124,8 +124,31 @@ def list_shadow_rows(
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
 ) -> dict[str, Any]:
+    # Build only the filters that are actually present. This avoids PostgreSQL
+    # having to infer a type for optional NULL bind parameters such as
+    # ``:q IS NULL`` and keeps the query plan explicit and bounded.
+    clauses: list[str] = []
+    params: dict[str, Any] = {"limit": limit, "offset": offset}
+    if migration_batch_id:
+        clauses.append("msr.migration_batch_id::text = :migration_batch_id")
+        params["migration_batch_id"] = migration_batch_id
+    if source_sheet:
+        clauses.append("msr.source_sheet = :source_sheet")
+        params["source_sheet"] = source_sheet
+    if classification:
+        clauses.append("msr.classification = :classification")
+        params["classification"] = classification
+    if q:
+        clauses.append(
+            "(COALESCE(msr.payload->>'item_name', '') ILIKE :q_pattern "
+            "OR COALESCE(msr.payload->>'serial_code', '') ILIKE :q_pattern "
+            "OR COALESCE(msr.review_reason, '') ILIKE :q_pattern)"
+        )
+        params["q_pattern"] = f"%{q}%"
+
+    where_sql = f"WHERE {' AND '.join(clauses)}" if clauses else ""
     rows = _query(
-        """
+        f"""
         SELECT msr.migration_source_row_id::text AS migration_source_row_id,
                msr.migration_batch_id::text AS migration_batch_id,
                msr.source_sheet,
@@ -136,32 +159,23 @@ def list_shadow_rows(
                msr.payload,
                msr.created_at
         FROM migration_source_rows msr
-        WHERE (:migration_batch_id IS NULL OR msr.migration_batch_id::text = :migration_batch_id)
-          AND (:source_sheet IS NULL OR msr.source_sheet = :source_sheet)
-          AND (:classification IS NULL OR msr.classification = :classification)
-          AND (
-            :q IS NULL
-            OR COALESCE(msr.payload->>'item_name', '') ILIKE '%' || :q || '%'
-            OR COALESCE(msr.payload->>'serial_code', '') ILIKE '%' || :q || '%'
-            OR COALESCE(msr.review_reason, '') ILIKE '%' || :q || '%'
-          )
+        {where_sql}
         ORDER BY msr.created_at DESC, msr.source_sheet, msr.source_row_no, msr.migration_source_row_id
         LIMIT :limit OFFSET :offset
         """,
-        {
-            "migration_batch_id": migration_batch_id,
-            "source_sheet": source_sheet,
-            "classification": classification,
-            "q": q,
-            "limit": limit,
-            "offset": offset,
-        },
+        params,
     )
     return {
         "items": rows,
         "count": len(rows),
         "limit": limit,
         "offset": offset,
+        "filters": {
+            "migration_batch_id": migration_batch_id,
+            "source_sheet": source_sheet,
+            "classification": classification,
+            "q": q,
+        },
         "migration_baseline_accepted": False,
         "database_canonical": False,
     }
@@ -169,18 +183,23 @@ def list_shadow_rows(
 
 @router.get("/review-reasons", summary="Summarize shadow review reasons")
 def shadow_review_reasons(migration_batch_id: str | None = None) -> dict[str, Any]:
+    params: dict[str, Any] = {}
+    batch_filter = ""
+    if migration_batch_id:
+        batch_filter = "AND migration_batch_id::text = :migration_batch_id"
+        params["migration_batch_id"] = migration_batch_id
     rows = _query(
-        """
+        f"""
         SELECT classification,
                COALESCE(review_reason, '(none)') AS review_reason,
                COUNT(*) AS row_count
         FROM migration_source_rows
-        WHERE (:migration_batch_id IS NULL OR migration_batch_id::text = :migration_batch_id)
-          AND classification IN ('REVIEW', 'CONFLICT', 'NEW_UNMAPPED')
+        WHERE classification IN ('REVIEW', 'CONFLICT', 'NEW_UNMAPPED')
+          {batch_filter}
         GROUP BY classification, COALESCE(review_reason, '(none)')
         ORDER BY classification, row_count DESC, review_reason
         """,
-        {"migration_batch_id": migration_batch_id},
+        params,
     )
     return {
         "items": rows,

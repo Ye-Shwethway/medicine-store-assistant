@@ -20,6 +20,7 @@ from app.email_recovery_page import router as email_recovery_page_router
 from app.mcp_agent_binding import router as mcp_agent_binding_router
 from app.mcp_oauth import router as mcp_oauth_router
 from app.mcp_server import mcp, mcp_http_app
+import app.mcp_shadow_reads as _mcp_shadow_reads  # noqa: F401  # registers typed read tools
 from app.nanogpt_catalog import router as nanogpt_catalog_router
 from app.provider_model_view import router as provider_model_view_router
 from app.provider_registry import router as provider_registry_router
@@ -53,7 +54,8 @@ app = FastAPI(
         "Authenticated inventory, canonical human identity/User Management/credential and email-recovery lifecycle, catalogue, "
         "test-only shadow reads, the F7 dashboard, F7.2D named Agent Management/multi-agent session foundation, "
         "Owner-only Provider Registry/model discovery, tested saved-model catalog and agent model-assignment foundation, "
-        "external MCP named-agent binding, minimal MCP audit evidence, NanoGPT detailed catalog enrichment, and the MCP/OAuth protocol surface are available; "
+        "external MCP named-agent binding, minimal MCP audit evidence, broad typed read-only shadow detail access, "
+        "NanoGPT detailed catalog enrichment, and the MCP/OAuth protocol surface are available; "
         "canonical inventory writes remain disabled."
     ),
     lifespan=app_lifespan,
@@ -212,6 +214,7 @@ def health() -> dict[str, object]:
         "mcp_oauth": "enabled",
         "mcp_named_agent_binding": "f7.2d4a",
         "mcp_audit_evidence": "f7.3a",
+        "mcp_broad_typed_reads": "f7.3b",
         "agent_management": "f7.2d2",
         "provider_registry": "f7.2d3",
         "saved_model_catalog": "f7.2d3.1",

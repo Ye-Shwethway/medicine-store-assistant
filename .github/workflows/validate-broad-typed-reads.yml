@@ -1,0 +1,57 @@
+name: Validate broad typed reads
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'backend/app/shadow_read_api.py'
+      - 'backend/app/mcp_shadow_reads.py'
+      - 'backend/app/main.py'
+      - '.github/workflows/validate-broad-typed-reads.yml'
+      - 'docs/checkpoints/F7_3B_BROAD_TYPED_READS_2026-08-23.md'
+
+permissions:
+  contents: read
+
+jobs:
+  validate-broad-typed-reads:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install backend requirements
+        run: python -m pip install --disable-pip-version-check -q -r backend/requirements.txt
+      - name: Compile Python
+        run: python -m compileall -q backend/app
+      - name: Validate MCP read tool registration
+        run: |
+          PYTHONPATH=backend python - <<'PY'
+          import app.main  # noqa: F401; side-effect registers MCP tools
+          import app.mcp_shadow_reads as r
+          assert callable(r.msa_shadow_read_rows)
+          assert callable(r.msa_shadow_read_batch)
+          assert callable(r.msa_shadow_read_review_reasons)
+          print('broad_typed_mcp_tools=pass')
+          PY
+      - name: Validate optional-filter SQL regression fix
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('backend/app/shadow_read_api.py').read_text()
+          assert 'WHERE (:migration_batch_id IS NULL OR' not in s
+          assert 'AND (:source_sheet IS NULL OR' not in s
+          assert 'AND (:classification IS NULL OR' not in s
+          assert ':q IS NULL\n            OR' not in s
+          assert "clauses.append(\"msr.classification = :classification\")" in s
+          assert 'q_pattern' in s
+          print('shadow_optional_filter_regression=pass')
+          PY
+      - name: Validate security boundary
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('backend/app/mcp_shadow_reads.py').read_text()
+          assert 'arbitrary SQL' in s
+          assert 'mcp:read' in s
+          assert 'mcp:write' not in s
+          print('typed_read_security_boundary=pass')
+          PY
