@@ -10,6 +10,7 @@ from app.access_request_confirmed import router as access_request_confirmed_rout
 from app.account_password_confirmed import router as account_password_confirmed_router
 from app.agent_management import router as agent_management_router
 from app.agent_model_assignments import router as agent_model_assignments_router
+from app.ai_workspace_access import router as ai_workspace_access_router
 from app.audit_events import router as audit_events_router
 from app.credential_lifecycle import router as credential_lifecycle_router
 from app.dashboard import ASSET_DIR, DASHBOARD_CSP, router as dashboard_router
@@ -21,7 +22,7 @@ from app.email_recovery_page import router as email_recovery_page_router
 from app.mcp_agent_binding import router as mcp_agent_binding_router
 from app.mcp_oauth import router as mcp_oauth_router
 from app.mcp_server import mcp, mcp_http_app
-import app.mcp_shadow_reads as _mcp_shadow_reads  # noqa: F401  # registers typed read tools
+import app.mcp_shadow_reads as _mcp_shadow_reads  # noqa: F401
 from app.nanogpt_catalog import router as nanogpt_catalog_router
 from app.native_agent_runtime import router as native_agent_runtime_router
 from app.provider_model_view import router as provider_model_view_router
@@ -39,6 +40,7 @@ BUILD_SHA = os.getenv("MSA_BUILD_SHA", "unknown")
 SAVED_MODEL_ASSET_VERSION = "f72d31-2"
 AGENT_ASSIGNMENT_GUARD_ASSET_VERSION = "f72d4-preflight-1"
 NATIVE_AGENT_TEST_ASSET_VERSION = "f72d4d-native-test-1"
+AI_WORKSPACE_ACCESS_ASSET_VERSION = "f72d4-access-1"
 AGENT_POLISH_ASSET_VERSION = "f72d31-agentui-1"
 MCP_BINDING_ASSET_VERSION = "f72d4a-mcpbind-1"
 AUDIT_ASSET_VERSION = "f73a-mcpaudit-1"
@@ -55,12 +57,9 @@ app = FastAPI(
     version=SERVICE_VERSION,
     description=(
         "Typed API boundary for the Medicine Store Assistant backend. "
-        "Authenticated inventory, canonical human identity/User Management/credential and email-recovery lifecycle, catalogue, "
-        "test-only shadow reads, the F7 dashboard, F7.2D named Agent Management/multi-agent session foundation, "
-        "Owner-only Provider Registry/model discovery, tested saved-model catalog, ordered native-agent assignment/fallback contract, "
-        "MCP-independent native internal-agent inference plus a bounded Dashboard test surface, external MCP named-agent binding, "
-        "minimal MCP audit evidence, broad typed read-only shadow detail access, NanoGPT detailed catalog enrichment, and the MCP/OAuth protocol surface are available; "
-        "canonical inventory writes remain disabled."
+        "Authenticated inventory, human identity/User Management, native AI Agent Management, "
+        "Provider Registry/model assignments, MCP-independent internal-agent inference, AI Workspace access policy, "
+        "external MCP/OAuth typed operations and audit evidence are available; canonical inventory writes remain disabled."
     ),
     lifespan=app_lifespan,
 )
@@ -71,12 +70,10 @@ async def dashboard_login_gate(request: Request, call_next):
     path = request.url.path.rstrip("/") or "/"
     token = request.cookies.get(SESSION_COOKIE)
     authenticated = validate_session_token(token)
-
     if path == "/dashboard" and not authenticated:
         return RedirectResponse(url="/dashboard/login", status_code=status.HTTP_307_TEMPORARY_REDIRECT)
     if path == "/dashboard/login" and authenticated and request.query_params.get("verify-email") != "1":
         return RedirectResponse(url="/dashboard", status_code=status.HTTP_307_TEMPORARY_REDIRECT)
-
     return await call_next(request)
 
 
@@ -105,6 +102,7 @@ def dashboard_shell_with_saved_model_assets() -> HTMLResponse:
         f'<script src="/dashboard/assets/dashboard_saved_models.js?v={SAVED_MODEL_ASSET_VERSION}" defer></script>\n'
         f'<script src="/dashboard/assets/dashboard_agent_assignment_guard.js?v={AGENT_ASSIGNMENT_GUARD_ASSET_VERSION}" defer></script>\n'
         f'<script src="/dashboard/assets/dashboard_native_agent_test.js?v={NATIVE_AGENT_TEST_ASSET_VERSION}" defer></script>\n'
+        f'<script src="/dashboard/assets/dashboard_ai_workspace_access.js?v={AI_WORKSPACE_ACCESS_ASSET_VERSION}" defer></script>\n'
         f'<script src="/dashboard/assets/dashboard_mcp_binding.js?v={MCP_BINDING_ASSET_VERSION}" defer></script>\n'
         f'<script src="/dashboard/assets/dashboard_audit.js?v={AUDIT_ASSET_VERSION}" defer></script>\n</body>',
         1,
@@ -114,44 +112,33 @@ def dashboard_shell_with_saved_model_assets() -> HTMLResponse:
     return response
 
 
-@app.get("/dashboard/assets/dashboard_saved_models.css", include_in_schema=False)
-def saved_model_css() -> FileResponse:
-    response = FileResponse(ASSET_DIR / "dashboard_saved_models.css", media_type="text/css")
+def _asset_file(name: str, media_type: str) -> FileResponse:
+    response = FileResponse(ASSET_DIR / name, media_type=media_type)
     response.headers["Cache-Control"] = "no-store, max-age=0"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
     response.headers["X-Content-Type-Options"] = "nosniff"
     return response
+
+
+@app.get("/dashboard/assets/dashboard_saved_models.css", include_in_schema=False)
+def saved_model_css() -> FileResponse:
+    return _asset_file("dashboard_saved_models.css", "text/css")
 
 
 @app.get("/dashboard/assets/dashboard_agent_polish.css", include_in_schema=False)
 def agent_polish_css() -> FileResponse:
-    response = FileResponse(ASSET_DIR / "dashboard_agent_polish.css", media_type="text/css")
-    response.headers["Cache-Control"] = "no-store, max-age=0"
-    response.headers["Pragma"] = "no-cache"
-    response.headers["Expires"] = "0"
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    return response
+    return _asset_file("dashboard_agent_polish.css", "text/css")
 
 
 @app.get("/dashboard/assets/dashboard_mcp_binding.css", include_in_schema=False)
 def mcp_binding_css() -> FileResponse:
-    response = FileResponse(ASSET_DIR / "dashboard_mcp_binding.css", media_type="text/css")
-    response.headers["Cache-Control"] = "no-store, max-age=0"
-    response.headers["Pragma"] = "no-cache"
-    response.headers["Expires"] = "0"
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    return response
+    return _asset_file("dashboard_mcp_binding.css", "text/css")
 
 
 @app.get("/dashboard/assets/dashboard_audit.css", include_in_schema=False)
 def audit_css() -> FileResponse:
-    response = FileResponse(ASSET_DIR / "dashboard_audit.css", media_type="text/css")
-    response.headers["Cache-Control"] = "no-store, max-age=0"
-    response.headers["Pragma"] = "no-cache"
-    response.headers["Expires"] = "0"
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    return response
+    return _asset_file("dashboard_audit.css", "text/css")
 
 
 @app.get("/dashboard/assets/dashboard_saved_models.js", include_in_schema=False)
@@ -168,42 +155,27 @@ def saved_model_js() -> Response:
 
 @app.get("/dashboard/assets/dashboard_agent_assignment_guard.js", include_in_schema=False)
 def agent_assignment_guard_js() -> FileResponse:
-    response = FileResponse(ASSET_DIR / "dashboard_agent_assignment_guard.js", media_type="text/javascript")
-    response.headers["Cache-Control"] = "no-store, max-age=0"
-    response.headers["Pragma"] = "no-cache"
-    response.headers["Expires"] = "0"
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    return response
+    return _asset_file("dashboard_agent_assignment_guard.js", "text/javascript")
 
 
 @app.get("/dashboard/assets/dashboard_native_agent_test.js", include_in_schema=False)
 def native_agent_test_js() -> FileResponse:
-    response = FileResponse(ASSET_DIR / "dashboard_native_agent_test.js", media_type="text/javascript")
-    response.headers["Cache-Control"] = "no-store, max-age=0"
-    response.headers["Pragma"] = "no-cache"
-    response.headers["Expires"] = "0"
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    return response
+    return _asset_file("dashboard_native_agent_test.js", "text/javascript")
+
+
+@app.get("/dashboard/assets/dashboard_ai_workspace_access.js", include_in_schema=False)
+def ai_workspace_access_js() -> FileResponse:
+    return _asset_file("dashboard_ai_workspace_access.js", "text/javascript")
 
 
 @app.get("/dashboard/assets/dashboard_mcp_binding.js", include_in_schema=False)
 def mcp_binding_js() -> FileResponse:
-    response = FileResponse(ASSET_DIR / "dashboard_mcp_binding.js", media_type="text/javascript")
-    response.headers["Cache-Control"] = "no-store, max-age=0"
-    response.headers["Pragma"] = "no-cache"
-    response.headers["Expires"] = "0"
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    return response
+    return _asset_file("dashboard_mcp_binding.js", "text/javascript")
 
 
 @app.get("/dashboard/assets/dashboard_audit.js", include_in_schema=False)
 def audit_js() -> FileResponse:
-    response = FileResponse(ASSET_DIR / "dashboard_audit.js", media_type="text/javascript")
-    response.headers["Cache-Control"] = "no-store, max-age=0"
-    response.headers["Pragma"] = "no-cache"
-    response.headers["Expires"] = "0"
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    return response
+    return _asset_file("dashboard_audit.js", "text/javascript")
 
 
 app.include_router(dashboard_login_router)
@@ -213,6 +185,7 @@ app.include_router(user_management_router)
 app.include_router(agent_management_router)
 app.include_router(agent_model_assignments_router)
 app.include_router(native_agent_runtime_router)
+app.include_router(ai_workspace_access_router)
 app.include_router(mcp_agent_binding_router)
 app.include_router(audit_events_router)
 app.include_router(provider_registry_router)
@@ -249,6 +222,7 @@ def health() -> dict[str, object]:
         "internal_agent_assignment_chain": "f7.2d4b",
         "native_internal_agent_inference": "f7.2d4c",
         "native_internal_agent_test_ui": "f7.2d4d",
+        "ai_workspace_access_policy": "f7.2d4-access",
         "native_internal_agent_tools": False,
         "nanogpt_detailed_catalog": "enabled",
         "production_inventory_writes": False,
@@ -260,12 +234,7 @@ def ready(response: Response) -> dict[str, object]:
     readiness = database_readiness()
     if not readiness["ok"]:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-
-    return {
-        **readiness,
-        "service": SERVICE_NAME,
-        "database_canonical": False,
-    }
+    return {**readiness, "service": SERVICE_NAME, "database_canonical": False}
 
 
 app.mount("/", mcp_http_app)
