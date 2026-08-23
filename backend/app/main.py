@@ -35,6 +35,7 @@ SERVICE_VERSION = os.getenv("MSA_SERVICE_VERSION", "0.1.0-dev")
 ENVIRONMENT = os.getenv("MSA_ENVIRONMENT", "development")
 BUILD_SHA = os.getenv("MSA_BUILD_SHA", "unknown")
 SAVED_MODEL_ASSET_VERSION = "f72d31-2"
+AGENT_ASSIGNMENT_GUARD_ASSET_VERSION = "f72d4-preflight-1"
 AGENT_POLISH_ASSET_VERSION = "f72d31-agentui-1"
 MCP_BINDING_ASSET_VERSION = "f72d4a-mcpbind-1"
 AUDIT_ASSET_VERSION = "f73a-mcpaudit-1"
@@ -99,6 +100,7 @@ def dashboard_shell_with_saved_model_assets() -> HTMLResponse:
     html = html.replace(
         "</body>",
         f'<script src="/dashboard/assets/dashboard_saved_models.js?v={SAVED_MODEL_ASSET_VERSION}" defer></script>\n'
+        f'<script src="/dashboard/assets/dashboard_agent_assignment_guard.js?v={AGENT_ASSIGNMENT_GUARD_ASSET_VERSION}" defer></script>\n'
         f'<script src="/dashboard/assets/dashboard_mcp_binding.js?v={MCP_BINDING_ASSET_VERSION}" defer></script>\n'
         f'<script src="/dashboard/assets/dashboard_audit.js?v={AUDIT_ASSET_VERSION}" defer></script>\n</body>',
         1,
@@ -153,6 +155,16 @@ def saved_model_js() -> Response:
     javascript = (ASSET_DIR / "dashboard_saved_models.js").read_text(encoding="utf-8")
     javascript = javascript.replace("{childList:true,subtree:true}", "{childList:true,subtree:false}")
     response = Response(content=javascript, media_type="text/javascript")
+    response.headers["Cache-Control"] = "no-store, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
+@app.get("/dashboard/assets/dashboard_agent_assignment_guard.js", include_in_schema=False)
+def agent_assignment_guard_js() -> FileResponse:
+    response = FileResponse(ASSET_DIR / "dashboard_agent_assignment_guard.js", media_type="text/javascript")
     response.headers["Cache-Control"] = "no-store, max-age=0"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
