@@ -31,7 +31,7 @@ SERVICE_NAME = "medicine-store-assistant-api"
 SERVICE_VERSION = os.getenv("MSA_SERVICE_VERSION", "0.1.0-dev")
 ENVIRONMENT = os.getenv("MSA_ENVIRONMENT", "development")
 BUILD_SHA = os.getenv("MSA_BUILD_SHA", "unknown")
-SAVED_MODEL_ASSET_VERSION = "f72d31-1"
+SAVED_MODEL_ASSET_VERSION = "f72d31-2"
 
 
 @asynccontextmanager
@@ -107,8 +107,12 @@ def saved_model_css() -> FileResponse:
 
 
 @app.get("/dashboard/assets/dashboard_saved_models.js", include_in_schema=False)
-def saved_model_js() -> FileResponse:
-    response = FileResponse(ASSET_DIR / "dashboard_saved_models.js", media_type="text/javascript")
+def saved_model_js() -> Response:
+    # Prevent the overlay from observing descendant mutations that its own callbacks create.
+    # The base renderer replaces direct list children, so direct-child observation is sufficient.
+    javascript = (ASSET_DIR / "dashboard_saved_models.js").read_text(encoding="utf-8")
+    javascript = javascript.replace("{childList:true,subtree:true}", "{childList:true,subtree:false}")
+    response = Response(content=javascript, media_type="text/javascript")
     response.headers["Cache-Control"] = "no-store, max-age=0"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
