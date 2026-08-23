@@ -45,6 +45,7 @@ NATIVE_AGENT_TEST_ASSET_VERSION = "f72d4d-native-test-1"
 AI_WORKSPACE_ACCESS_ASSET_VERSION = "f72d4-access-1"
 AI_WORKSPACE_ASSET_VERSION = "f72d47b-attachments-1"
 MULTI_AGENT_REVIEW_ASSET_VERSION = "f72d48-review-ui-2"
+MULTI_AGENT_LIVE_EXPORT_ASSET_VERSION = "f72d48-live-export-1"
 AGENT_POLISH_ASSET_VERSION = "f72d31-agentui-1"
 MCP_BINDING_ASSET_VERSION = "f72d4a-mcpbind-1"
 AUDIT_ASSET_VERSION = "f73a-mcpaudit-1"
@@ -156,6 +157,7 @@ def dashboard_shell_with_saved_model_assets() -> HTMLResponse:
         f'<link rel="stylesheet" href="/dashboard/assets/dashboard_agent_polish.css?v={AGENT_POLISH_ASSET_VERSION}">\n'
         f'<link rel="stylesheet" href="/dashboard/assets/dashboard_ai_workspace.css?v={AI_WORKSPACE_ASSET_VERSION}">\n'
         f'<link rel="stylesheet" href="/dashboard/assets/dashboard_multi_agent_review.css?v={MULTI_AGENT_REVIEW_ASSET_VERSION}">\n'
+        f'<link rel="stylesheet" href="/dashboard/assets/dashboard_multi_agent_live_export.css?v={MULTI_AGENT_LIVE_EXPORT_ASSET_VERSION}">\n'
         f'<link rel="stylesheet" href="/dashboard/assets/dashboard_mcp_binding.css?v={MCP_BINDING_ASSET_VERSION}">\n'
         f'<link rel="stylesheet" href="/dashboard/assets/dashboard_audit.css?v={AUDIT_ASSET_VERSION}">\n</head>',
         1,
@@ -168,6 +170,7 @@ def dashboard_shell_with_saved_model_assets() -> HTMLResponse:
         f'<script src="/dashboard/assets/dashboard_ai_workspace_access.js?v={AI_WORKSPACE_ACCESS_ASSET_VERSION}" defer></script>\n'
         f'<script src="/dashboard/assets/dashboard_ai_workspace.js?v={AI_WORKSPACE_ASSET_VERSION}" defer></script>\n'
         f'<script src="/dashboard/assets/dashboard_multi_agent_review.js?v={MULTI_AGENT_REVIEW_ASSET_VERSION}" defer></script>\n'
+        f'<script src="/dashboard/assets/dashboard_multi_agent_live_export.js?v={MULTI_AGENT_LIVE_EXPORT_ASSET_VERSION}" defer></script>\n'
         f'<script src="/dashboard/assets/dashboard_mcp_binding.js?v={MCP_BINDING_ASSET_VERSION}" defer></script>\n'
         f'<script src="/dashboard/assets/dashboard_audit.js?v={AUDIT_ASSET_VERSION}" defer></script>\n</body>',
         1,
@@ -204,6 +207,11 @@ def ai_workspace_css() -> FileResponse:
 @app.get("/dashboard/assets/dashboard_multi_agent_review.css", include_in_schema=False)
 def multi_agent_review_css() -> FileResponse:
     return _asset_file("dashboard_multi_agent_review.css", "text/css")
+
+
+@app.get("/dashboard/assets/dashboard_multi_agent_live_export.css", include_in_schema=False)
+def multi_agent_live_export_css() -> FileResponse:
+    return _asset_file("dashboard_multi_agent_live_export.css", "text/css")
 
 
 @app.get("/dashboard/assets/dashboard_mcp_binding.css", include_in_schema=False)
@@ -251,6 +259,11 @@ def ai_workspace_js() -> FileResponse:
 @app.get("/dashboard/assets/dashboard_multi_agent_review.js", include_in_schema=False)
 def multi_agent_review_js() -> FileResponse:
     return _asset_file("dashboard_multi_agent_review.js", "text/javascript")
+
+
+@app.get("/dashboard/assets/dashboard_multi_agent_live_export.js", include_in_schema=False)
+def multi_agent_live_export_js() -> FileResponse:
+    return _asset_file("dashboard_multi_agent_live_export.js", "text/javascript")
 
 
 @app.get("/dashboard/assets/dashboard_mcp_binding.js", include_in_schema=False)
