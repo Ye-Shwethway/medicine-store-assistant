@@ -12,6 +12,7 @@
   let agents=[];
   let sessions=[];
   let providers=[];
+  let currentProviderModels=[];
 
   function announce(text){if(live)live.textContent=text}
   function escapeHtml(value){return String(value??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
@@ -35,7 +36,7 @@
     );
     root.insertAdjacentHTML('beforeend',
       '<div class="agent-modal-back" id="providerModal" role="dialog" aria-modal="true" aria-labelledby="providerModalTitle" hidden><form class="agent-modal-card" id="providerForm" novalidate><div class="agent-modal-head"><div><h2 id="providerModalTitle">Add provider</h2><p>Connect a model provider without exposing its credential after save.</p></div><button class="icon-close" id="providerModalClose" type="button" aria-label="Close provider editor">×</button></div><input id="providerId" type="hidden"><div class="agent-form-grid"><label>Provider name<input id="providerDisplayName" maxlength="100" required></label><label>Provider type<select id="providerKind"><option value="OPENAI">OpenAI</option><option value="GEMINI">Google Gemini</option><option value="OPENROUTER">OpenRouter</option><option value="NANOGPT">NanoGPT</option><option value="OPENAI_COMPATIBLE">Custom OpenAI-compatible</option></select></label><label class="span-2">Base URL<input id="providerBaseUrl" maxlength="500" inputmode="url"><small id="providerBaseHelp">Built-in providers use the verified default unless you supply an override.</small></label><label class="span-2">API credential<input id="providerApiKey" type="password" maxlength="8192" autocomplete="new-password"><small>Write-only. Leave blank when editing to keep the existing credential.</small></label></div><p class="provider-dialog-note">Custom provider URLs must use public HTTPS and cannot resolve to loopback, private, link-local, or metadata-network destinations.</p><p class="form-error" id="providerFormError" role="alert" aria-live="polite"></p><div class="agent-modal-actions"><button class="secondary" id="providerFormCancel" type="button">Cancel</button><button class="primary" id="providerFormSubmit" type="submit">Save provider</button></div></form></div>'+
-      '<div class="agent-modal-back" id="providerModelsModal" role="dialog" aria-modal="true" aria-labelledby="providerModelsTitle" hidden><div class="agent-modal-card"><div class="agent-modal-head"><div><h2 id="providerModelsTitle">Provider models</h2><p id="providerModelsSubtitle">Normalized discovered models</p></div><button class="icon-close" id="providerModelsClose" type="button" aria-label="Close provider models">×</button></div><div id="providerModelsList" class="provider-model-table"></div></div></div>'
+      '<div class="agent-modal-back" id="providerModelsModal" role="dialog" aria-modal="true" aria-labelledby="providerModelsTitle" hidden><div class="agent-modal-card"><div class="agent-modal-head"><div><h2 id="providerModelsTitle">Provider models</h2><p id="providerModelsSubtitle">Normalized discovered models</p></div><button class="icon-close" id="providerModelsClose" type="button" aria-label="Close provider models">×</button></div><div id="providerModelsControls"></div><div id="providerModelsList" class="provider-model-table"></div></div></div>'
     );
     $('#providersRefresh')?.addEventListener('click',loadProviders);
     $('#providerCreateOpen')?.addEventListener('click',()=>openProviderModal());
@@ -202,15 +203,50 @@
     if(action==='edit'){openProviderModal(provider);return}
     if(action==='models'){await openProviderModels(provider);return}
     button.disabled=true;const oldText=button.textContent;button.textContent=action==='test'?'Testing…':action==='fetch'?'Fetching…':oldText;
-    try{if(action==='test')await api('/dashboard/api/providers/'+encodeURIComponent(id)+'/test',{method:'POST'});else if(action==='fetch')await api('/dashboard/api/providers/'+encodeURIComponent(id)+'/models/fetch',{method:'POST'});else if(action==='enable'||action==='disable')await api('/dashboard/api/providers/'+encodeURIComponent(id)+'/'+action,{method:'POST'});announce('Provider '+action+' completed');await loadProviders()}catch(err){window.alert(err.message);announce(err.message);button.disabled=false;button.textContent=oldText}
+    try{
+      if(action==='test')await api('/dashboard/api/providers/'+encodeURIComponent(id)+'/test',{method:'POST'});
+      else if(action==='fetch'){
+        const path=provider.provider_kind==='NANOGPT'?'/dashboard/api/providers/'+encodeURIComponent(id)+'/nanogpt/models/fetch-detailed':'/dashboard/api/providers/'+encodeURIComponent(id)+'/models/fetch';
+        const result=await api(path,{method:'POST'});
+        if(provider.provider_kind==='NANOGPT')announce('NanoGPT detailed catalog: '+Number(result.model_count||0).toLocaleString()+' models, '+Number(result.subscription_included_count||0).toLocaleString()+' subscription included, '+Number(result.paid_only_count||0).toLocaleString()+' paid only');
+      }
+      else if(action==='enable'||action==='disable')await api('/dashboard/api/providers/'+encodeURIComponent(id)+'/'+action,{method:'POST'});
+      if(action!=='fetch'||provider.provider_kind!=='NANOGPT')announce('Provider '+action+' completed');
+      await loadProviders();
+    }catch(err){window.alert(err.message);announce(err.message);button.disabled=false;button.textContent=oldText}
   }
 
   function capabilityText(value,label){return value===true?label+': yes':value===false?label+': no':label+': unknown'}
-  async function openProviderModels(provider){
-    const modal=$('#providerModelsModal');const list=$('#providerModelsList');$('#providerModelsTitle').textContent=provider.display_name+' models';$('#providerModelsSubtitle').textContent='Normalized provider catalog. Unknown capability stays unknown.';list.innerHTML='<div class="empty-copy">Loading models…</div>';modal.hidden=false;
-    try{const data=await api('/dashboard/api/providers/'+encodeURIComponent(provider.provider_id)+'/models');const items=data.items||[];list.innerHTML=items.length?items.map(model=>'<div class="provider-model-detail"><strong>'+escapeHtml(model.display_name)+'</strong><span class="muted">'+escapeHtml(model.model_id)+'</span><div class="provider-model-caps"><span>'+escapeHtml(capabilityText(model.supports_text,'Text'))+'</span><span>'+escapeHtml(capabilityText(model.supports_vision,'Vision'))+'</span><span>'+escapeHtml(capabilityText(model.supports_tools,'Tools'))+'</span><span>'+escapeHtml(capabilityText(model.supports_structured_output,'Structured'))+'</span>'+(model.context_window?'<span>Context: '+Number(model.context_window).toLocaleString()+'</span>':'')+'</div></div>').join(''):'<div class="agent-empty"><strong>No fetched models</strong><p>Fetch models from the provider first.</p></div>'}catch(err){list.innerHTML='<div class="empty-copy">'+escapeHtml(err.message)+'</div>'}
+  function priceText(value){const number=Number(value);return Number.isFinite(number)?'$'+number.toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:6})+' / 1M':'Unknown'}
+  function billingText(model){const tier=model.provider_metadata?.billing_tier;return tier==='SUBSCRIPTION_INCLUDED'?'Subscription included':tier==='PAID_ONLY'?'Paid only':'Billing unknown'}
+  function renderProviderModelResults(){
+    const list=$('#providerModelsList');if(!list)return;
+    const query=String($('#providerModelSearch')?.value||'').trim().toLowerCase();
+    const filtered=currentProviderModels.filter(model=>!query||String(model.display_name||'').toLowerCase().includes(query)||String(model.model_id||'').toLowerCase().includes(query));
+    const count=$('#providerModelCount');if(count)count.textContent=filtered.length.toLocaleString()+' of '+currentProviderModels.length.toLocaleString()+' models';
+    if(!filtered.length){list.innerHTML='<div class="agent-empty"><strong>No matching models</strong><p>Try a shorter model family or provider prefix.</p></div>';return}
+    list.innerHTML=filtered.map(model=>{
+      const meta=model.provider_metadata||{};const caps=meta.capabilities||{};const pricing=meta.pricing||{};
+      const reasoning=Object.prototype.hasOwnProperty.call(caps,'reasoning')?'<span>'+escapeHtml(capabilityText(caps.reasoning,'Reasoning'))+'</span>':'';
+      return '<div class="provider-model-detail">'+
+        '<strong>'+escapeHtml(model.display_name)+'</strong><span class="muted">'+escapeHtml(model.model_id)+'</span>'+
+        '<div class="provider-model-caps"><span>'+escapeHtml(billingText(model))+'</span><span>Input: '+escapeHtml(priceText(pricing.prompt))+'</span><span>Output: '+escapeHtml(priceText(pricing.completion))+'</span></div>'+
+        '<div class="provider-model-caps"><span>'+escapeHtml(capabilityText(model.supports_text,'Text'))+'</span><span>'+escapeHtml(capabilityText(model.supports_vision,'Vision'))+'</span><span>'+escapeHtml(capabilityText(model.supports_tools,'Tools'))+'</span><span>'+escapeHtml(capabilityText(model.supports_structured_output,'Structured'))+'</span>'+reasoning+(model.context_window?'<span>Context: '+Number(model.context_window).toLocaleString()+'</span>':'')+(model.max_output_tokens?'<span>Max output: '+Number(model.max_output_tokens).toLocaleString()+'</span>':'')+'</div>'+
+        (meta.description?'<p class="provider-description">'+escapeHtml(meta.description)+'</p>':'')+
+      '</div>';
+    }).join('');
   }
-  function closeProviderModels(){const modal=$('#providerModelsModal');if(modal)modal.hidden=true}
+
+  async function openProviderModels(provider){
+    const modal=$('#providerModelsModal');const list=$('#providerModelsList');const controls=$('#providerModelsControls');
+    $('#providerModelsTitle').textContent=provider.display_name+' models';
+    $('#providerModelsSubtitle').textContent=provider.provider_kind==='NANOGPT'?'Detailed NanoGPT catalog with official capability, pricing, and subscription membership metadata.':'Normalized provider catalog. Unknown capability stays unknown.';
+    controls.innerHTML='<div class="toolbar"><input id="providerModelSearch" type="search" placeholder="Search model name or ID…" aria-label="Search provider models"><span id="providerModelCount" class="muted"></span></div>';
+    list.innerHTML='<div class="empty-copy">Loading models…</div>';modal.hidden=false;
+    $('#providerModelSearch')?.addEventListener('input',renderProviderModelResults);
+    try{const data=await api('/dashboard/api/providers/'+encodeURIComponent(provider.provider_id)+'/models');currentProviderModels=data.items||[];renderProviderModelResults();setTimeout(()=>$('#providerModelSearch')?.focus(),0)}catch(err){currentProviderModels=[];list.innerHTML='<div class="empty-copy">'+escapeHtml(err.message)+'</div>'}
+  }
+  function closeProviderModels(){const modal=$('#providerModelsModal');if(modal)modal.hidden=true;currentProviderModels=[]}
 
   $('#agentsRefresh')?.addEventListener('click',loadAll);$('#agentCreateOpen')?.addEventListener('click',()=>openAgentModal());$('#sessionCreateOpen')?.addEventListener('click',()=>openSessionModal());
   $('#agentModalClose')?.addEventListener('click',closeAgentModal);$('#agentFormCancel')?.addEventListener('click',closeAgentModal);$('#agentForm')?.addEventListener('submit',saveAgent);

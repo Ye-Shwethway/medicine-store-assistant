@@ -32,7 +32,7 @@ jobs:
       - name: Validate MCP and control-plane runtime imports
         run: |
           python -m pip install --disable-pip-version-check -q -r backend/requirements.txt
-          PYTHONPATH=backend python -c 'from app.main import app; from app.mcp_server import mcp, mcp_http_app; from app.agent_management import router as agent_router; from app.provider_registry import router as provider_router; assert app and mcp and mcp_http_app and agent_router and provider_router; print("mcp_runtime_import=pass agent_management_import=pass provider_registry_import=pass")'
+          PYTHONPATH=backend python -c 'from app.main import app; from app.mcp_server import mcp, mcp_http_app; from app.agent_management import router as agent_router; from app.provider_registry import router as provider_router; from app.nanogpt_catalog import router as nanogpt_router; assert app and mcp and mcp_http_app and agent_router and provider_router and nanogpt_router; print("mcp_runtime_import=pass agent_management_import=pass provider_registry_import=pass nanogpt_catalog_import=pass")'
       - name: Validate MCP OAuth contract
         run: |
           PYTHONPATH=backend python - <<'PY'
@@ -100,6 +100,7 @@ jobs:
               "/dashboard/api/providers/{provider_id}/models",
               "/dashboard/api/providers/{provider_id}/enable",
               "/dashboard/api/providers/{provider_id}/disable",
+              "/dashboard/api/providers/{provider_id}/nanogpt/models/fetch-detailed",
           }
           assert required <= paths, sorted(required - paths)
           p = ProviderCreate(display_name="OpenAI", provider_kind="OPENAI")
@@ -109,6 +110,30 @@ jobs:
           g = _normalize_gemini_model({"name":"models/gemini-test","supportedGenerationMethods":["generateContent"],"inputTokenLimit":1000})
           assert g and g["model_id"] == "gemini-test" and g["supports_text"] is True
           print("f7_2d3_provider_contract=pass")
+          PY
+      - name: Validate NanoGPT detailed catalog normalization
+        run: |
+          PYTHONPATH=backend python - <<'PY'
+          from app.nanogpt_catalog import _normalize_catalog
+          payload = {"data": [{
+              "id": "deepseek/deepseek-v4-flash",
+              "name": "DeepSeek V4 Flash",
+              "description": "Synthetic CI model",
+              "context_length": 131072,
+              "max_output_tokens": 8192,
+              "capabilities": {"vision": False, "reasoning": True, "tool_calling": True, "structured_output": True},
+              "pricing": {"prompt": 0.25, "completion": 0.75, "currency": "USD", "unit": "per_million_tokens"},
+          }]}
+          items = _normalize_catalog(payload, {"deepseek/deepseek-v4-flash"}, set())
+          item = items[0]
+          assert item["supports_text"] is True
+          assert item["supports_vision"] is False
+          assert item["supports_tools"] is True
+          assert item["supports_structured_output"] is True
+          assert item["context_window"] == 131072
+          assert item["provider_metadata"]["pricing"]["prompt"] == 0.25
+          assert item["provider_metadata"]["billing_tier"] == "SUBSCRIPTION_INCLUDED"
+          print("nanogpt_detailed_catalog_contract=pass")
           PY
       - name: Validate dashboard JavaScript syntax
         run: |
@@ -125,6 +150,11 @@ jobs:
           grep -Fq 'Internal / provider-backed agents' backend/app/dashboard_assets/dashboard_agents.js
           grep -Fq 'Provider Registry' backend/app/dashboard_assets/dashboard_agents.js
           grep -Fq "classList.add('secondary')" backend/app/dashboard_assets/dashboard_agents.js
+          grep -Fq 'Search model name or ID' backend/app/dashboard_assets/dashboard_agents.js
+          grep -Fq 'Subscription included' backend/app/dashboard_assets/dashboard_agents.js
+          grep -Fq 'Paid only' backend/app/dashboard_assets/dashboard_agents.js
+          grep -Fq 'Input:' backend/app/dashboard_assets/dashboard_agents.js
+          grep -Fq 'Output:' backend/app/dashboard_assets/dashboard_agents.js
           grep -Fq 'dashboard_agents.js' backend/app/dashboard_assets/dashboard.html
           grep -Fq 'dashboard_agents.css' backend/app/dashboard_assets/dashboard.html
           echo 'f7_2d2_d3_ui_contract=pass'
