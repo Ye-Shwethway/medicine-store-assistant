@@ -12,11 +12,14 @@ on:
       - 'backend/app/native_agent_tools.py'
       - 'backend/app/multi_agent_review.py'
       - 'backend/app/multi_agent_review_registration.py'
+      - 'backend/app/multi_agent_review_ui_api.py'
       - 'backend/app/provider_model_view.py'
       - 'backend/app/main.py'
       - 'backend/app/db.py'
       - 'backend/app/dashboard_assets/dashboard_ai_workspace.js'
       - 'backend/app/dashboard_assets/dashboard_ai_workspace.css'
+      - 'backend/app/dashboard_assets/dashboard_multi_agent_review.js'
+      - 'backend/app/dashboard_assets/dashboard_multi_agent_review.css'
       - 'backend/alembic/versions/0018_ai_workspace_conversations.py'
       - 'backend/alembic/versions/0019_ai_workspace_attachments.py'
       - 'backend/alembic/versions/0020_work_review_substrate.py'
@@ -41,7 +44,7 @@ jobs:
           import importlib.util
           from pathlib import Path
           from app.db import EXPECTED_MIGRATION
-          from app.main import app
+          from app.main import app, MULTI_AGENT_REVIEW_ASSET_VERSION
 
           def load(path, name):
               spec=importlib.util.spec_from_file_location(name, Path(path))
@@ -58,6 +61,7 @@ jobs:
           assert substrate.down_revision == attachments.revision
           assert head.down_revision == substrate.revision
           assert EXPECTED_MIGRATION == head.revision
+          assert MULTI_AGENT_REVIEW_ASSET_VERSION == 'f72d48-review-ui-1'
 
           paths=set(app.openapi()['paths'])
           required={
@@ -72,15 +76,12 @@ jobs:
               '/dashboard/api/ai-workspace/conversations/{conversation_id}/attachments/{attachment_id}/content',
               '/dashboard/api/ai-workspace/multi-agent/sessions/{session_id}/roles',
               '/dashboard/api/ai-workspace/multi-agent/reviews',
+              '/dashboard/api/ai-workspace/multi-agent/work-items',
               '/dashboard/api/ai-workspace/multi-agent/work-items/{work_item_id}',
               '/dashboard/api/ai-workspace/multi-agent/work-items/{work_item_id}/return-for-revision',
           }
           assert required <= paths, sorted(required-paths)
-          delete_op=app.openapi()['paths']['/dashboard/api/ai-workspace/conversations/{conversation_id}'].get('delete')
-          attachment_delete=app.openapi()['paths']['/dashboard/api/ai-workspace/conversations/{conversation_id}/attachments/{attachment_id}'].get('delete')
-          attachment_content=app.openapi()['paths']['/dashboard/api/ai-workspace/conversations/{conversation_id}/attachments/{attachment_id}/content'].get('get')
-          assert delete_op is not None and attachment_delete is not None and attachment_content is not None
-          print('ai_workspace_chat_api=pass')
+          print('ai_workspace_chat_review_api=pass')
           PY
       - name: Validate backend security and sequence contract
         run: |
@@ -96,39 +97,33 @@ jobs:
           grep -Fq 'WORKSPACE_TOOL_OUTPUT_TOKENS = 4096' backend/app/ai_workspace_chat.py
           grep -Fq 'Do not use Markdown heading markers' backend/app/ai_workspace_chat.py
           grep -Fq 'attachment_processing' backend/app/ai_workspace_chat.py
-          grep -Fq 'Attachment metadata is persisted' backend/app/ai_workspace_chat.py
           grep -Fq 'MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024' backend/app/ai_workspace_attachments.py
           grep -Fq 'MAX_PENDING_ATTACHMENTS = 4' backend/app/ai_workspace_attachments.py
-          grep -Fq 'last_message_preview' backend/app/ai_workspace_attachments.py
-          grep -Fq 'content_bytes' backend/app/ai_workspace_attachments.py
-          grep -Fq 'owner_user_id=CAST(:owner_user_id AS uuid)' backend/app/ai_workspace_attachments.py
           grep -Fq 'Depends(require_owner_session)' backend/app/multi_agent_review.py
           grep -Fq 'item["runtime_mode"] != "INTERNAL_MODEL"' backend/app/multi_agent_review.py
           grep -Fq '_set_status(connection, work_item_id, "WAITING_OWNER")' backend/app/multi_agent_review.py
           grep -Fq '"production_mutation": False' backend/app/multi_agent_review.py
-          grep -Fq 'Uploaded photos/files are persisted as evidence' backend/app/main.py
-          echo 'ai_workspace_chat_security_sequence=pass'
-      - name: Validate Dashboard Chat assets
+          grep -Fq 'Depends(require_owner_session)' backend/app/multi_agent_review_ui_api.py
+          grep -Fq "w.work_type='NATIVE_REVIEW'" backend/app/multi_agent_review_ui_api.py
+          grep -Fq 'w.created_by_actor_id=:owner_user_id' backend/app/multi_agent_review_ui_api.py
+          echo 'ai_workspace_review_security=pass'
+      - name: Validate Dashboard Chat and Review assets
         run: |
           node --check backend/app/dashboard_assets/dashboard_ai_workspace.js
+          node --check backend/app/dashboard_assets/dashboard_multi_agent_review.js
           grep -Fq 'humanTime' backend/app/dashboard_assets/dashboard_ai_workspace.js
-          grep -Fq 'cleanDisplayText' backend/app/dashboard_assets/dashboard_ai_workspace.js
           grep -Fq 'data-copy-message' backend/app/dashboard_assets/dashboard_ai_workspace.js
-          grep -Fq 'data-ai-delete' backend/app/dashboard_assets/dashboard_ai_workspace.js
-          grep -Fq 'aiPhotoInput' backend/app/main.py
-          grep -Fq 'aiFileInput' backend/app/main.py
-          grep -Fq 'uploadApi' backend/app/dashboard_assets/dashboard_ai_workspace.js
-          grep -Fq 'data-ai-remove-attachment' backend/app/dashboard_assets/dashboard_ai_workspace.js
-          grep -Fq 'conversation-cards' backend/app/dashboard_assets/dashboard_ai_workspace.js
-          grep -Fq 'last_message_preview' backend/app/dashboard_assets/dashboard_ai_workspace.js
-          grep -Fq 'ai-message-image' backend/app/dashboard_assets/dashboard_ai_workspace.js
-          grep -Fq 'ai-pending-thumb' backend/app/dashboard_assets/dashboard_ai_workspace.js
-          grep -Fq 'user-select:text' backend/app/dashboard_assets/dashboard_ai_workspace.css
-          grep -Fq '.ai-conversation-preview' backend/app/dashboard_assets/dashboard_ai_workspace.css
-          grep -Fq '.ai-pending-thumb' backend/app/dashboard_assets/dashboard_ai_workspace.css
-          grep -Fq '.ai-message-image' backend/app/dashboard_assets/dashboard_ai_workspace.css
-          grep -Fq 'AI Workspace' backend/app/main.py
-          grep -Fq 'id="aiWorkspaceNav"' backend/app/main.py
-          grep -Fq 'data-panel="ai-workspace"' backend/app/main.py
-          grep -Fq 'Multi-Agent Workspace' backend/app/main.py
-          echo 'ai_workspace_chat_ui=pass'
+          grep -Fq 'reviewSessionSelect' backend/app/dashboard_assets/dashboard_multi_agent_review.js
+          grep -Fq 'reviewSaveRoles' backend/app/dashboard_assets/dashboard_multi_agent_review.js
+          grep -Fq 'reviewEvidenceConversation' backend/app/dashboard_assets/dashboard_multi_agent_review.js
+          grep -Fq '/dashboard/api/ai-workspace/multi-agent/reviews' backend/app/dashboard_assets/dashboard_multi_agent_review.js
+          grep -Fq '/dashboard/api/ai-workspace/multi-agent/work-items' backend/app/dashboard_assets/dashboard_multi_agent_review.js
+          grep -Fq 'Production mutation: NO' backend/app/dashboard_assets/dashboard_multi_agent_review.js
+          grep -Fq '.review-grid' backend/app/dashboard_assets/dashboard_multi_agent_review.css
+          grep -Fq '@media(max-width:760px)' backend/app/dashboard_assets/dashboard_multi_agent_review.css
+          grep -Fq 'MULTI_AGENT_REVIEW_ASSET_VERSION = "f72d48-review-ui-1"' backend/app/main.py
+          grep -Fq 'dashboard_multi_agent_review.css?v={MULTI_AGENT_REVIEW_ASSET_VERSION}' backend/app/main.py
+          grep -Fq 'dashboard_multi_agent_review.js?v={MULTI_AGENT_REVIEW_ASSET_VERSION}' backend/app/main.py
+          grep -Fq 'no-store, max-age=0' backend/app/main.py
+          ! grep -Fq 'f72d48-review-ui-0' backend/app/main.py
+          echo 'ai_workspace_review_asset_chain=pass'

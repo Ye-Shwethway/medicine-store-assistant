@@ -44,6 +44,7 @@ AGENT_ASSIGNMENT_GUARD_ASSET_VERSION = "f72d4-preflight-1"
 NATIVE_AGENT_TEST_ASSET_VERSION = "f72d4d-native-test-1"
 AI_WORKSPACE_ACCESS_ASSET_VERSION = "f72d4-access-1"
 AI_WORKSPACE_ASSET_VERSION = "f72d47b-attachments-1"
+MULTI_AGENT_REVIEW_ASSET_VERSION = "f72d48-review-ui-1"
 AGENT_POLISH_ASSET_VERSION = "f72d31-agentui-1"
 MCP_BINDING_ASSET_VERSION = "f72d4a-mcpbind-1"
 AUDIT_ASSET_VERSION = "f73a-mcpaudit-1"
@@ -61,8 +62,8 @@ app = FastAPI(
     description=(
         "Typed API boundary for the Medicine Store Assistant backend. "
         "Authenticated inventory, human identity/User Management, native AI Agent Management, "
-        "Provider Registry/model assignments, MCP-independent internal-agent inference, AI Workspace access policy, durable Chat, bounded native reads and attachment evidence, "
-        "external MCP/OAuth typed operations and audit evidence are available; canonical inventory writes remain disabled."
+        "Provider Registry/model assignments, MCP-independent internal-agent inference, AI Workspace access policy, durable Chat, bounded native reads, attachment evidence and Owner-only native REVIEW are available; "
+        "external MCP/OAuth typed operations and audit evidence remain peer paths; canonical inventory writes remain disabled."
     ),
     lifespan=app_lifespan,
 )
@@ -93,7 +94,7 @@ AI_WORKSPACE_NAV = '<button class="workspace-nav-btn" id="aiWorkspaceNav" type="
 AI_WORKSPACE_PANEL = r'''
         <section class="view" data-panel="ai-workspace">
           <div class="management-head">
-            <div><h2>AI Workspace</h2><p>Operational Chat with native Medicine Store Assistant agents. ChatGPT and public MCP are not required for this path.</p></div>
+            <div><h2>AI Workspace</h2><p>Operational Chat and Owner-only native Review with Medicine Store Assistant agents. ChatGPT and public MCP are not required for the native path.</p></div>
           </div>
           <div class="ai-workspace-tabs">
             <button class="ai-workspace-tab active" data-ai-tab="chat" type="button">Chat</button>
@@ -127,17 +128,8 @@ AI_WORKSPACE_PANEL = r'''
             </div>
             <div id="aiMultiMode" hidden>
               <article class="card panel ai-multi-placeholder">
-                <h2>Multi-Agent Workspace</h2><p class="sub">Owner-only execution surface.</p>
-                <p>Reusable participant sets already live in AI Agent Management. Group, compare, review, and debate execution will be wired in a later slice.</p>
-                <div class="ai-multi-compose-shell" aria-label="Future Multi-Agent composer">
-                  <div class="ai-attachment-actions">
-                    <button class="ai-attach-button" type="button" disabled>Photo</button>
-                    <button class="ai-attach-button" type="button" disabled>File</button>
-                    <span class="ai-attachment-hint">Attachment contract is shared with Chat; enabled when Multi-Agent execution lands.</span>
-                  </div>
-                  <textarea placeholder="Multi-Agent message…" disabled></textarea>
-                  <button type="button" disabled>Send</button>
-                </div>
+                <h2>Multi-Agent Workspace</h2><p class="sub">Owner-only native Review is loading.</p>
+                <p>Review work persists through the shared Work Item, Artifact, Review, Event and Attention substrate. Production inventory writes remain disabled.</p>
               </article>
             </div>
           </div>
@@ -163,6 +155,7 @@ def dashboard_shell_with_saved_model_assets() -> HTMLResponse:
         f'<link rel="stylesheet" href="/dashboard/assets/dashboard_saved_models.css?v={SAVED_MODEL_ASSET_VERSION}">\n'
         f'<link rel="stylesheet" href="/dashboard/assets/dashboard_agent_polish.css?v={AGENT_POLISH_ASSET_VERSION}">\n'
         f'<link rel="stylesheet" href="/dashboard/assets/dashboard_ai_workspace.css?v={AI_WORKSPACE_ASSET_VERSION}">\n'
+        f'<link rel="stylesheet" href="/dashboard/assets/dashboard_multi_agent_review.css?v={MULTI_AGENT_REVIEW_ASSET_VERSION}">\n'
         f'<link rel="stylesheet" href="/dashboard/assets/dashboard_mcp_binding.css?v={MCP_BINDING_ASSET_VERSION}">\n'
         f'<link rel="stylesheet" href="/dashboard/assets/dashboard_audit.css?v={AUDIT_ASSET_VERSION}">\n</head>',
         1,
@@ -174,6 +167,7 @@ def dashboard_shell_with_saved_model_assets() -> HTMLResponse:
         f'<script src="/dashboard/assets/dashboard_native_agent_test.js?v={NATIVE_AGENT_TEST_ASSET_VERSION}" defer></script>\n'
         f'<script src="/dashboard/assets/dashboard_ai_workspace_access.js?v={AI_WORKSPACE_ACCESS_ASSET_VERSION}" defer></script>\n'
         f'<script src="/dashboard/assets/dashboard_ai_workspace.js?v={AI_WORKSPACE_ASSET_VERSION}" defer></script>\n'
+        f'<script src="/dashboard/assets/dashboard_multi_agent_review.js?v={MULTI_AGENT_REVIEW_ASSET_VERSION}" defer></script>\n'
         f'<script src="/dashboard/assets/dashboard_mcp_binding.js?v={MCP_BINDING_ASSET_VERSION}" defer></script>\n'
         f'<script src="/dashboard/assets/dashboard_audit.js?v={AUDIT_ASSET_VERSION}" defer></script>\n</body>',
         1,
@@ -205,6 +199,11 @@ def agent_polish_css() -> FileResponse:
 @app.get("/dashboard/assets/dashboard_ai_workspace.css", include_in_schema=False)
 def ai_workspace_css() -> FileResponse:
     return _asset_file("dashboard_ai_workspace.css", "text/css")
+
+
+@app.get("/dashboard/assets/dashboard_multi_agent_review.css", include_in_schema=False)
+def multi_agent_review_css() -> FileResponse:
+    return _asset_file("dashboard_multi_agent_review.css", "text/css")
 
 
 @app.get("/dashboard/assets/dashboard_mcp_binding.css", include_in_schema=False)
@@ -247,6 +246,11 @@ def ai_workspace_access_js() -> FileResponse:
 @app.get("/dashboard/assets/dashboard_ai_workspace.js", include_in_schema=False)
 def ai_workspace_js() -> FileResponse:
     return _asset_file("dashboard_ai_workspace.js", "text/javascript")
+
+
+@app.get("/dashboard/assets/dashboard_multi_agent_review.js", include_in_schema=False)
+def multi_agent_review_js() -> FileResponse:
+    return _asset_file("dashboard_multi_agent_review.js", "text/javascript")
 
 
 @app.get("/dashboard/assets/dashboard_mcp_binding.js", include_in_schema=False)
@@ -309,6 +313,7 @@ def health() -> dict[str, object]:
         "ai_workspace_chat": "f7.2d47b-attachments",
         "native_internal_agent_tools": "f7.2d47b-human-presentation",
         "ai_workspace_attachments": "metadata-and-evidence-persistence-no-model-processing",
+        "multi_agent_review": "f7.2d48-review-ui",
         "nanogpt_detailed_catalog": "enabled",
         "production_inventory_writes": False,
     }
