@@ -41,7 +41,13 @@ jobs:
       - name: Deploy and verify backend
         shell: bash
         working-directory: source
-        run: bash deploy/apply_backend.sh
+        run: |
+          set -o pipefail
+          # During container restart the readiness retry loop can briefly hit a
+          # reset peer. The deploy script still fails explicitly if readiness
+          # never succeeds; filter only this expected transient curl noise.
+          bash deploy/apply_backend.sh \
+            2> >(grep -v '^curl: (56) Recv failure: Connection reset by peer$' >&2)
 
       - name: Verify public MCP OAuth boundary
         shell: bash
