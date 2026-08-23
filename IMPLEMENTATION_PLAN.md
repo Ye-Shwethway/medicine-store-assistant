@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Implementation Plan
 
-Status: **F7.2D4E durable AI Workspace Chat is production-accepted; current slice is F7.2D4F grounded native read tools + Chat UI polish; production inventory write authority remains unauthorized**
+Status: **F7.2D4F grounded native read tools are production-accepted; current slice is F7.2D4G AI Workspace Chat UX + lifecycle; production inventory write authority remains unauthorized**
 
 This file is the execution contract for current MSA implementation order and boundaries.
 
@@ -44,6 +44,8 @@ Verified in production:
 - AI Workspace backend access policy with Owner bypass/global non-owner gate/per-user entitlement foundation;
 - durable single-agent conversations/messages;
 - top-level `AI Workspace` Chat with named-agent selection and persisted conversation history;
+- bounded native read tools for inventory/shadow summary, `NEW_UNMAPPED`, and review reasons;
+- manual acceptance proving real F6B shadow data can be read by the native internal agent without public MCP;
 - Multi-Agent UI remains Owner-only and execution is not yet wired;
 - production inventory writes remain closed.
 
@@ -72,7 +74,7 @@ Top-level **AI Workspace** is the operational surface.
 4. Non-owner + global ON + INHERIT/ALLOW -> eligible to continue.
 5. Per-user ALLOW never overrides global OFF.
 
-When typed tools are attached, effective authority remains an intersection of system gate, authenticated human authority, selected agent capability/ceiling, location scope, operation class, and confirmation policy. Never union privileges.
+Effective typed-tool authority remains an intersection of system gate, authenticated human authority, selected-agent capability/ceiling, location scope, operation class, and confirmation policy. Never union privileges.
 
 ## 6. Current implementation slices
 
@@ -84,22 +86,36 @@ Backend-first global gate, per-user entitlement persistence, Owner bypass, and p
 
 Durable per-user conversations/messages and the separate top-level AI Workspace are production-live. Manual acceptance confirmed provider-backed replies and persistence after refresh.
 
-### D4.6 / F7.2D4F — Grounded native read tools — CURRENT
+### D4.6 / F7.2D4F — Grounded native read tools — VERIFIED
+
+Production-live and manually accepted:
+
+- hardened grounding/language boundary;
+- bounded native reads over backend/database contracts, not public MCP;
+- inventory/shadow summary;
+- bounded `NEW_UNMAPPED` rows;
+- bounded review-reason summary;
+- selected-agent READ capability/authority requirement;
+- native tool provenance persisted with assistant messages;
+- production writes remain disabled.
+
+Acceptance evidence showed 1,646 F6B rows with SAFE 1,417 / REVIEW 222 / CONFLICT 0 / NEW_UNMAPPED 7 and real NEW_UNMAPPED row payloads.
+
+### F7.2D4G — Chat UX + lifecycle — CURRENT
+
+Canonical slice contract: `docs/checkpoints/F7_2D4G_CHAT_UX_LIFECYCLE_PLAN_2026-08-23.md`.
 
 Implement now:
 
-- harden native grounding/language instructions;
-- do not invent MSA/store-specific facts;
-- attach bounded native read adapters directly over MSA backend/database read contracts, **not MCP**;
-- initial reads: latest inventory/shadow summary, bounded `NEW_UNMAPPED` rows, bounded review-reason summary;
-- execute read adapters only after AI Workspace access + conversation ownership + selected-agent validation;
-- require selected agent READ capability/authority before store data is supplied;
-- persist native tool provenance with the assistant message;
-- keep the provider unable to request arbitrary backend operations in this slice;
-- realign AI Workspace buttons/tabs/composer with the Dashboard visual system on mobile;
-- keep production writes disabled.
-
-Canonical slice contract: `docs/checkpoints/F7_2D4F_GROUNDED_NATIVE_READS_PLAN_2026-08-23.md`.
+- prevent long native-read replies from ending at the old 1024-token workspace default;
+- deterministic USER -> ASSISTANT ordering when paired rows share a transaction timestamp;
+- clean phone-friendly plain-text response presentation without raw Markdown markers;
+- explicit Copy control plus selectable/long-press message text;
+- conversation-card first-user-message preview;
+- human-friendly last-interaction timestamp;
+- owner-of-conversation backend DELETE + cascade message cleanup;
+- safe delete UX and selection fallback;
+- preserve access policy, read-only tool scope, and non-canonical boundary.
 
 ### D4.7 — Failover/provenance completion
 
@@ -115,25 +131,22 @@ Backend Owner authorization is mandatory. Each participant keeps separate identi
 
 Only after the native workspace is stable, connect MCP delegation slots to the same native runtime for explicit delegation. Direct MCP operations remain direct.
 
-## 7. F7.2D4F acceptance
+## 7. F7.2D4G acceptance
 
 This slice passes when:
 
-1. asking Chat for the inventory summary causes an authorized native read and returns actual test/shadow summary evidence;
-2. asking for `NEW_UNMAPPED` rows returns bounded real rows rather than invented rows;
-3. a selected agent without READ authority receives no store data;
-4. Burmese/general prompts are instructed not to fabricate current MSA facts and to follow the user's language when practical;
-5. assistant message provenance records which native read tools were requested/executed;
-6. public MCP is not used by this native tool path;
-7. mobile AI Workspace controls match the Dashboard UI language;
-8. no production inventory write or canonical DB promotion occurs.
-
-The larger survival proof remains:
-
-`MSA Web -> selected INTERNAL_MODEL agent -> assigned provider/model -> authorized typed MSA read -> response + provenance`
+1. a long 7-row NEW_UNMAPPED response reaches a natural end rather than output-budget truncation;
+2. persisted turns render deterministically USER then ASSISTANT;
+3. normal display does not expose raw `#`, `**`, backtick, or pipe-table formatting clutter;
+4. message text is selectable and every saved message has a Copy action;
+5. conversation cards show first-message preview plus human-friendly `updated_at`;
+6. an authenticated user can delete only their own conversation and its messages disappear with it;
+7. refresh preserves remaining conversations and sequence;
+8. public MCP remains unused by the native Chat path;
+9. no production inventory write or canonical DB promotion occurs.
 
 ## 8. Immediate execution boundary
 
-Proceed with **F7.2D4F grounded bounded reads + UI polish**, deploy, manually verify inventory-summary and `NEW_UNMAPPED` prompts, then sync checkpoint/continuity docs.
+Proceed with **F7.2D4G Chat UX + lifecycle**, deploy, manually verify long-response completion/sequence/copy/card metadata/delete, then sync deployment evidence and continuity docs.
 
 Do not enable production inventory writes, AI inventory writes, transfers, Smart Calculator deductions, Telegram/Flutter stock mutations, Sheet mirror conversion, or PostgreSQL canonical promotion in this work.

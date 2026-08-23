@@ -50,9 +50,11 @@ jobs:
               '/dashboard/api/ai-workspace/conversations/{conversation_id}/messages',
           }
           assert required <= paths, sorted(required-paths)
+          delete_op=app.openapi()['paths']['/dashboard/api/ai-workspace/conversations/{conversation_id}'].get('delete')
+          assert delete_op is not None
           print('ai_workspace_chat_api=pass')
           PY
-      - name: Validate backend security ordering
+      - name: Validate backend security and sequence contract
         run: |
           grep -Fq 'Depends(require_ai_chat_access)' backend/app/ai_workspace_chat.py
           grep -Fq 'owner_user_id=CAST(:owner_user_id AS uuid)' backend/app/ai_workspace_chat.py
@@ -60,12 +62,22 @@ jobs:
           grep -Fq '_eligible_agent(connection, conversation["agent_id"])' backend/app/ai_workspace_chat.py
           grep -Fq '_agent_read_allowed(agent)' backend/app/ai_workspace_chat.py
           grep -Fq 'run_native_read_tools(requested_tools)' backend/app/ai_workspace_chat.py
-          grep -Fq 'invoke_native_agent(' backend/app/ai_workspace_chat.py
+          grep -Fq "CASE role WHEN 'USER' THEN 0 ELSE 1 END" backend/app/ai_workspace_chat.py
+          grep -Fq 'DELETE FROM ai_workspace_conversations' backend/app/ai_workspace_chat.py
+          grep -Fq 'first_user_preview' backend/app/ai_workspace_chat.py
+          grep -Fq 'WORKSPACE_TOOL_OUTPUT_TOKENS = 4096' backend/app/ai_workspace_chat.py
+          grep -Fq 'Do not use Markdown heading markers' backend/app/ai_workspace_chat.py
           grep -Fq 'Bounded read-only MSA tools are attached' backend/app/main.py
-          echo 'ai_workspace_chat_security=pass'
+          echo 'ai_workspace_chat_security_sequence=pass'
       - name: Validate Dashboard Chat assets
         run: |
           node --check backend/app/dashboard_assets/dashboard_ai_workspace.js
+          grep -Fq 'humanTime' backend/app/dashboard_assets/dashboard_ai_workspace.js
+          grep -Fq 'cleanDisplayText' backend/app/dashboard_assets/dashboard_ai_workspace.js
+          grep -Fq 'data-copy-message' backend/app/dashboard_assets/dashboard_ai_workspace.js
+          grep -Fq 'data-ai-delete' backend/app/dashboard_assets/dashboard_ai_workspace.js
+          grep -Fq 'user-select:text' backend/app/dashboard_assets/dashboard_ai_workspace.css
+          grep -Fq '.ai-conversation-preview' backend/app/dashboard_assets/dashboard_ai_workspace.css
           grep -Fq 'AI Workspace' backend/app/main.py
           grep -Fq 'id="aiWorkspaceNav"' backend/app/main.py
           grep -Fq 'data-panel="ai-workspace"' backend/app/main.py
