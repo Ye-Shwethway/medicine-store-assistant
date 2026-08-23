@@ -35,7 +35,13 @@ def upgrade() -> None:
         sa.CheckConstraint("execution_policy IN ('DELEGATED','AUTONOMOUS')", name="ck_ai_agents_execution_policy"),
         sa.CheckConstraint("confirmation_policy IN ('READ_ONLY','PROPOSE_ONLY','CONFIRM_BEFORE_WRITE','AUTONOMOUS_PREAUTHORIZED')", name="ck_ai_agents_confirmation_policy"),
     )
-    op.create_index("uq_ai_agents_call_name_lower", "ai_agents", [sa.text("lower(call_name)")], unique=True)
+    op.create_index(
+        "uq_ai_agents_call_name_lower",
+        "ai_agents",
+        [sa.text("lower(call_name)")],
+        unique=True,
+        postgresql_where=sa.text("state <> 'REVOKED'"),
+    )
 
     op.create_table(
         "ai_agent_sessions",
