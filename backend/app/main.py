@@ -42,7 +42,7 @@ SAVED_MODEL_ASSET_VERSION = "f72d31-2"
 AGENT_ASSIGNMENT_GUARD_ASSET_VERSION = "f72d4-preflight-1"
 NATIVE_AGENT_TEST_ASSET_VERSION = "f72d4d-native-test-1"
 AI_WORKSPACE_ACCESS_ASSET_VERSION = "f72d4-access-1"
-AI_WORKSPACE_ASSET_VERSION = "f72d4e-chat-1"
+AI_WORKSPACE_ASSET_VERSION = "f72d4f-reads-1"
 AGENT_POLISH_ASSET_VERSION = "f72d31-agentui-1"
 MCP_BINDING_ASSET_VERSION = "f72d4a-mcpbind-1"
 AUDIT_ASSET_VERSION = "f73a-mcpaudit-1"
@@ -60,7 +60,7 @@ app = FastAPI(
     description=(
         "Typed API boundary for the Medicine Store Assistant backend. "
         "Authenticated inventory, human identity/User Management, native AI Agent Management, "
-        "Provider Registry/model assignments, MCP-independent internal-agent inference, AI Workspace access policy and durable Chat, "
+        "Provider Registry/model assignments, MCP-independent internal-agent inference, AI Workspace access policy, durable Chat and bounded native reads, "
         "external MCP/OAuth typed operations and audit evidence are available; canonical inventory writes remain disabled."
     ),
     lifespan=app_lifespan,
@@ -112,7 +112,7 @@ AI_WORKSPACE_PANEL = r'''
                     <textarea id="aiMessageInput" maxlength="20000" placeholder="Message your selected MSA agent…" aria-label="AI Chat message" required></textarea>
                     <button id="aiSend" type="submit">Send</button>
                   </form>
-                  <p class="ai-runtime-note">Native internal-agent inference only. MSA typed tools are not attached yet, so this Chat cannot execute store-side operations in this slice.</p>
+                  <p class="ai-runtime-note">Native internal-agent runtime. Bounded read-only MSA tools are attached for supported inventory/shadow questions. Production writes remain disabled.</p>
                 </article>
               </div>
             </div>
@@ -285,7 +285,7 @@ def health() -> dict[str, object]:
         "native_internal_agent_test_ui": "f7.2d4d",
         "ai_workspace_access_policy": "f7.2d4-access",
         "ai_workspace_chat": "f7.2d4e",
-        "native_internal_agent_tools": False,
+        "native_internal_agent_tools": "f7.2d4f-read-only-bounded",
         "nanogpt_detailed_catalog": "enabled",
         "production_inventory_writes": False,
     }

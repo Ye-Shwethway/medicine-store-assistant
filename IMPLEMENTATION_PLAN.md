@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Implementation Plan
 
-Status: **F7.2D4B ordered model assignment and F7.2D4C MCP-independent native provider inference are verified; next work is AI Workspace access policy + durable single-agent Chat; production inventory write authority remains unauthorized**
+Status: **F7.2D4E durable AI Workspace Chat is production-accepted; current slice is F7.2D4F grounded native read tools + Chat UI polish; production inventory write authority remains unauthorized**
 
 This file is the execution contract for current MSA implementation order and boundaries.
 
@@ -30,7 +30,7 @@ These are peer paths. Internal agents do not depend on public MCP for ordinary w
 
 ## 3. Verified native-agent foundation
 
-Already verified:
+Verified in production:
 
 - stable named agent identity/policy;
 - Provider Registry + saved/tested model catalog;
@@ -41,9 +41,11 @@ Already verified:
 - OpenAI-compatible and Gemini provider paths;
 - provider/model/fallback/latency attempt provenance;
 - native test UI proving `MCP used: no`;
+- AI Workspace backend access policy with Owner bypass/global non-owner gate/per-user entitlement foundation;
+- durable single-agent conversations/messages;
+- top-level `AI Workspace` Chat with named-agent selection and persisted conversation history;
+- Multi-Agent UI remains Owner-only and execution is not yet wired;
 - production inventory writes remain closed.
-
-The current native test is inference-only. Native typed MSA tools are not attached yet.
 
 ## 4. AI Workspace architecture — LOCKED
 
@@ -51,124 +53,57 @@ Canonical design: `docs/architecture/F7_2D4_AI_WORKSPACE_AND_ACCESS.md`.
 
 ### 4.1 Control plane
 
-`AI Agent Management` remains **Owner-only** and stores:
-
-- agent lifecycle/policy;
-- provider/model assignments;
-- reusable multi-agent session definitions;
-- global non-owner AI Workspace enable/disable setting.
+`AI Agent Management` remains **Owner-only** and stores agent lifecycle/policy, provider/model assignments, reusable multi-agent session definitions, and the global non-owner AI Workspace switch.
 
 Owner-only restrictions must exist in both UI and backend. Hiding controls is not authorization.
 
 ### 4.2 Work plane
 
-Create a separate top-level **AI Workspace**.
-
-Tabs/modes:
+Top-level **AI Workspace** is the operational surface.
 
 - `Chat` — single selected internal agent; Owner plus authorized users.
-- `Multi-Agent` — actual GROUP/COMPARE/REVIEW/DEBATE execution; Owner-only for this phase.
-
-Normal users must not see Multi-Agent controls and direct endpoint calls must also be rejected server-side.
+- `Multi-Agent` — future GROUP/COMPARE/REVIEW/DEBATE execution; Owner-only for this phase.
 
 ## 5. AI Workspace access policy
 
-### 5.1 Owner behavior
-
-Owner always retains AI Workspace access. Global staff/user disable does not disable Owner.
-
-### 5.2 Global non-owner gate
-
-Owner-only setting:
-
-`AI Workspace for non-owner users = ENABLED | DISABLED`
-
-Global OFF is a hard kill switch for all non-owner Chat requests.
-
-A denied request must stop **before provider invocation**. Provider API calls, tokens, and cost must remain zero.
-
-### 5.3 Per-user Chat entitlement
-
-Persist per-user value:
-
-- `INHERIT`
-- `ALLOW`
-- `BLOCK`
-
-Effective policy:
-
-1. Owner -> ALLOW.
-2. Non-owner + global OFF -> DENY.
-3. Non-owner + global ON + BLOCK -> DENY.
+1. Owner -> always ALLOW.
+2. Non-owner + global OFF -> DENY before any provider request.
+3. Non-owner + global ON + per-user BLOCK -> DENY.
 4. Non-owner + global ON + INHERIT/ALLOW -> eligible to continue.
+5. Per-user ALLOW never overrides global OFF.
 
-Per-user ALLOW never overrides global OFF.
-
-### 5.4 Future selected-agent/tool authority
-
-Later user-agent access may further restrict selectable agents.
-
-When typed tools are attached, effective authority is bounded by the intersection of:
-
-- system gate;
-- authenticated human/user authority;
-- selected agent capability/authority ceiling;
-- location scope;
-- operation class;
-- confirmation policy.
-
-Never union privileges and never allow model/provider choice to expand authority.
+When typed tools are attached, effective authority remains an intersection of system gate, authenticated human authority, selected agent capability/ceiling, location scope, operation class, and confirmation policy. Never union privileges.
 
 ## 6. Current implementation slices
 
-### D4.4A — Access-policy persistence + backend authorization
+### D4.4A — Access policy — VERIFIED
 
-Implement first:
+Backend-first global gate, per-user entitlement persistence, Owner bypass, and provider-before-denial protection are implemented.
 
-- global AI Workspace non-owner setting;
-- per-user Chat entitlement;
-- Owner bypass;
-- reusable backend authorization helper;
-- denial before native provider invocation;
-- Owner-only API for the global setting;
-- User Management support for editing user entitlement;
-- tests proving denied requests never reach provider invocation.
+### D4.4B / D4.5 — Durable Chat + AI Workspace UI — VERIFIED
 
-### D4.4B — Conversation/message persistence
+Durable per-user conversations/messages and the separate top-level AI Workspace are production-live. Manual acceptance confirmed provider-backed replies and persistence after refresh.
 
-Add durable MSA-owned chat state:
+### D4.6 / F7.2D4F — Grounded native read tools — CURRENT
 
-- conversation ID;
-- authenticated human owner/participant;
-- selected internal agent;
-- title/lifecycle timestamps;
-- messages/roles/timestamps;
-- provider/model provenance for assistant messages where relevant.
+Implement now:
 
-Initial conversations are single-agent. Multi-agent transcripts come later.
+- harden native grounding/language instructions;
+- do not invent MSA/store-specific facts;
+- attach bounded native read adapters directly over MSA backend/database read contracts, **not MCP**;
+- initial reads: latest inventory/shadow summary, bounded `NEW_UNMAPPED` rows, bounded review-reason summary;
+- execute read adapters only after AI Workspace access + conversation ownership + selected-agent validation;
+- require selected agent READ capability/authority before store data is supplied;
+- persist native tool provenance with the assistant message;
+- keep the provider unable to request arbitrary backend operations in this slice;
+- realign AI Workspace buttons/tabs/composer with the Dashboard visual system on mobile;
+- keep production writes disabled.
 
-### D4.5 — Top-level AI Workspace Chat UI
-
-Build responsive mobile-first UI:
-
-- separate top-level workspace, not inside AI Agent Management;
-- internal-agent selector;
-- new/resume conversation;
-- conversation history;
-- message thread + composer;
-- native provider-backed responses;
-- compact provenance;
-- clear disabled/blocked state.
-
-Ordinary users do not choose provider/model directly.
-
-### D4.6 — Native typed-tool adapter
-
-Attach internal typed tools over shared MSA domain/service functions, not public MCP. Initial proof remains bounded/read-only.
+Canonical slice contract: `docs/checkpoints/F7_2D4F_GROUNDED_NATIVE_READS_PLAN_2026-08-23.md`.
 
 ### D4.7 — Failover/provenance completion
 
-Exercise deterministic PRIMARY -> ordered FALLBACK behavior and record provider/model/latency/usage provenance.
+Exercise deterministic PRIMARY -> ordered FALLBACK behavior under real failure and record complete provider/model/latency/usage provenance.
 
 ### D4.8 — Owner-only Multi-Agent execution
 
@@ -178,29 +113,27 @@ Backend Owner authorization is mandatory. Each participant keeps separate identi
 
 ### D4.9 — Optional MCP delegation
 
-Only after the native workspace is stable, connect existing MCP delegation slots to the same native runtime for explicit delegation. Direct MCP operations remain direct.
+Only after the native workspace is stable, connect MCP delegation slots to the same native runtime for explicit delegation. Direct MCP operations remain direct.
 
-## 7. Acceptance
+## 7. F7.2D4F acceptance
 
-AI Workspace foundation passes when:
+This slice passes when:
 
-1. Owner global setting is backend-protected;
-2. per-user entitlement is durable;
-3. global OFF blocks every non-owner Chat invocation before provider call;
-4. Owner remains allowed;
-5. Multi-Agent execution endpoints are Owner-only in backend;
-6. durable single-agent conversations/messages persist;
-7. top-level AI Workspace can select an internal agent and obtain a native response without MCP;
-8. blocked users receive deterministic denial UX;
-9. provider/model assignment does not alter authority;
-10. no production inventory write or canonical DB promotion occurs.
+1. asking Chat for the inventory summary causes an authorized native read and returns actual test/shadow summary evidence;
+2. asking for `NEW_UNMAPPED` rows returns bounded real rows rather than invented rows;
+3. a selected agent without READ authority receives no store data;
+4. Burmese/general prompts are instructed not to fabricate current MSA facts and to follow the user's language when practical;
+5. assistant message provenance records which native read tools were requested/executed;
+6. public MCP is not used by this native tool path;
+7. mobile AI Workspace controls match the Dashboard UI language;
+8. no production inventory write or canonical DB promotion occurs.
 
-Full F7.2D4 later still requires at least one authorized internal typed MSA read and the complete survival proof:
+The larger survival proof remains:
 
-`MSA Web -> selected INTERNAL_MODEL agent -> assigned provider/model -> authorized typed MSA read -> response + audit`
+`MSA Web -> selected INTERNAL_MODEL agent -> assigned provider/model -> authorized typed MSA read -> response + provenance`
 
 ## 8. Immediate execution boundary
 
-Proceed now with **D4.4A access-policy persistence/backend authorization**, then **D4.4B conversation persistence**, then the top-level **AI Workspace Chat UI**.
+Proceed with **F7.2D4F grounded bounded reads + UI polish**, deploy, manually verify inventory-summary and `NEW_UNMAPPED` prompts, then sync checkpoint/continuity docs.
 
 Do not enable production inventory writes, AI inventory writes, transfers, Smart Calculator deductions, Telegram/Flutter stock mutations, Sheet mirror conversion, or PostgreSQL canonical promotion in this work.

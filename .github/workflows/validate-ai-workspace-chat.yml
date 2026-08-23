@@ -7,6 +7,7 @@ on:
       - 'backend/app/ai_workspace_chat.py'
       - 'backend/app/ai_workspace_access.py'
       - 'backend/app/native_agent_runtime.py'
+      - 'backend/app/native_agent_tools.py'
       - 'backend/app/main.py'
       - 'backend/app/db.py'
       - 'backend/app/dashboard_assets/dashboard_ai_workspace.js'
@@ -57,8 +58,10 @@ jobs:
           grep -Fq 'owner_user_id=CAST(:owner_user_id AS uuid)' backend/app/ai_workspace_chat.py
           grep -Fq 'Do not reveal whether another user' backend/app/ai_workspace_chat.py
           grep -Fq '_eligible_agent(connection, conversation["agent_id"])' backend/app/ai_workspace_chat.py
+          grep -Fq '_agent_read_allowed(agent)' backend/app/ai_workspace_chat.py
+          grep -Fq 'run_native_read_tools(requested_tools)' backend/app/ai_workspace_chat.py
           grep -Fq 'invoke_native_agent(' backend/app/ai_workspace_chat.py
-          grep -Fq 'MSA typed tools are not attached yet' backend/app/main.py
+          grep -Fq 'Bounded read-only MSA tools are attached' backend/app/main.py
           echo 'ai_workspace_chat_security=pass'
       - name: Validate Dashboard Chat assets
         run: |

@@ -1,20 +1,23 @@
 from __future__ import annotations
 
+import json
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 
 from app.ai_workspace_access import require_ai_chat_access
 from app.dashboard_auth import _engine
 from app.native_agent_runtime import NativeAgentInvokeInput, invoke_native_agent
+from app.native_agent_tools import run_native_read_tools, select_native_read_tools
 
 router = APIRouter(prefix="/dashboard/api/ai-workspace", tags=["ai-workspace-chat"])
 
 MAX_CONTEXT_MESSAGES = 24
 MAX_MESSAGE_CHARS = 20_000
+AUTHORITY_ORDER = {"READ": 1, "PROPOSE": 2, "WRITE": 3, "CONTROL": 4}
 
 
 class ConversationCreateInput(BaseModel):
@@ -36,6 +39,7 @@ def _eligible_agent(connection: Any, agent_id: str) -> dict[str, Any]:
         text(
             """
             SELECT a.agent_id::text AS agent_id, a.display_name, a.call_name, a.description,
+                   a.capability_scopes, a.location_scope,
                    a.authority_ceiling, a.execution_policy, a.confirmation_policy
             FROM ai_agents a
             WHERE a.agent_id=CAST(:agent_id AS uuid)
@@ -60,6 +64,18 @@ def _eligible_agent(connection: Any, agent_id: str) -> dict[str, Any]:
     if row is None:
         raise HTTPException(status_code=409, detail="Selected agent is not available for AI Workspace Chat")
     return dict(row)
+
+
+def _agent_read_allowed(agent: dict[str, Any]) -> bool:
+    scopes = agent.get("capability_scopes") or []
+    if isinstance(scopes, str):
+        try:
+            scopes = json.loads(scopes)
+        except json.JSONDecodeError:
+            scopes = [scopes]
+    normalized = {str(scope).strip().lower() for scope in scopes if str(scope).strip()}
+    ceiling = str(agent.get("authority_ceiling") or "").upper()
+    return "mcp:read" in normalized and AUTHORITY_ORDER.get(ceiling, 0) >= AUTHORITY_ORDER["READ"]
 
 
 def _owned_conversation(connection: Any, conversation_id: str, principal: dict[str, str]) -> dict[str, Any]:
@@ -102,6 +118,22 @@ def _context_prompt(history: list[dict[str, Any]], current_message: str) -> str:
     return "\n".join(lines)
 
 
+def _attach_tool_context(contextual_message: str, tool_results: list[dict[str, Any]]) -> str:
+    if not tool_results:
+        return contextual_message
+    serialized = json.dumps(tool_results, ensure_ascii=False, default=str, separators=(",", ":"))
+    return (
+        contextual_message
+        + "\n\n--- MSA NATIVE READ RESULTS ---\n"
+        + serialized
+        + "\n--- END MSA NATIVE READ RESULTS ---\n"
+        + "Use these results as the only source for current Medicine Store Assistant/store-specific facts in this answer. "
+          "The current database evidence is test/shadow and non-canonical unless a result explicitly says otherwise. "
+          "Do not invent missing rows, counts, prices, expiries, mappings, or capabilities. "
+          "Answer in the user's language when practical."
+    )
+
+
 @router.get("/chat/agents", summary="List internal agents available to AI Workspace Chat")
 def list_workspace_agents(
     response: Response,
@@ -116,6 +148,7 @@ def list_workspace_agents(
                 text(
                     """
                     SELECT a.agent_id::text AS agent_id, a.display_name, a.call_name, a.description,
+                           a.capability_scopes, a.location_scope,
                            a.authority_ceiling, a.execution_policy, a.confirmation_policy
                     FROM ai_agents a
                     WHERE a.state='ACTIVE'
@@ -257,7 +290,7 @@ def send_conversation_message(
     try:
         with engine.connect() as connection:
             conversation = _owned_conversation(connection, conversation_id, principal)
-            _eligible_agent(connection, conversation["agent_id"])
+            agent = _eligible_agent(connection, conversation["agent_id"])
             history = [
                 dict(row)
                 for row in connection.execute(
@@ -275,7 +308,12 @@ def send_conversation_message(
             ]
             history.reverse()
 
-        contextual_message = _context_prompt(history, message)
+        requested_tools = select_native_read_tools(message)
+        tool_results: list[dict[str, Any]] = []
+        if requested_tools and _agent_read_allowed(agent):
+            tool_results = run_native_read_tools(requested_tools)
+
+        contextual_message = _attach_tool_context(_context_prompt(history, message), tool_results)
         runtime = invoke_native_agent(
             conversation["agent_id"],
             NativeAgentInvokeInput(message=contextual_message),
@@ -295,6 +333,9 @@ def send_conversation_message(
             "fallback_used": runtime.get("fallback_used"),
             "latency_ms": runtime.get("latency_ms"),
             "attempts": runtime.get("attempts", []),
+            "native_read_tools_requested": requested_tools,
+            "native_read_tools_executed": [item.get("tool") for item in tool_results],
+            "agent_read_allowed": _agent_read_allowed(agent),
         }
         with engine.begin() as connection:
             # Re-check ownership immediately before persistence.
@@ -319,7 +360,7 @@ def send_conversation_message(
                     "message_id": assistant_message_id,
                     "conversation_id": conversation_id,
                     "content": runtime["response"],
-                    "provenance": __import__("json").dumps(provenance),
+                    "provenance": json.dumps(provenance),
                 },
             )
             connection.execute(
