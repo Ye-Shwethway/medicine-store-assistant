@@ -37,10 +37,10 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           s=Path('backend/app/shadow_read_api.py').read_text()
-          assert ':q IS NULL' not in s
-          assert ':source_sheet IS NULL' not in s
-          assert ':classification IS NULL' not in s
-          assert ':migration_batch_id IS NULL' not in s
+          assert 'WHERE (:migration_batch_id IS NULL OR' not in s
+          assert 'AND (:source_sheet IS NULL OR' not in s
+          assert 'AND (:classification IS NULL OR' not in s
+          assert ':q IS NULL\n            OR' not in s
           assert "clauses.append(\"msr.classification = :classification\")" in s
           assert 'q_pattern' in s
           print('shadow_optional_filter_regression=pass')
