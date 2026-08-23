@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Architecture Index
 
-Status: **F7.2A/B/C, F7.2D0 custom MCP/schema/acceptance, F7.2D2 named Agent Management/session topology, F7.2D3 Provider Registry/saved-model catalog, F7.2D4A external MCP named-agent binding, native internal-agent runtime, single-agent AI Workspace, bounded native tools, and attachment UX are verified/manual accepted; D4.8 Multi-Agent Review + federation is the current architecture target; PostgreSQL remains non-canonical**
+Status: **F7.2A/B/C, F7.2D0 custom MCP/schema/acceptance, F7.2D2 named Agent Management/session topology, F7.2D3 Provider Registry/saved-model catalog, F7.2D4A external MCP named-agent binding, native internal-agent runtime, single-agent AI Workspace, bounded native tools, and attachment UX are verified/manual accepted; D4.8 shared work/review substrate + Owner-only native REVIEW backend + Owner REVIEW UI are deployed; one provided-evidence REVIEW manual acceptance and per-participant read-tool hardening are current; PostgreSQL remains non-canonical**
 
 This directory defines the canonical architecture for Medicine Store Assistant beyond the current spreadsheet-operating skill. The Git-backed `$msa` skill remains canonical at `skills/medicine-store-assistant/`.
 
@@ -28,7 +28,7 @@ Native internal agents operate independently of ChatGPT and independently of the
 
 ### Shared-core rule
 
-MCP actions, Web/API endpoints, internal-agent tools, and future Multi-Agent orchestration reuse shared backend domain/service functions. Do not chain transports merely to reach the same operation.
+MCP actions, Web/API endpoints, internal-agent tools, and Multi-Agent orchestration reuse shared backend domain/service functions. Do not chain transports merely to reach the same operation.
 
 `msa_agent_invoke` remains an optional delegation/orchestration bridge, not the gateway for ordinary direct MCP actions.
 
@@ -48,11 +48,13 @@ Final schema identity:
 
 MCP provides typed backend operations, not arbitrary SQL/table editing, DB credentials, shell/filesystem, or unrestricted infrastructure access.
 
+Several long-lived v2.1 tools intentionally use open `action: str` selectors with backend allowlists. D4.8 federation should reuse these existing tool names/slots where the bounded work/review contract fits before considering any schema-name expansion. A separate MSA MCP backend server is not required.
+
 ## Named Agent Management + Provider foundation
 
 Durable named AI agents have immutable `agent_id`, editable display/call names, server-owned canonical identity, lifecycle/capability/location/authority/execution/confirmation policy, and Owner-only management.
 
-Persistent multi-agent topology supports `GROUP`, `COMPARE`, `REVIEW`, `DEBATE`, ordered participants and role labels.
+Persistent multi-agent topology supports `GROUP`, `COMPARE`, `REVIEW`, `DEBATE`, ordered participants and display role labels.
 
 Provider Registry supports OpenAI, Google Gemini, OpenRouter, NanoGPT, and generic OpenAI-compatible providers. Provider secrets remain write-only/server-side and Owner-saved healthy models are assignment candidates for `INTERNAL_MODEL` agents.
 
@@ -70,11 +72,22 @@ The native path is live independently of MCP:
 
 `MSA Web -> INTERNAL_MODEL agent -> assigned provider/model -> authorized native typed read -> grounded response + provenance`
 
-Verified/manual-accepted behavior includes durable single-agent conversations, agent selection, provider/model/fallback provenance, bounded native reads, hybrid deterministic + model-driven tool calling, clean chat lifecycle UX, photo/file evidence persistence, image previews, and explicit no-vision/OCR boundary until provider byte processing is implemented.
+Verified/manual-accepted single-agent behavior includes durable conversations, agent selection, provider/model/fallback provenance, bounded native reads, hybrid deterministic + model-driven tool calling, clean Chat lifecycle UX, photo/file evidence persistence, image previews, and explicit no-vision/OCR boundary until provider byte processing is implemented.
 
-## D4.8 Multi-Agent Review + federation — current architecture
+## D4.8 Multi-Agent Review + federation — deployed REVIEW foundation
 
 Canonical contract: [F7_2D48_MULTI_AGENT_REVIEW_AND_FEDERATION.md](F7_2D48_MULTI_AGENT_REVIEW_AND_FEDERATION.md).
+
+Runtime checkpoint: `../checkpoints/F7_2D48_NATIVE_REVIEW_RUNTIME_2026-08-24.md`.
+
+Deployment anchors:
+
+- PR #100 shared substrate: `4a9f54e17f2b386dfdd390af5850be2100986aac`
+- PR #101 native REVIEW backend: `0ebaba7d62f5cc3d9d3ec95e1cd33b4ccb7c324e`
+- PR #103 Owner REVIEW UI: `c980446a7df27a352721115599a5ecf704797097`
+- production migration head: `0021_review_orchestration_roles`
+- latest REVIEW UI deploy run: `32660684770`, `status=success`
+- REVIEW UI asset version: `f72d48-review-ui-1`
 
 ### Native-only is first-class
 
@@ -87,27 +100,60 @@ A Multi-Agent preset may consist entirely of internal agents. External ChatGPT/M
 
 Do not fake a live external turn when MSA cannot directly invoke the external runtime.
 
-### REVIEW first
+### REVIEW — first executable mode
 
-REVIEW is the first implementation priority.
+Deployed native-only flow:
 
-Native-only example:
+`Owner task/evidence -> DRAFT -> REVIEWING -> ordered native participants -> WAITING_OWNER`
 
-`ANALYST -> REVIEWER -> SYNTHESIZER -> WAITING_OWNER`
+Stable orchestration roles are stored separately from Owner display labels:
 
-Optional federation adds a version-bound `WAITING_EXTERNAL` checkpoint.
+- `ANALYST`
+- `REVIEWER`
+- `SYNTHESIZER`
+
+Roles never grant authority.
 
 Canonical lifecycle:
 
 `DRAFT -> REVIEWING -> WAITING_EXTERNAL? -> WAITING_OWNER -> APPROVED -> COMMITTABLE -> COMMITTED`
 
-`APPROVED` is review state, not inventory mutation.
+`WAITING_EXTERNAL` is optional. `APPROVED` is review state, not inventory mutation.
 
-### Shared work substrate
+### Shared work substrate — deployed
 
-D4.8 introduces durable Work Items, versioned Artifacts, version-bound Reviews, immutable Events, and a shared Attention Queue. Actor identity distinguishes Owner/User/Internal Agent/External MCP Agent/System.
+D4.8 persists durable Work Items, versioned Artifacts, version-bound Reviews, immutable Events, and a shared Attention Queue. Actor identity distinguishes Owner/User/Internal Agent/External MCP Agent/System.
 
 Artifact/review persistence never mutates store data by itself. Only an authorized typed operation can do that after applicable gates pass; current production write gates remain closed.
+
+Reviewer findings are bound to the exact prior Artifact ID/version reviewed. Participant provider/model/fallback/latency provenance is persisted separately for each native participant.
+
+### Owner REVIEW UI — deployed
+
+The AI Workspace Multi-Agent tab now exposes real Owner-only REVIEW controls:
+
+- REVIEW preset selection;
+- stable orchestration-role configuration + optional display labels;
+- Work title/task submission;
+- optional references to saved ownership-validated Chat attachment metadata;
+- native REVIEW execution;
+- reload-safe Recent Review Work Items;
+- Artifact / Review / provenance / Attention / Event inspection;
+- WAITING_OWNER return-for-revision.
+
+GROUP / COMPARE / DEBATE remain deferred and are not presented as active fake workflows.
+
+### Current REVIEW tool boundary
+
+The first REVIEW executor currently uses the plain native provider invocation path. It does **not yet use the D4.7A model-driven native read-tool loop**.
+
+Therefore the current manual acceptance is explicitly a **provided-evidence/native-reasoning REVIEW**. Do not represent REVIEW participant outputs as current-store grounded tool reads yet.
+
+Before relying on REVIEW for live/current operational reasoning, add bounded per-participant native read-tool integration. Each participant must independently pass READ capability/authority checks; session membership must never union tool authority.
+
+### Current acceptance gap
+
+Backend, UI, CI, and deployment are present. D4.8 REVIEW is not fully verified until one real Owner browser run reaches `WAITING_OWNER`, exposes persisted Artifacts/Reviews/provenance, survives reload through Recent Review work, can be returned to REVIEWING with a persisted instruction, performs no inventory mutation, and requires no ChatGPT/MCP.
 
 ### Telegram attention layer
 
@@ -142,14 +188,13 @@ Web, MCP, and Telegram must point to the same Attention Queue. Notification fail
 
 ## Immediate order
 
-1. D4.8 Work Item / Artifact / Review / Event / Attention Queue substrate.
-2. Owner-only native-only REVIEW execution using existing presets and attachments.
-3. AI Workspace Review UI + Owner re-review/steering.
-4. Optional MCP federated `WAITING_EXTERNAL` work/review exchange.
-5. Telegram attention notifications over persisted events/queue.
-6. GROUP native loops + Owner steering + optional external checkpoints.
-7. COMPARE / DEBATE execution.
-8. Later controlled writes only after authority/audit/location/idempotency/canonicality prerequisites.
+1. Manually accept one provided-evidence/native-reasoning REVIEW through the deployed Owner UI.
+2. Add bounded per-participant D4.7A native read-tool integration for REVIEW and re-accept a tool-using Review.
+3. Add optional MCP federated `WAITING_EXTERNAL` work/review exchange with exact artifact-version binding.
+4. Add Telegram attention notifications over persisted events/queue.
+5. Add GROUP native loops + Owner steering + optional external checkpoints.
+6. Add COMPARE / DEBATE execution.
+7. Later controlled writes only after authority/audit/location/idempotency/canonicality prerequisites.
 
 ## Web design/implementation rule
 
