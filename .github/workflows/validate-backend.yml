@@ -29,10 +29,10 @@ jobs:
         run: python scripts/validate_repository.py
       - name: Compile backend Python
         run: python -m compileall -q backend/app backend/alembic
-      - name: Validate MCP runtime imports
+      - name: Validate MCP and control-plane runtime imports
         run: |
           python -m pip install --disable-pip-version-check -q -r backend/requirements.txt
-          PYTHONPATH=backend python -c 'from app.main import app; from app.mcp_server import mcp, mcp_http_app; from app.agent_management import router as agent_router; assert app and mcp and mcp_http_app and agent_router; print("mcp_runtime_import=pass agent_management_import=pass")'
+          PYTHONPATH=backend python -c 'from app.main import app; from app.mcp_server import mcp, mcp_http_app; from app.agent_management import router as agent_router; from app.provider_registry import router as provider_router; assert app and mcp and mcp_http_app and agent_router and provider_router; print("mcp_runtime_import=pass agent_management_import=pass provider_registry_import=pass")'
       - name: Validate MCP OAuth contract
         run: |
           PYTHONPATH=backend python - <<'PY'
@@ -85,20 +85,49 @@ jobs:
           assert s.mode == "COMPARE" and len(s.participants) == 1
           print("f7_2d2_api_contract=pass")
           PY
+      - name: Validate F7.2D3 Provider Registry contract
+        run: |
+          PYTHONPATH=backend python - <<'PY'
+          from app.main import app
+          from app.provider_registry import ProviderCreate, _normalize_openai_model, _normalize_gemini_model
+          paths = set(app.openapi()["paths"])
+          required = {
+              "/dashboard/api/providers",
+              "/dashboard/api/providers/{provider_id}",
+              "/dashboard/api/providers/{provider_id}/credential",
+              "/dashboard/api/providers/{provider_id}/test",
+              "/dashboard/api/providers/{provider_id}/models/fetch",
+              "/dashboard/api/providers/{provider_id}/models",
+              "/dashboard/api/providers/{provider_id}/enable",
+              "/dashboard/api/providers/{provider_id}/disable",
+          }
+          assert required <= paths, sorted(required - paths)
+          p = ProviderCreate(display_name="OpenAI", provider_kind="OPENAI")
+          assert p.provider_kind == "OPENAI"
+          o = _normalize_openai_model({"id":"vendor/model","architecture":{"input_modalities":["text","image"]},"supported_parameters":["tools","response_format"]})
+          assert o and o["supports_vision"] is True and o["supports_tools"] is True and o["supports_structured_output"] is True
+          g = _normalize_gemini_model({"name":"models/gemini-test","supportedGenerationMethods":["generateContent"],"inputTokenLimit":1000})
+          assert g and g["model_id"] == "gemini-test" and g["supports_text"] is True
+          print("f7_2d3_provider_contract=pass")
+          PY
       - name: Validate dashboard JavaScript syntax
         run: |
           node --check backend/app/dashboard_assets/dashboard.js
           node --check backend/app/dashboard_assets/dashboard_recovery.js
           node --check backend/app/dashboard_assets/dashboard_agents.js
           node --check backend/app/dashboard_assets/login.js
-      - name: Validate dashboard Agent Management UI contract
+      - name: Validate dashboard Agent and Provider UI contract
         run: |
           grep -Fq 'AI Agent Management' backend/app/dashboard_assets/dashboard.html
           grep -Fq 'Create agent' backend/app/dashboard_assets/dashboard.html
           grep -Fq 'Multi-agent sessions' backend/app/dashboard_assets/dashboard.html
+          grep -Fq 'External / MCP agents' backend/app/dashboard_assets/dashboard_agents.js
+          grep -Fq 'Internal / provider-backed agents' backend/app/dashboard_assets/dashboard_agents.js
+          grep -Fq 'Provider Registry' backend/app/dashboard_assets/dashboard_agents.js
+          grep -Fq "classList.add('secondary')" backend/app/dashboard_assets/dashboard_agents.js
           grep -Fq 'dashboard_agents.js' backend/app/dashboard_assets/dashboard.html
           grep -Fq 'dashboard_agents.css' backend/app/dashboard_assets/dashboard.html
-          echo 'f7_2d2_ui_contract=pass'
+          echo 'f7_2d2_d3_ui_contract=pass'
       - name: Validate deployment shell syntax
         run: |
           set -euo pipefail
