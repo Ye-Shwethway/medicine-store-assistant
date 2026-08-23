@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import os
 from typing import Any
+from uuid import UUID
 
 from mcp.server import MCPServer
 from mcp.server.auth.middleware.auth_context import get_access_token
@@ -31,6 +32,9 @@ READ = ToolAnnotations(read_only_hint=True, open_world_hint=False)
 PROPOSE = ToolAnnotations(read_only_hint=False, destructive_hint=False, idempotent_hint=False, open_world_hint=False)
 WRITE = ToolAnnotations(read_only_hint=False, destructive_hint=False, idempotent_hint=True, open_world_hint=False)
 DESTRUCTIVE = ToolAnnotations(read_only_hint=False, destructive_hint=True, idempotent_hint=True, open_world_hint=False)
+AUTHORITY_SCOPES = ("mcp:read", "mcp:propose", "mcp:write", "mcp:control")
+AUTHORITY_INDEX = {scope: index for index, scope in enumerate(AUTHORITY_SCOPES)}
+CEILING_SCOPE = {"READ": "mcp:read", "PROPOSE": "mcp:propose", "WRITE": "mcp:write", "CONTROL": "mcp:control"}
 
 
 def _engine():
@@ -119,14 +123,14 @@ class MSAServiceTokenVerifier(TokenVerifier):
         if "mcp:connect" not in transport_scopes:
             return None
 
-        # Capability grants are looked up on every call. Later policy changes therefore take effect
-        # without rebuilding or reconnecting the ChatGPT MCP app.
-        effective_scopes = sorted(transport_scopes | capability_scopes)
+        # OAuth grant capabilities remain live lookup data. Named-agent policy is intersected later
+        # on every tool call, so bind/unbind and agent policy changes do not require reconnecting.
+        granted_scopes = sorted(transport_scopes | capability_scopes)
         return AccessToken(
             token=token,
             client_id=str(oauth_row["client_id"]),
             subject=str(oauth_row["user_id"]),
-            scopes=effective_scopes,
+            scopes=granted_scopes,
         )
 
 
@@ -134,11 +138,76 @@ def _caller() -> AccessToken | None:
     return get_access_token()
 
 
+def _bound_agent_context(access: AccessToken | None) -> dict[str, Any] | None:
+    if access is None or not DATABASE_URL or not access.client_id or not access.subject:
+        return None
+    try:
+        UUID(str(access.subject))
+    except (TypeError, ValueError):
+        return None
+    engine = _engine()
+    try:
+        with engine.connect() as connection:
+            row = connection.execute(
+                text(
+                    """
+                    SELECT b.grant_id::text AS grant_id,
+                           a.agent_id::text AS agent_id,
+                           a.display_name,
+                           a.call_name,
+                           a.runtime_mode,
+                           a.state,
+                           a.capability_scopes,
+                           a.authority_ceiling,
+                           a.execution_policy,
+                           a.confirmation_policy,
+                           c.client_name
+                    FROM mcp_oauth_grants g
+                    JOIN mcp_oauth_clients c ON c.client_id = g.client_id
+                    JOIN mcp_agent_bindings b ON b.grant_id = g.grant_id
+                    JOIN ai_agents a ON a.agent_id = b.agent_id
+                    WHERE g.client_id = :client_id
+                      AND g.user_id = CAST(:subject AS uuid)
+                      AND g.state = 'ACTIVE'
+                      AND c.revoked_at IS NULL
+                    LIMIT 1
+                    """
+                ),
+                {"client_id": access.client_id, "subject": str(access.subject)},
+            ).mappings().first()
+    except SQLAlchemyError:
+        return None
+    finally:
+        engine.dispose()
+    return dict(row) if row is not None else None
+
+
+def _effective_scopes(access: AccessToken | None) -> set[str]:
+    if access is None:
+        return set()
+    granted = set(access.scopes or [])
+    context = _bound_agent_context(access)
+    if context is None:
+        return granted
+
+    transport = granted - set(AUTHORITY_SCOPES)
+    if context["state"] != "ACTIVE" or context["runtime_mode"] != "EXTERNAL_MCP_CLIENT":
+        return transport
+
+    agent_capabilities = {str(scope) for scope in (context["capability_scopes"] or [])}
+    grant_authority = granted & set(AUTHORITY_SCOPES)
+    ceiling_scope = CEILING_SCOPE.get(str(context["authority_ceiling"]), "mcp:read")
+    ceiling_index = AUTHORITY_INDEX[ceiling_scope]
+    ceiling_allowed = {scope for scope, index in AUTHORITY_INDEX.items() if index <= ceiling_index}
+    effective_authority = grant_authority & agent_capabilities & ceiling_allowed
+    return transport | effective_authority
+
+
 def _has_scope(scope: str, tool_name: str) -> bool:
     access = _caller()
     if access is None:
         return False
-    scopes = set(access.scopes or [])
+    scopes = _effective_scopes(access)
     return "*" in scopes or scope in scopes or f"tool:{tool_name}" in scopes
 
 
@@ -201,18 +270,36 @@ mcp = MCPServer(
 
 @mcp.tool(annotations=READ)
 def msa_identity_whoami() -> dict[str, Any]:
-    """Return the authenticated MSA MCP client identity and granted scopes without secret material."""
+    """Return authenticated transport identity and the bound named MSA agent, when configured."""
     access = _caller()
     if access is None:
         return _deny("msa_identity_whoami", "mcp:connect")
-    return {
+    context = _bound_agent_context(access)
+    result: dict[str, Any] = {
         "ok": True,
         "status": "AVAILABLE",
         "client_id": access.client_id,
         "subject": access.subject,
-        "scopes": sorted(access.scopes or []),
+        "granted_scopes": sorted(access.scopes or []),
+        "effective_scopes": sorted(_effective_scopes(access)),
         "runtime_type": "EXTERNAL_MCP_CLIENT",
+        "agent_binding_status": "BOUND" if context else "UNBOUND",
     }
+    if context:
+        result.update(
+            {
+                "agent_id": context["agent_id"],
+                "agent_display_name": context["display_name"],
+                "agent_call_name": context["call_name"],
+                "agent_runtime_mode": context["runtime_mode"],
+                "agent_state": context["state"],
+                "agent_authority_ceiling": context["authority_ceiling"],
+                "agent_execution_policy": context["execution_policy"],
+                "agent_confirmation_policy": context["confirmation_policy"],
+                "mcp_client_name": context["client_name"],
+            }
+        )
+    return result
 
 
 @mcp.tool(annotations=READ)
@@ -242,11 +329,12 @@ def msa_system_capabilities() -> dict[str, Any]:
     if denied:
         return denied
     access = _caller()
-    scopes = set(access.scopes or []) if access else set()
+    scopes = _effective_scopes(access)
     return {
         "ok": True,
         "status": "AVAILABLE",
-        "granted_scopes": sorted(scopes),
+        "granted_scopes": sorted(access.scopes or []) if access else [],
+        "effective_scopes": sorted(scopes),
         "read": "mcp:read" in scopes or "*" in scopes,
         "propose": "mcp:propose" in scopes or "*" in scopes,
         "write": ("mcp:write" in scopes or "*" in scopes) and PRODUCTION_INVENTORY_WRITES_ENABLED,

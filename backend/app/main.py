@@ -16,6 +16,7 @@ from app.dashboard_login import router as dashboard_login_router
 from app.db import database_readiness
 from app.email_recovery import router as email_recovery_router
 from app.email_recovery_page import router as email_recovery_page_router
+from app.mcp_agent_binding import router as mcp_agent_binding_router
 from app.mcp_oauth import router as mcp_oauth_router
 from app.mcp_server import mcp, mcp_http_app
 from app.nanogpt_catalog import router as nanogpt_catalog_router
@@ -33,6 +34,7 @@ ENVIRONMENT = os.getenv("MSA_ENVIRONMENT", "development")
 BUILD_SHA = os.getenv("MSA_BUILD_SHA", "unknown")
 SAVED_MODEL_ASSET_VERSION = "f72d31-2"
 AGENT_POLISH_ASSET_VERSION = "f72d31-agentui-1"
+MCP_BINDING_ASSET_VERSION = "f72d4a-mcpbind-1"
 
 
 @asynccontextmanager
@@ -49,7 +51,7 @@ app = FastAPI(
         "Authenticated inventory, canonical human identity/User Management/credential and email-recovery lifecycle, catalogue, "
         "test-only shadow reads, the F7 dashboard, F7.2D named Agent Management/multi-agent session foundation, "
         "Owner-only Provider Registry/model discovery, tested saved-model catalog and agent model-assignment foundation, "
-        "NanoGPT detailed catalog enrichment, and the MCP/OAuth protocol surface are available; "
+        "external MCP named-agent binding, NanoGPT detailed catalog enrichment, and the MCP/OAuth protocol surface are available; "
         "canonical inventory writes remain disabled."
     ),
     lifespan=app_lifespan,
@@ -85,12 +87,14 @@ def dashboard_shell_with_saved_model_assets() -> HTMLResponse:
     html = html.replace(
         "</head>",
         f'<link rel="stylesheet" href="/dashboard/assets/dashboard_saved_models.css?v={SAVED_MODEL_ASSET_VERSION}">\n'
-        f'<link rel="stylesheet" href="/dashboard/assets/dashboard_agent_polish.css?v={AGENT_POLISH_ASSET_VERSION}">\n</head>',
+        f'<link rel="stylesheet" href="/dashboard/assets/dashboard_agent_polish.css?v={AGENT_POLISH_ASSET_VERSION}">\n'
+        f'<link rel="stylesheet" href="/dashboard/assets/dashboard_mcp_binding.css?v={MCP_BINDING_ASSET_VERSION}">\n</head>',
         1,
     )
     html = html.replace(
         "</body>",
-        f'<script src="/dashboard/assets/dashboard_saved_models.js?v={SAVED_MODEL_ASSET_VERSION}" defer></script>\n</body>',
+        f'<script src="/dashboard/assets/dashboard_saved_models.js?v={SAVED_MODEL_ASSET_VERSION}" defer></script>\n'
+        f'<script src="/dashboard/assets/dashboard_mcp_binding.js?v={MCP_BINDING_ASSET_VERSION}" defer></script>\n</body>',
         1,
     )
     response = HTMLResponse(html)
@@ -118,6 +122,16 @@ def agent_polish_css() -> FileResponse:
     return response
 
 
+@app.get("/dashboard/assets/dashboard_mcp_binding.css", include_in_schema=False)
+def mcp_binding_css() -> FileResponse:
+    response = FileResponse(ASSET_DIR / "dashboard_mcp_binding.css", media_type="text/css")
+    response.headers["Cache-Control"] = "no-store, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
 @app.get("/dashboard/assets/dashboard_saved_models.js", include_in_schema=False)
 def saved_model_js() -> Response:
     # Prevent the overlay from observing descendant mutations that its own callbacks create.
@@ -132,11 +146,22 @@ def saved_model_js() -> Response:
     return response
 
 
+@app.get("/dashboard/assets/dashboard_mcp_binding.js", include_in_schema=False)
+def mcp_binding_js() -> FileResponse:
+    response = FileResponse(ASSET_DIR / "dashboard_mcp_binding.js", media_type="text/javascript")
+    response.headers["Cache-Control"] = "no-store, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
 app.include_router(dashboard_login_router)
 app.include_router(dashboard_router)
 app.include_router(email_recovery_page_router)
 app.include_router(user_management_router)
 app.include_router(agent_management_router)
+app.include_router(mcp_agent_binding_router)
 app.include_router(provider_registry_router)
 app.include_router(nanogpt_catalog_router)
 app.include_router(provider_model_view_router)
@@ -162,6 +187,7 @@ def health() -> dict[str, object]:
         "database_canonical": False,
         "mcp_surface": "full-schema-policy-gated",
         "mcp_oauth": "enabled",
+        "mcp_named_agent_binding": "f7.2d4a",
         "agent_management": "f7.2d2",
         "provider_registry": "f7.2d3",
         "saved_model_catalog": "f7.2d3.1",
