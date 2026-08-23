@@ -2,14 +2,58 @@ from __future__ import annotations
 
 import json
 from typing import Any
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Response
+from mcp.server.auth.middleware.auth_context import get_access_token
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.dashboard_auth import _engine, require_owner_session
 
 router = APIRouter(prefix="/dashboard/api/audit", tags=["audit"])
+
+
+def _current_bound_agent(access: Any) -> dict[str, Any] | None:
+    if access is None or not access.client_id or not access.subject:
+        return None
+    try:
+        UUID(str(access.subject))
+    except (TypeError, ValueError):
+        return None
+    engine = _engine()
+    try:
+        with engine.connect() as connection:
+            row = connection.execute(
+                text(
+                    """
+                    SELECT a.agent_id::text AS agent_id,
+                           a.display_name,
+                           a.call_name,
+                           a.runtime_mode,
+                           a.state,
+                           a.authority_ceiling,
+                           a.execution_policy,
+                           a.confirmation_policy,
+                           c.client_name
+                    FROM mcp_oauth_grants g
+                    JOIN mcp_oauth_clients c ON c.client_id = g.client_id
+                    JOIN mcp_agent_bindings b ON b.grant_id = g.grant_id
+                    JOIN ai_agents a ON a.agent_id = b.agent_id
+                    WHERE g.client_id = :client_id
+                      AND g.user_id = CAST(:subject AS uuid)
+                      AND g.state = 'ACTIVE'
+                      AND c.revoked_at IS NULL
+                    LIMIT 1
+                    """
+                ),
+                {"client_id": str(access.client_id), "subject": str(access.subject)},
+            ).mappings().first()
+        return dict(row) if row is not None else None
+    except SQLAlchemyError:
+        return None
+    finally:
+        engine.dispose()
 
 
 def record_mcp_event(*, access: Any, agent_context: dict[str, Any] | None, action_type: str, capability_scope: str | None, outcome: str, metadata: dict[str, Any] | None = None) -> None:
@@ -51,10 +95,23 @@ def record_mcp_event(*, access: Any, agent_context: dict[str, Any] | None, actio
                 },
             )
     except (SQLAlchemyError, ValueError, TypeError):
-        # Audit persistence must never leak secret material or crash the MCP response path.
         return
     finally:
         engine.dispose()
+
+
+def record_current_mcp_event(*, action_type: str, capability_scope: str | None, outcome: str = "SUCCESS", metadata: dict[str, Any] | None = None) -> None:
+    access = get_access_token()
+    if access is None:
+        return
+    record_mcp_event(
+        access=access,
+        agent_context=_current_bound_agent(access),
+        action_type=action_type,
+        capability_scope=capability_scope,
+        outcome=outcome,
+        metadata=metadata,
+    )
 
 
 @router.get("/recent", dependencies=[Depends(require_owner_session)], summary="Recent operational audit activity")
