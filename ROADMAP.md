@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Project Roadmap
 
-Status: **F0/F1/F2/F3/F4/F5/F5.1/F6A/F6C/F7.1/F7.2A/F7.2B/F7.2C/F7.2D0/F7.2D2/F7.2D3/F7.2D4A/F7.2D4B/F7.2D4C verified; F7.3A minimal MCP audit evidence and F7.3B broad typed reads verified; direct MCP and native internal agents are peer paths; F6B remains test-only; AI Workspace access + durable chat is next; PostgreSQL remains non-canonical**
+Status: **F0/F1/F2/F3/F4/F5/F5.1/F6A/F6C/F7.1/F7.2A/F7.2B/F7.2C/F7.2D0/F7.2D2/F7.2D3/F7.2D4A/F7.2D4B/F7.2D4C/F7.2D4E/F7.2D4F verified; F7.3A minimal MCP audit evidence and F7.3B broad typed reads verified; direct MCP and native internal agents are peer paths; F6B remains test-only; current work is AI Workspace Chat UX/lifecycle; PostgreSQL remains non-canonical**
 
 The live Google workbook/source documents remain operationally authoritative. F6B is test-only and not an accepted migration baseline.
 
@@ -36,10 +36,12 @@ No AI/client receives arbitrary SQL, DB credentials, VPS shell/filesystem, Sheet
 - F7.2D4A external MCP OAuth-grant -> named-agent binding
 - F7.2D4B native internal-agent PRIMARY + ordered FALLBACK assignment chain
 - F7.2D4C MCP-independent native internal-agent provider inference
+- F7.2D4E durable top-level AI Workspace Chat
+- F7.2D4F bounded native internal-agent reads, grounded responses, and native read provenance
 - F7.3A minimal external-MCP actor audit evidence
 - F7.3B broad typed row/detail reads
 
-Native survival proof already passes for provider inference: an `INTERNAL_MODEL` agent responded through `NATIVE_MSA_BACKEND`, using NanoGPT/MiniMax M3, with `MCP used: no` and provider/model/latency provenance.
+Native survival proof now passes through real store reads: an `INTERNAL_MODEL` agent can read the current F6B test/shadow inventory evidence through `NATIVE_MSA_BACKEND`, with `MCP used: no`, while production writes remain closed.
 
 ## F6B test-only snapshot
 
@@ -75,25 +77,25 @@ These are peer paths over one backend/authority core. Direct authorized MCP acti
 - D4A external MCP named-agent binding
 - D4B primary + ordered fallback assignment contract
 - D4C native provider-backed invocation independent of ChatGPT/MCP
+- D4E durable AI Workspace Chat and persisted history
+- D4F bounded native read-tool adapter and grounded store-data answers
 - server-owned identity/policy injection
 - provider/model/fallback/latency attempt provenance
-- Dashboard native-runtime test surface
+- backend-first AI Workspace access policy
+- Owner-only Multi-Agent surface remains isolated from normal user Chat
 
-### Next: AI Workspace + access policy
+### Current: Chat UX + lifecycle
 
-Canonical contract: `docs/architecture/F7_2D4_AI_WORKSPACE_AND_ACCESS.md`.
+Canonical current contract: `docs/checkpoints/F7_2D4G_CHAT_UX_LIFECYCLE_PLAN_2026-08-23.md`.
 
-Separate the surfaces:
+Current work:
 
-- **AI Agent Management** = Owner-only configuration/control plane.
-- **AI Workspace** = operational work plane.
-
-AI Workspace contains:
-
-1. **Chat** — single selected internal agent; Owner + authorized users.
-2. **Multi-Agent** — actual `GROUP`, `COMPARE`, `REVIEW`, `DEBATE` execution; **Owner only** for the current phase.
-
-AI Agent Management keeps provider/model assignment, agent policy, reusable multi-agent session definitions, and an Owner-only global non-owner AI Workspace enable/disable switch.
+- complete long native-read answers without the old 1024-token Workspace truncation;
+- deterministic USER -> ASSISTANT ordering;
+- clean plain-text mobile presentation;
+- selectable/copyable messages;
+- first-message preview + human-friendly last-interaction timestamp on conversation cards;
+- authenticated owner-only conversation deletion with cascading message cleanup.
 
 ### Access-control invariants
 
@@ -101,13 +103,7 @@ Owner-only controls are protected in both UI and backend. UI hiding is never aut
 
 Non-owner Chat authorization occurs before provider invocation:
 
-`authenticated user -> global non-owner gate -> per-user entitlement -> agent eligibility -> native runtime`
-
-Per-user entitlement values:
-
-- `INHERIT`
-- `ALLOW`
-- `BLOCK`
+`authenticated user -> global non-owner gate -> per-user entitlement -> agent eligibility -> native runtime/tool authority`
 
 Rules:
 
@@ -117,33 +113,28 @@ Rules:
 - Global ON + INHERIT/ALLOW -> eligible.
 - Denied requests make **zero provider API calls**.
 - Multi-Agent execution remains Owner-only regardless of Chat entitlement.
-
-When typed tools are attached later, effective authority must intersect system gate, human/user authority, agent authority/capabilities, location scope, operation class, and confirmation policy. Provider/model assignment never expands authority.
+- Tool authority is an intersection; provider/model assignment never expands authority.
 
 ## Immediate implementation order
 
-1. AI Workspace access-policy persistence and backend authorization.
-2. Per-user Chat entitlement in User Management.
-3. Durable conversation/message persistence.
-4. Top-level AI Workspace shell with Chat tab and internal-agent selector.
-5. Native runtime hookup and persisted messages.
-6. Clear denial UX with no provider call when blocked.
-7. Internal typed-tool adapter over shared MSA services, initially bounded read-only.
-8. Provider failover/provenance completion.
-9. Owner-only Multi-Agent execution using persisted session presets.
-10. Optional MCP -> native-agent delegation.
+1. F7.2D4G Chat UX/lifecycle acceptance.
+2. Provider failover/provenance completion under real failure.
+3. Expand native typed reads over shared MSA service contracts as needed.
+4. Owner-only Multi-Agent execution using persisted session presets.
+5. Optional MCP -> native-agent delegation.
+6. Continue full actor-aware operational audit and later controlled writes only after prerequisites.
 
 ## F7.2D4 survival acceptance
 
-Final D4 pass still requires:
+Core survival proof is now present:
 
-`MSA Web -> selected INTERNAL_MODEL agent -> assigned provider/model -> authorized typed MSA read -> response + audit`
+`MSA Web -> selected INTERNAL_MODEL agent -> assigned provider/model -> authorized typed MSA read -> response + provenance`
 
-with durable conversations, multiple selectable agents, deterministic failover, no public-MCP dependency for ordinary native operation, and no privilege union in multi-agent execution.
+Remaining D4 hardening includes deterministic failover acceptance, broader native tools, and Owner-only Multi-Agent execution without privilege union.
 
 ## Later sequence
 
-1. F7.2D4 — AI Workspace/chat/tools/multi-agent execution
+1. F7.2D4 — Chat/tools/failover/multi-agent execution
 2. F7.3 — full actor-aware Audit / operation ledger
 3. F7.4 — Inventory Locations / Store Policy / Preferences
 4. F7.5 — Smart Calculator / receipts
@@ -157,7 +148,7 @@ with durable conversations, multiple selectable agents, deterministic failover, 
 
 ## Immediate boundary
 
-Proceed with **AI Workspace access policy + durable single-agent Chat foundation**.
+Proceed with **F7.2D4G AI Workspace Chat UX + lifecycle**.
 
 Do not enable production inventory writes, AI inventory writes, transfers, Smart Calculator deductions, Telegram/Flutter stock mutations, Sheet mirror conversion, or PostgreSQL canonical promotion during this work.
 
@@ -169,3 +160,5 @@ Do not enable production inventory writes, AI inventory writes, transfers, Smart
 - `docs/architecture/F7_2D_EXECUTION_PATH_SEPARATION.md`
 - `docs/architecture/F7_2D4_AI_WORKSPACE_AND_ACCESS.md`
 - `docs/architecture/F7_2D2_AGENT_MANAGEMENT_AND_MULTI_AGENT_SESSIONS.md`
+- `docs/checkpoints/F7_2D4F_GROUNDED_NATIVE_READS_PLAN_2026-08-23.md`
+- `docs/checkpoints/F7_2D4G_CHAT_UX_LIFECYCLE_PLAN_2026-08-23.md`
