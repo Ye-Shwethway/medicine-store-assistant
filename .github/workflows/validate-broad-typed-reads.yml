@@ -6,6 +6,7 @@ on:
     paths:
       - 'backend/app/shadow_read_api.py'
       - 'backend/app/mcp_shadow_reads.py'
+      - 'backend/app/mcp_server.py'
       - 'backend/app/main.py'
       - '.github/workflows/validate-broad-typed-reads.yml'
       - 'docs/checkpoints/F7_3B_BROAD_TYPED_READS_2026-08-23.md'
@@ -25,12 +26,24 @@ jobs:
       - name: Validate MCP read tool registration
         run: |
           PYTHONPATH=backend python - <<'PY'
-          import app.main  # noqa: F401; side-effect registers MCP tools
+          import app.main  # production startup path
           import app.mcp_shadow_reads as r
           assert callable(r.msa_shadow_read_rows)
           assert callable(r.msa_shadow_read_batch)
           assert callable(r.msa_shadow_read_review_reasons)
           print('broad_typed_mcp_tools=pass')
+          PY
+      - name: Validate registration precedes MCP HTTP construction
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('backend/app/mcp_server.py').read_text()
+          register='import app.mcp_shadow_reads as _mcp_shadow_reads'
+          transport='mcp_http_app = mcp.streamable_http_app('
+          assert register in s
+          assert transport in s
+          assert s.index(register) < s.index(transport)
+          print('mcp_extension_registration_order=pass')
           PY
       - name: Validate optional-filter SQL regression fix
         run: |

@@ -711,6 +711,12 @@ def msa_settings_update(setting_name: str, value: str) -> dict[str, Any]:
     return _control_gate("msa_settings_update") or _deny("msa_settings_update", "mcp:control", reason="NOT_ENABLED")
 
 
+# Register extension tools before constructing the HTTP transport app. Some MCP clients
+# discover the schema from the application state established at construction time, so
+# late decorator registration can produce a green server with a stale external tool list.
+import app.mcp_shadow_reads as _mcp_shadow_reads  # noqa: E402,F401
+
+
 _mcp_host = PUBLIC_BASE_URL.split("//", 1)[-1].split("/", 1)[0]
 transport_security = TransportSecuritySettings(
     allowed_hosts=[_mcp_host, f"{_mcp_host}:*", "127.0.0.1", "127.0.0.1:*", "localhost", "localhost:*"],
