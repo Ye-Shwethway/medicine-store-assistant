@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Project Roadmap
 
-Status: **F0/F1/F2/F3/F4/F5/F5.1/F6A/F6C/F7.1/F7.2A/F7.2B/F7.2C/F7.2D0/F7.2D2/F7.2D3/F7.2D4A/F7.2D4B/F7.2D4C/F7.2D4E/F7.2D4F/F7.2D4G verified; D4.7A hybrid native tool calling deployed/manual accepted; D4.7B response/attachment UX manually accepted; current design work is D4.8 Multi-Agent Review + federated work exchange; F6B remains test-only; PostgreSQL remains non-canonical**
+Status: **F0/F1/F2/F3/F4/F5/F5.1/F6A/F6C/F7.1/F7.2A/F7.2B/F7.2C/F7.2D0/F7.2D2/F7.2D3/F7.2D4A/F7.2D4B/F7.2D4C/F7.2D4E/F7.2D4F/F7.2D4G verified; D4.7A hybrid native tool calling deployed/manual accepted; D4.7B response/attachment UX manually accepted; D4.8 shared work/review substrate + Owner-only native REVIEW backend deployed through migration 0021; current target is Owner REVIEW UI + real end-to-end manual acceptance; F6B remains test-only; PostgreSQL remains non-canonical**
 
 The live Google workbook/source documents remain operationally authoritative. F6B is test-only and not an accepted migration baseline.
 
@@ -38,6 +38,8 @@ No AI/client receives arbitrary SQL, DB credentials, VPS shell/filesystem, Sheet
 - D4.7 Owner UI exposes PRIMARY + ordered FALLBACK assignment chain; live failover proof remains pending
 - D4.7A hybrid deterministic + model-driven native read-tool calling; contextual follow-up manual acceptance passed with MiniMax M3
 - D4.7B human-facing response normalization + bounded attachments + image preview + dynamic latest-message conversation cards manually accepted
+- D4.8 durable Work Item / Artifact / Review / Event / Attention Queue substrate deployed
+- D4.8 stable `ANALYST` / `REVIEWER` / `SYNTHESIZER` bindings + Owner-only native-only REVIEW backend deployed; UI/manual acceptance still pending
 - F7.3A minimal external-MCP actor audit evidence
 - F7.3B broad typed row/detail reads
 
@@ -98,28 +100,42 @@ Attachment evidence is groundwork for later issue-paper photo batch intake, Dail
 
 Owner fallback configuration UI is implemented. Live PRIMARY failure -> ordered FALLBACK success acceptance remains pending. Provider/model assignment never changes agent identity or authority.
 
-## D4.8 Multi-Agent Review + federation — APPROVED DESIGN / NEXT
+## D4.8 Multi-Agent Review + federation — BACKEND DEPLOYED / UI + MANUAL ACCEPTANCE NEXT
 
 Canonical architecture: `docs/architecture/F7_2D48_MULTI_AGENT_REVIEW_AND_FEDERATION.md`.
 
-Key decisions:
+Runtime checkpoint: `docs/checkpoints/F7_2D48_NATIVE_REVIEW_RUNTIME_2026-08-24.md`.
 
-- **native-only Multi-Agent workflows are first-class and require no external agent**;
-- `REVIEW` is the first implementation priority;
-- `GROUP` is a bounded shared-context native agentic loop with Owner observation/steering;
-- `COMPARE` keeps participant answers independent until comparison;
-- `DEBATE` uses bounded rounds and may start native-only;
-- external ChatGPT/MCP participation is optional and asynchronous/federated, not a fake live native participant;
-- Review presets may optionally enter `WAITING_EXTERNAL`; they may also skip external review entirely;
-- persisted Work Items, versioned Artifacts, Reviews, Events, and an Attention Queue form the shared coordination substrate;
-- Review lifecycle is `DRAFT -> REVIEWING -> WAITING_EXTERNAL? -> WAITING_OWNER -> APPROVED -> COMMITTABLE -> COMMITTED`;
-- `APPROVED` never means store mutation occurred;
-- federated MCP review is version-bound and does not grant write authority;
-- Telegram is planned as a notification/attention layer over the same persisted workflow state, never as the source of truth or orchestrator;
-- Web, MCP, and Telegram should surface one backend attention queue;
-- existing photo/file evidence contract is reused by Multi-Agent workflows.
+Deployment anchors:
 
-Initial orchestration roles are `ANALYST`, `REVIEWER`, and `SYNTHESIZER`, with optional Owner-defined display labels. Roles do not grant authority.
+- substrate PR #100 merge `4a9f54e17f2b386dfdd390af5850be2100986aac`
+- native REVIEW PR #101 merge `0ebaba7d62f5cc3d9d3ec95e1cd33b4ccb7c324e`
+- production migration head `0021_review_orchestration_roles`
+- issue #26 deploy run `32660149646` recorded `status=success` for `0ebaba7d62f5cc3d9d3ec95e1cd33b4ccb7c324e`
+
+Implemented backend truth:
+
+- **native-only Multi-Agent workflows remain first-class and require no external agent**;
+- durable Work Items, versioned Artifacts, version-bound Reviews, immutable Events, and shared Attention Queue are deployed;
+- stable orchestration roles `ANALYST`, `REVIEWER`, `SYNTHESIZER` are stored separately from custom display labels;
+- Owner-only native REVIEW API can create a durable work item, invoke ordered ACTIVE `INTERNAL_MODEL` participants independently, persist provider/model/fallback/latency provenance, bind reviewer findings to the exact prior artifact/version, and finish at `WAITING_OWNER`;
+- existing AI Workspace attachment ownership contract is reused as metadata evidence; provider vision/OCR byte processing remains unwired;
+- participant failure creates `FAILED` + durable Owner attention;
+- Owner may return `WAITING_OWNER` work to `REVIEWING` with a persisted revision instruction;
+- artifact/review state never mutates inventory by itself;
+- no MCP schema/action-name change was required for this backend slice.
+
+Full D4.8 REVIEW acceptance is **not yet complete**. The Owner-facing Review UI and a real manual end-to-end native-only REVIEW run are still required.
+
+Canonical lifecycle remains:
+
+`DRAFT -> REVIEWING -> WAITING_EXTERNAL? -> WAITING_OWNER -> APPROVED -> COMMITTABLE -> COMMITTED`
+
+`WAITING_EXTERNAL` remains optional. `APPROVED` never means store mutation occurred.
+
+Federated ChatGPT/MCP remains optional and asynchronous. The v2.1 MCP surface intentionally uses open action selectors for several long-lived tools with backend allowlists, so federation should first attempt to reuse existing tool names/slots rather than create a new MCP server or gratuitously expand the schema.
+
+Telegram remains a notification/attention layer over the same persisted state. Web, MCP, and Telegram must surface one backend attention queue; notification failure must never advance or lose workflow state.
 
 ## Access-control invariants
 
@@ -135,9 +151,9 @@ Multi-Agent execution remains Owner-only in this phase. Each native participant'
 
 ## Immediate implementation order
 
-1. Persist D4.8 Work Item / Artifact / Review / Event / Attention Queue substrate.
-2. Wire Owner-only native-only REVIEW mode first using existing session presets and attachment contract.
-3. Add optional federated `WAITING_EXTERNAL` checkpoint and bounded MCP work/review exchange actions.
+1. Build Owner-facing AI Workspace REVIEW UI over the deployed backend: REVIEW preset selection, stable role configuration, task/evidence submission, progress/provenance inspection, Work Item detail, and return-for-revision controls.
+2. Manually accept a real native-only REVIEW run that reaches `WAITING_OWNER`, survives reload/restart from persisted state, exposes versions/reviews/provenance, and performs no inventory mutation.
+3. Add optional federated `WAITING_EXTERNAL` checkpoint and bounded MCP work/review exchange, preferring existing v2.1 open-action long-lived slots before any schema-name change.
 4. Add Telegram notification delivery over persisted attention events; notification failure must never advance/lose workflow state.
 5. Add GROUP bounded native loops + Owner steer/pause/resume/stop + optional external checkpoints.
 6. Add COMPARE and DEBATE execution semantics.
@@ -162,4 +178,4 @@ Multi-Agent execution remains Owner-only in this phase. Each native participant'
 
 ## Immediate boundary
 
-Proceed with **D4.8 shared work/review substrate and native-only REVIEW mode first**. External/federated participation remains optional. Do not enable production inventory writes, AI inventory writes, transfers, Smart Calculator deductions, Telegram/Flutter stock mutations, Sheet mirror conversion, automatic OCR/vision commits, or PostgreSQL canonical promotion.
+Proceed with **D4.8 Owner REVIEW UI + native-only end-to-end manual acceptance first**. External/federated participation remains optional and comes only after native Review is proven. Do not enable production inventory writes, AI inventory writes, transfers, Smart Calculator deductions, Telegram/Flutter stock mutations, Sheet mirror conversion, automatic OCR/vision commits, or PostgreSQL canonical promotion.
