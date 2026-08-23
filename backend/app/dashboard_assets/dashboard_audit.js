@@ -11,18 +11,18 @@
     panel=document.createElement('section');
     panel.className='view';
     panel.dataset.panel='audit';
-    panel.innerHTML=`
-      <div class="management-head audit-head">
-        <div><h2>Audit</h2><p>Recent append-only operational evidence. Full filters and monthly history arrive in F7.3.</p></div>
-        <button class="secondary" id="auditRefresh" type="button">Refresh</button>
-      </div>
-      <div class="agent-boundary"><strong>Current audit proof boundary</strong><p>This preview records verified external MCP inventory-summary reads. It does not yet represent the full operational ledger.</p></div>
-      <article class="card panel audit-panel"><div class="users-panel-head"><div><h2>Recent activity</h2><p class="sub">Newest server-recorded events first.</p></div></div><div id="auditRecent" class="audit-list"><div class="empty-copy">Open Audit to load recent activity.</div></div></article>`;
     content.appendChild(panel);
   }
+  panel.innerHTML=`
+    <div class="management-head audit-head">
+      <div><h2>Audit</h2><p>Recent append-only operational evidence. Full filters and monthly history arrive in F7.3.</p></div>
+      <button class="secondary" id="auditRefresh" type="button">Refresh</button>
+    </div>
+    <div class="agent-boundary"><strong>Current audit proof boundary</strong><p>This preview records verified external MCP inventory-summary reads. It does not yet represent the full operational ledger.</p></div>
+    <article class="card panel audit-panel"><div class="users-panel-head"><div><h2>Recent activity</h2><p class="sub">Newest server-recorded events first.</p></div></div><div id="auditRecent" class="audit-list"><div class="empty-copy">Open Audit to load recent activity.</div></div></article>`;
 
   const list=()=>root.querySelector('#auditRecent');
-  const esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+  const esc=v=>String(v??'').replace(/[&<>'\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','\"':'&quot;'}[c]));
   const fmt=t=>{try{return new Date(t).toLocaleString()}catch{return String(t||'')}};
 
   async function loadAudit(){
