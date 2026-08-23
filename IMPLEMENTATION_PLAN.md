@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Implementation Plan
 
-Status: **F7.2A/B/C, F7.2D0 custom MCP connectivity + finalized 106-action schema v2.1 + replacement ChatGPT acceptance, F7.2D2 named Agent Management/session topology, F7.2D3 Provider Registry/saved-model catalog, F7.2D4A external MCP named-agent binding, F7.3A minimal MCP audit evidence, and F7.3B broad typed reads are verified foundations; F7.2D4 now continues as native internal-agent runtime + assignment/fallback + chat/tools/multi-agent execution; production inventory write authority remains unauthorized**
+Status: **F7.2D4B ordered model assignment and F7.2D4C MCP-independent native provider inference are verified; next work is AI Workspace access policy + durable single-agent Chat; production inventory write authority remains unauthorized**
 
 This file is the execution contract for current MSA implementation order and boundaries.
 
@@ -11,274 +11,196 @@ This file is the execution contract for current MSA implementation order and bou
 - F6B remains test-only and must never be silently promoted.
 - All humans, AI agents, integrations, and system jobs use typed backend operations.
 - Never expose arbitrary SQL, DB credentials, VPS shell/filesystem, Sheet credentials, plaintext provider keys, passwords/tokens/recovery secrets, or unrestricted HTTP proxying to AI/client runtimes.
-- Deterministic backend code owns identity, authorization, capability/location policy, constraints, arithmetic, idempotency, transactions, derived state, committed read-back, and audit semantics.
-- Significant mutation success requires committed-state read-back.
-- Historical committed facts use correction/reversal semantics rather than silent destructive rewriting.
+- Deterministic backend code owns identity, authorization, capability/location policy, constraints, idempotency, transactions, read-back, and audit semantics.
 - Provider/model choice never grants authority.
-- Prefer smallest runnable slices and avoid unnecessary infrastructure.
 - Significant architecture/implementation/deploy/next-work changes update `ROADMAP.md`, `NEW_CHAT_BOOTSTRAP.md`, this file, and relevant canonical docs.
-- Web delivery must follow `docs/design/WEB_ASSET_RELEASE_INTEGRITY.md`.
+- Web delivery follows `docs/design/WEB_ASSET_RELEASE_INTEGRITY.md`.
 
-## 2. Existing `$msa` workflow parity
+## 2. Canonical execution paths
 
-Preserve:
-
-1. inspect source evidence;
-2. reconcile against current authoritative truth;
-3. classify `SAFE`, `REVIEW`, `CONFLICT`, `NEW_UNMAPPED`;
-4. execute only Owner-authorized workflow classes;
-5. surface material ambiguity;
-6. commit through typed backend operation;
-7. read affected state back;
-8. record actor/operation provenance;
-9. report success only after verification.
-
-## 3. Verified foundation
-
-Verified complete/foundational:
-
-- F0/F1/Cloudflare/F2/F3/F4/F5/F5.1/F6A/F6C
-- F7.1 read-only Dashboard
-- F7.2A canonical human identity/sessions
-- F7.2B User Management/profile
-- F7.2C Credential + Recovery Lifecycle
-- F7.2D0 custom MCP/OAuth connectivity
-- F7.2D0 MCP schema finalization **v2.1 — 106 actions**
-- F7.2D0 replacement ChatGPT MCP acceptance — **verified 2026-08-23**
-- F7.2D2 named Agent Management + multi-agent session topology
-- F7.2D3 Provider Registry + saved/tested model catalog
-- F7.2D4A external MCP OAuth grant -> named-agent binding
-- F7.3A minimal external-MCP actor audit evidence
-- F7.3B broad typed row-level shadow reads with live `NEW_UNMAPPED` proof
-
-F6B remains test-only: 1,646 rows; SAFE 1,417; REVIEW 222; CONFLICT 0; NEW_UNMAPPED 7; `migration_baseline_accepted=false`; `database_canonical=false`.
-
-## 4. Canonical execution-path separation — REQUIRED
-
-Canonical contract: `docs/architecture/F7_2D_EXECUTION_PATH_SEPARATION.md`.
-
-MSA has one shared typed backend/authority core and multiple **peer** execution paths.
-
-### 4.1 External MCP path
+External MCP:
 
 `ChatGPT model -> MCP action -> MCP authority intersection -> typed MSA backend operation -> result`
 
-The external model performs the reasoning and directly invokes authorized implemented MCP actions. Internal agents are **not** a required hop.
+Native internal agent:
 
-Verified example:
+`MSA Web / future Telegram / Flutter / automation -> INTERNAL_MODEL runtime -> assigned provider/model -> internal typed-tool adapter -> typed MSA backend operation -> response`
 
-`ChatGPT/SOL -> msa_shadow_read_rows -> shadow backend -> PostgreSQL shadow rows -> result`
+These are peer paths. Internal agents do not depend on public MCP for ordinary work. Direct MCP actions do not require an internal-agent intermediary. `msa_agent_invoke` is optional delegation/orchestration only.
 
-Audit proof: `IANEO -> msa_shadow_read_rows -> SUCCESS` under `EXTERNAL_MCP` / `EXTERNAL_MCP_CLIENT` / `mcp:read`.
+## 3. Verified native-agent foundation
 
-MCP gives typed operation access, not arbitrary SQL/DB access.
+Already verified:
 
-### 4.2 Native internal-agent path
+- stable named agent identity/policy;
+- Provider Registry + saved/tested model catalog;
+- primary + ordered fallback assignment contract for `INTERNAL_MODEL` agents;
+- backend rejection of provider/model assignment for non-internal agents;
+- MCP-independent native provider invocation;
+- server-owned agent identity/policy injection;
+- OpenAI-compatible and Gemini provider paths;
+- provider/model/fallback/latency attempt provenance;
+- native test UI proving `MCP used: no`;
+- production inventory writes remain closed.
 
-`MSA Web chat / future Telegram / Flutter / automation -> native internal-agent runtime -> assigned provider/model -> internal typed-tool adapter -> typed MSA backend operation -> response`
+The current native test is inference-only. Native typed MSA tools are not attached yet.
 
-`INTERNAL_MODEL` agents are first-class MSA runtimes. They must operate without ChatGPT and without the public MCP transport.
+## 4. AI Workspace architecture — LOCKED
 
-### 4.3 Shared backend rule
+Canonical design: `docs/architecture/F7_2D4_AI_WORKSPACE_AND_ACCESS.md`.
 
-MCP actions, Web/API endpoints, and internal-agent tools reuse shared domain/service functions. They do not call one another merely to reach the same operation.
+### 4.1 Control plane
 
-Forbidden drift:
+`AI Agent Management` remains **Owner-only** and stores:
 
-- do not make internal agents depend on MCP for ordinary MSA data/tools;
-- do not make direct MCP actions depend on internal agents;
-- do not route normal Web/API operations through MCP;
-- do not duplicate business/authority rules per adapter.
+- agent lifecycle/policy;
+- provider/model assignments;
+- reusable multi-agent session definitions;
+- global non-owner AI Workspace enable/disable setting.
 
-### 4.4 `msa_agent_invoke`
+Owner-only restrictions must exist in both UI and backend. Hiding controls is not authorization.
 
-`msa_agent_invoke` is an **optional delegation/orchestration bridge**, not the central operation gateway.
+### 4.2 Work plane
 
-Valid use:
+Create a separate top-level **AI Workspace**.
 
-`External MCP model -> msa_agent_invoke -> selected INTERNAL_MODEL agent -> independent analysis/result`
+Tabs/modes:
 
-Use it for specialist delegation, independent review, compare/review/debate, or other deliberate internal-agent reasoning. Do not add this hop when the external MCP model already has direct authority for the requested MSA action.
+- `Chat` — single selected internal agent; Owner plus authorized users.
+- `Multi-Agent` — actual GROUP/COMPARE/REVIEW/DEBATE execution; Owner-only for this phase.
 
-## 5. Custom MCP foundation — VERIFIED
+Normal users must not see Multi-Agent controls and direct endpoint calls must also be rejected server-side.
 
-Primary external ChatGPT path:
+## 5. AI Workspace access policy
 
-`ChatGPT Developer Mode -> OAuth/PKCE -> custom MSA MCP -> typed backend`
+### 5.1 Owner behavior
 
-Current external scopes: `mcp:connect`, `mcp:read`, `offline_access`; propose/write/control remain disabled.
+Owner always retains AI Workspace access. Global staff/user disable does not disable Owner.
 
-Final schema:
+### 5.2 Global non-owner gate
 
-- version `2026-08-23.v2.1`
-- 106 actions
-- tool-name SHA-256 `f12fcebfbf2b8cb0dd334e53faea25c9503eb3e99e94a71a378ba1133c3554d0`
+Owner-only setting:
 
-Replacement-client acceptance is complete. PR #80 cleanup/deploy succeeded; production migration head is `0016_revoke_stale_chatgpt_oauth`.
+`AI Workspace for non-owner users = ENABLED | DISABLED`
 
-Schema visibility is not authority. Prefer enabling existing published actions or extending stable backend-allowlisted selectors/backward-compatible inputs rather than adding new action names.
+Global OFF is a hard kill switch for all non-owner Chat requests.
 
-## 6. Agent Management + Provider Registry — VERIFIED
+A denied request must stop **before provider invocation**. Provider API calls, tokens, and cost must remain zero.
 
-Agent identity:
+### 5.3 Per-user Chat entitlement
 
-- immutable `agent_id`;
-- editable `display_name` / unique `call_name`;
-- runtime mode/lifecycle/capability/location/authority/execution/confirmation policy;
-- provider/model changes never change identity or authority.
+Persist per-user value:
 
-Runtime modes include `EXTERNAL_MCP_CLIENT`, `INTERNAL_MODEL`, `EXTERNAL_ACTION_CLIENT`, `SYSTEM_AUTOMATION`.
+- `INHERIT`
+- `ALLOW`
+- `BLOCK`
 
-Multi-agent topology already persists `GROUP`, `COMPARE`, `REVIEW`, `DEBATE`, ordered participants and role labels.
+Effective policy:
 
-Provider Registry supports OpenAI, Gemini, OpenRouter, NanoGPT, generic `OPENAI_COMPATIBLE`. Provider credentials are write-only/server-side; tested Owner-saved healthy models are assignment candidates.
+1. Owner -> ALLOW.
+2. Non-owner + global OFF -> DENY.
+3. Non-owner + global ON + BLOCK -> DENY.
+4. Non-owner + global ON + INHERIT/ALLOW -> eligible to continue.
 
-Provider test ping proves connectivity only. It is not an internal-agent workflow.
+Per-user ALLOW never overrides global OFF.
 
-## 7. F7.2D4 — Native internal-agent runtime — NEXT
+### 5.4 Future selected-agent/tool authority
 
-Purpose: create MSA-owned provider-backed agents that remain usable independently of ChatGPT while preserving the already-strong direct MCP path.
+Later user-agent access may further restrict selectable agents.
 
-### Slice D4.1 — Assignment/fallback contract
+When typed tools are attached, effective authority is bounded by the intersection of:
 
-Implement:
+- system gate;
+- authenticated human/user authority;
+- selected agent capability/authority ceiling;
+- location scope;
+- operation class;
+- confirmation policy.
 
-- stable assignment ID;
-- `INTERNAL_MODEL` agent ID;
-- primary enabled provider + Owner-saved healthy model;
-- ordered optional fallback chain;
-- capability expectations;
-- timeout/max-output policy;
-- optional usage/cost budget metadata;
-- enabled/disabled state and provenance.
+Never union privileges and never allow model/provider choice to expand authority.
 
-Rules:
+## 6. Current implementation slices
 
-- known incompatible capability fails closed;
-- unknown capability remains explicit;
-- no silent arbitrary substitution;
-- fallback never expands authority;
-- provider/model/fallback changes never alter `agent_id` or authority.
+### D4.4A — Access-policy persistence + backend authorization
 
-### Slice D4.2 — Native invocation service
+Implement first:
 
-Create a backend service callable directly by MSA-owned runtimes:
+- global AI Workspace non-owner setting;
+- per-user Chat entitlement;
+- Owner bypass;
+- reusable backend authorization helper;
+- denial before native provider invocation;
+- Owner-only API for the global setting;
+- User Management support for editing user entitlement;
+- tests proving denied requests never reach provider invocation.
 
-`caller -> resolve agent -> resolve assignment -> inject identity/policy -> provider call -> normalize -> audit -> response`
-
-This service must have no dependency on ChatGPT or public MCP.
-
-### Slice D4.3 — Canonical runtime identity
-
-Every invocation injects current server-owned:
-
-- `display_name`;
-- `call_name`;
-- stable `agent_id`;
-- runtime identity;
-- bounded policy/authority context.
-
-Never rely on chat history for agent self-identity.
-
-### Slice D4.4 — Conversation/message persistence
+### D4.4B — Conversation/message persistence
 
 Add durable MSA-owned chat state:
 
 - conversation ID;
+- authenticated human owner/participant;
 - selected internal agent;
-- participants/owner user;
+- title/lifecycle timestamps;
 - messages/roles/timestamps;
-- model/provider provenance where relevant;
-- conversation lifecycle/history.
+- provider/model provenance for assistant messages where relevant.
 
-### Slice D4.5 — Web AI Chat + agent selector
+Initial conversations are single-agent. Multi-agent transcripts come later.
 
-Build MSA-owned chat UI with:
+### D4.5 — Top-level AI Workspace Chat UI
 
-- multiple selectable internal agents;
+Build responsive mobile-first UI:
+
+- separate top-level workspace, not inside AI Agent Management;
+- internal-agent selector;
 - new/resume conversation;
 - conversation history;
-- selected agent identity/state/provider/model display;
-- native real provider-backed responses;
-- responsive mobile-first UX.
+- message thread + composer;
+- native provider-backed responses;
+- compact provenance;
+- clear disabled/blocked state.
 
-This is the permanent survival surface. ChatGPT must not be required.
+Ordinary users do not choose provider/model directly.
 
-### Slice D4.6 — Internal typed-tool adapter
+### D4.6 — Native typed-tool adapter
 
-Internal agents call shared MSA domain/service functions through an internal typed-tool layer. They do **not** call the public MCP endpoint for ordinary tool/data access.
+Attach internal typed tools over shared MSA domain/service functions, not public MCP. Initial proof remains bounded/read-only.
 
-The internal tool semantics may mirror MCP/domain contracts where useful, but authority is evaluated under the internal agent's own context.
+### D4.7 — Failover/provenance completion
 
-Initial proof should remain read-only and bounded.
+Exercise deterministic PRIMARY -> ordered FALLBACK behavior and record provider/model/latency/usage provenance.
 
-### Slice D4.7 — Provider failover/provenance
+### D4.8 — Owner-only Multi-Agent execution
 
-Implement ordered fallback with explicit failure reasons. Record:
+Use persisted session presets for actual `GROUP`, `COMPARE`, `REVIEW`, `DEBATE` inference in `AI Workspace -> Multi-Agent`.
 
-- selected provider/model;
-- fallback used yes/no;
-- fallback reason;
-- latency;
-- available token/usage/cost metadata.
+Backend Owner authorization is mandatory. Each participant keeps separate identity, assignment, and authority; never union privileges.
 
-Fail clearly when the approved chain is exhausted.
+### D4.9 — Optional MCP delegation
 
-### Slice D4.8 — Multi-agent execution
+Only after the native workspace is stable, connect existing MCP delegation slots to the same native runtime for explicit delegation. Direct MCP operations remain direct.
 
-Activate persisted `GROUP`, `COMPARE`, `REVIEW`, `DEBATE` topology for actual inference. Each participant retains separate identity, provider/model assignment, and authority. Never union privileges.
+## 7. Acceptance
 
-### Slice D4.9 — Optional MCP delegation adapter
+AI Workspace foundation passes when:
 
-Only after the native runtime exists, enable the already-published `msa_agent_invoke` / session MCP slots to call the same native runtime for explicit delegation.
+1. Owner global setting is backend-protected;
+2. per-user entitlement is durable;
+3. global OFF blocks every non-owner Chat invocation before provider call;
+4. Owner remains allowed;
+5. Multi-Agent execution endpoints are Owner-only in backend;
+6. durable single-agent conversations/messages persist;
+7. top-level AI Workspace can select an internal agent and obtain a native response without MCP;
+8. blocked users receive deterministic denial UX;
+9. provider/model assignment does not alter authority;
+10. no production inventory write or canonical DB promotion occurs.
 
-This adapter is optional orchestration. Direct MCP actions remain direct.
+Full F7.2D4 later still requires at least one authorized internal typed MSA read and the complete survival proof:
 
-### F7.2D4 acceptance
+`MSA Web -> selected INTERNAL_MODEL agent -> assigned provider/model -> authorized typed MSA read -> response + audit`
 
-Pass only when:
+## 8. Immediate execution boundary
 
-1. multiple internal agents can be created and independently assigned models;
-2. primary + ordered fallback assignment is durable;
-3. native invocation works with no MCP dependency;
-4. canonical identity is injected server-side;
-5. Web AI Chat can select an internal agent and obtain a real provider-backed response;
-6. conversation/message history persists;
-7. at least one authorized internal typed MSA read succeeds through shared backend services, not public MCP;
-8. failover is deterministic and provenance is recorded;
-9. multi-agent execution can be enabled incrementally without privilege union;
-10. optional MCP delegation can call a selected native agent without becoming the core runtime;
-11. survival proof passes with ChatGPT completely out of the loop:
+Proceed now with **D4.4A access-policy persistence/backend authorization**, then **D4.4B conversation persistence**, then the top-level **AI Workspace Chat UI**.
 
-`MSA Web -> selected INTERNAL_MODEL agent -> provider/model -> authorized typed MSA read -> response + audit`
-
-12. provider/model changes do not alter authority;
-13. no production inventory write, workbook import, or DB canonical promotion occurs.
-
-## 8. F7.3 — Full Actor-aware Audit / Operation Ledger — AFTER F7.2D4
-
-Audit must preserve:
-
-`human/grantor -> named agent -> runtime/client -> provider/model when relevant -> typed operation -> location/target -> result -> read-back/correlation -> timestamp`
-
-UI needs date/month, human, agent, runtime/client, provider/model, operation/result, location/target, and operation/correlation filters plus preserved history/archive navigation.
-
-## 9. Later sequence
-
-1. F7.2D4 — native internal-agent runtime/assignment/chat/tools/multi-agent execution
-2. F7.3 — actor-aware Audit / operation ledger
-3. F7.4 — Inventory Locations / Store Policy / Preferences
-4. F7.5 — Smart Calculator / receipts
-5. F7.6 — deterministic Smart Analysis
-6. F7.7 — richer internal AI Assistant/product workflows over the native runtime
-7. F7.8 — Alerts & Notifications
-8. F9 — controlled typed writes after authority/audit/location/idempotency prerequisites
-9. F10 — real workflow + fresh migration + Sheet sync validation
-10. F11 — explicit canonical promotion
-11. Telegram/Flutter rollout over proven shared contracts
-
-## Immediate execution boundary
-
-Proceed with **F7.2D4 native internal-agent runtime**, beginning with assignment/fallback contract and native invocation service.
-
-Do not enable production inventory writes, AI inventory writes, transfers, Smart Calculator deductions, Telegram/Flutter stock mutations, Sheet mirror conversion, or PostgreSQL canonical promotion in this slice.
+Do not enable production inventory writes, AI inventory writes, transfers, Smart Calculator deductions, Telegram/Flutter stock mutations, Sheet mirror conversion, or PostgreSQL canonical promotion in this work.
