@@ -33,6 +33,32 @@ jobs:
         run: |
           python -m pip install --disable-pip-version-check -q -r backend/requirements.txt
           PYTHONPATH=backend python -c 'from app.main import app; from app.mcp_server import mcp, mcp_http_app; assert app and mcp and mcp_http_app; print("mcp_runtime_import=pass")'
+      - name: Validate MCP OAuth contract
+        run: |
+          PYTHONPATH=backend python - <<'PY'
+          from app.main import app
+          from app.mcp_oauth import _metadata, _pkce_challenge
+          metadata = _metadata()
+          assert metadata["authorization_endpoint"].endswith("/oauth/authorize")
+          assert metadata["token_endpoint"].endswith("/oauth/token")
+          assert metadata["registration_endpoint"].endswith("/oauth/register")
+          assert "authorization_code" in metadata["grant_types_supported"]
+          assert "refresh_token" in metadata["grant_types_supported"]
+          assert "offline_access" in metadata["scopes_supported"]
+          assert "S256" in metadata["code_challenge_methods_supported"]
+          assert _pkce_challenge("A" * 43)
+          paths = {getattr(route, "path", None) for route in app.routes}
+          for path in {
+              "/.well-known/oauth-authorization-server/oauth",
+              "/oauth/authorize",
+              "/oauth/authorize/login",
+              "/oauth/register",
+              "/oauth/token",
+              "/oauth/revoke",
+          }:
+              assert path in paths, path
+          print("mcp_oauth_contract=pass")
+          PY
       - name: Validate dashboard JavaScript syntax
         run: |
           node --check backend/app/dashboard_assets/dashboard.js
