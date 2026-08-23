@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Architecture Index
 
-Status: **F7.2A canonical human identity/sessions, F7.2B User Management, and F7.2C Credential Lifecycle verified; F7.2D AI Agent Management next with MCP-first full-capability foundation; PostgreSQL remains non-canonical**
+Status: **F7.2A canonical human identity/sessions, F7.2B User Management, F7.2C Credential Lifecycle, and F7.2D0 custom MCP connectivity are verified; F7.2D2 AI Agent/external-client principal control plane is next; PostgreSQL remains non-canonical**
 
 This directory defines the future canonical architecture for Medicine Store Assistant beyond the current spreadsheet-operating skill.
 
@@ -24,9 +24,28 @@ MSA evolves toward a ledger-backed multi-client inventory system in which:
 
 F7.2A/B/C are deployed and runtime-verified. F7.2C includes self-service username/password/recovery-email maintenance, password confirmation, verified-email recovery, automated Resend delivery, username-or-email Forgot password, Owner-assisted fallback reset and pending-access email verification. PostgreSQL remains non-canonical and inventory remains read-only.
 
-F7.2D is locked to an **MCP-first external-access strategy**. ChatGPT Developer Mode will first connect to a custom remote MSA MCP service hosted on the VPS.
+F7.2D uses an **MCP-first external-access strategy**. F7.2D0 is now verified complete for the external ChatGPT read-access proof.
 
-The MCP direction is now **full-capability schema first** rather than read-only-server-first:
+The live path is:
+
+`ChatGPT Developer Mode -> OAuth -> custom MSA MCP -> typed MSA backend -> deterministic read services`
+
+Verified F7.2D0 runtime:
+
+- production source SHA `611918572717058882849ede7a4cc2a39dd2e3ac`;
+- deploy run `32618376291` / issue #26 `status=success`;
+- Alembic `0010_mcp_oauth` deployed;
+- public OAuth authorization-server metadata verified;
+- public MCP protected-resource metadata verified;
+- OAuth authorization-code + PKCE S256, dynamic client registration, rotating refresh tokens and `offline_access` deployed;
+- anonymous `/mcp` access returns 401;
+- ChatGPT Developer Mode successfully connected using OAuth;
+- a fresh ChatGPT chat successfully executed the MSA identity/system-status read through the custom MCP path;
+- current connected scope is `mcp:connect`, `mcp:read`, `offline_access`;
+- proposal/write/control capabilities remain disabled;
+- `database_canonical=false`, `migration_baseline_accepted=false`, F6B test-only status and production inventory-write denial remain preserved.
+
+The MCP direction remains **full-capability schema first** rather than read-only-server-first:
 
 - the durable server/tool catalog is designed once for read, proposal, future typed write, User Management, Agent Management, Provider Registry, Audit and typed Settings capabilities;
 - the initial external MCP principal receives only currently authorized read grants;
@@ -36,12 +55,14 @@ The MCP direction is now **full-capability schema first** rather than read-only-
 
 Current researched MCP/OpenAI direction as of 2026-08-23 includes stateless MCP core, remote HTTPS/Streamable-HTTP-compatible deployment, JSON Schema 2020-12 tool definitions, tool annotations and standards-based authorization/protected-resource discovery where OAuth is used. ChatGPT write/modify availability may still depend on plan/workspace/product rollout; client limitations do not change the server architecture.
 
-Provider Registry remains separate from MCP. Built-in provider presets are OpenAI, Google Gemini, OpenRouter and NanoGPT, plus generic `OPENAI_COMPATIBLE` custom providers. Provider/model work follows the MCP connectivity proof.
+Provider Registry remains separate from MCP. Built-in provider presets are OpenAI, Google Gemini, OpenRouter and NanoGPT, plus generic `OPENAI_COMPATIBLE` custom providers. Provider/model work follows the agent/external-client principal control plane.
+
+The optional Custom GPT Action path is no longer required to prove ChatGPT access. It remains a secondary/fallback integration only if a standalone Custom GPT surface is later useful.
 
 ## Immediate F7.2D order
 
-1. **F7.2D0 — full-capability MCP transport/schema + initial read-grant connectivity proof**.
-2. F7.2D2 — AI agent/external-client principal control plane.
+1. **F7.2D0 — full-capability MCP transport/schema + initial read-grant connectivity proof — VERIFIED COMPLETE**.
+2. **F7.2D2 — AI agent/external-client principal control plane — NEXT**.
 3. F7.2D3 — Provider Registry + model catalog.
 4. F7.2D4 — internal model assignment/fallbacks.
 5. Optional F7.2D1 — Custom GPT Action proof only if MCP is insufficient or a standalone GPT is needed.
@@ -75,6 +96,7 @@ Relevant checkpoints:
 
 - `../checkpoints/F7_2D_MCP_FIRST_DECISION_2026-08-23.md`
 - `../checkpoints/F7_2D_MCP_FULL_CAPABILITY_DECISION_2026-08-23.md`
+- `../checkpoints/F7_2D0_MCP_CONNECTIVITY_VERIFIED_2026-08-23.md`
 
 ## Repository boundary
 
