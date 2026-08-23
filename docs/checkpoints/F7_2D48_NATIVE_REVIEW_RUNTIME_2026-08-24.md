@@ -1,6 +1,6 @@
 # F7.2D4.8 — Native REVIEW Runtime Checkpoint
 
-Status: **merged; deployment evidence pending at document creation**
+Status: **backend implementation deployed; end-to-end Owner REVIEW UI/manual acceptance pending**
 
 Date: 2026-08-24
 
@@ -8,10 +8,13 @@ Date: 2026-08-24
 
 This checkpoint records the first executable D4.8 native-only REVIEW backend slice. It builds on the shared Work Item / Artifact / Review / Event / Attention Queue substrate and preserves the canonical separation between native internal agents and external MCP agents.
 
-## Merge anchors
+## Merge and deployment anchors
 
 - Substrate PR #100 merge: `4a9f54e17f2b386dfdd390af5850be2100986aac`
 - Native REVIEW PR #101 merge: `0ebaba7d62f5cc3d9d3ec95e1cd33b4ccb7c324e`
+- VPS deploy status: `success`
+- deploy workflow run: `32660149646`
+- deployed source SHA: `0ebaba7d62f5cc3d9d3ec95e1cd33b4ccb7c324e`
 
 ## Implemented substrate
 
@@ -90,7 +93,7 @@ Unchanged:
 - No MCP schema/action-name change was made.
 - External/federated review remains a later optional checkpoint.
 
-## CI evidence
+## CI and deployment evidence
 
 PR #101 passed:
 
@@ -102,10 +105,17 @@ PR #101 passed:
 
 The API/migration validation imports the real FastAPI app and verifies the D4.8 route surface plus the `0020 -> 0021` migration chain.
 
+Issue #26 then recorded successful deployment of merge `0ebaba7d62f5cc3d9d3ec95e1cd33b4ccb7c324e` via workflow run `32660149646`.
+
+## Current acceptance boundary
+
+The backend/runtime slice is deployed, but the full first REVIEW acceptance target is **not yet complete** because the Owner-facing Multi-Agent REVIEW UI and a real manual end-to-end native REVIEW run have not yet been accepted.
+
+Do not describe D4.8 REVIEW as fully verified until a real configured native-only REVIEW preset executes through the Owner UI, reaches `WAITING_OWNER`, survives reload, and its persisted artifacts/reviews/provenance are inspected.
+
 ## Next authorized work
 
-1. Confirm automatic VPS deployment of merge `0ebaba7d62f5cc3d9d3ec95e1cd33b4ccb7c324e` and migration head `0021_review_orchestration_roles`.
-2. Add the Owner-facing AI Workspace REVIEW UI for preset selection, role configuration, task submission, progress/provenance, Work Item inspection, and revision/re-review controls.
-3. Manually accept a real native-only REVIEW run that reaches `WAITING_OWNER` with durable reload-safe evidence and no inventory mutation.
-4. Only after native REVIEW is proven, add optional federated `WAITING_EXTERNAL` MCP work/review exchange.
-5. Telegram Attention delivery remains later and must never become the source of truth.
+1. Add the Owner-facing AI Workspace REVIEW UI for preset selection, role configuration, task submission, progress/provenance, Work Item inspection, and revision/re-review controls.
+2. Manually accept a real native-only REVIEW run that reaches `WAITING_OWNER` with durable reload-safe evidence and no inventory mutation.
+3. Only after native REVIEW is proven, add optional federated `WAITING_EXTERNAL` MCP work/review exchange.
+4. Telegram Attention delivery remains later and must never become the source of truth.
