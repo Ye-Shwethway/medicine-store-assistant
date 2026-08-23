@@ -5,7 +5,7 @@ import os
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 
-EXPECTED_MIGRATION = "0019_ai_workspace_attachments"
+EXPECTED_MIGRATION = "0020_work_review_substrate"
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 
