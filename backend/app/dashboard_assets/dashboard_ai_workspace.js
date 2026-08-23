@@ -16,10 +16,13 @@
   let busy=false;
   const MAX_ATTACHMENTS=4;
   const MAX_ATTACHMENT_BYTES=8*1024*1024;
+  const PREVIEWABLE_IMAGES=new Set(['image/jpeg','image/png','image/webp']);
 
   const escapeHtml=value=>String(value??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
   const truncate=(value,max=82)=>{const text=String(value??'').replace(/\s+/g,' ').trim();return text.length>max?text.slice(0,max-1)+'…':text};
   const humanBytes=value=>{const n=Number(value||0);if(n<1024)return n+' B';if(n<1024*1024)return (n/1024).toFixed(n<10*1024?1:0)+' KB';return (n/(1024*1024)).toFixed(1)+' MB'};
+  const attachmentUrl=item=>'/dashboard/api/ai-workspace/conversations/'+encodeURIComponent(item.conversation_id||currentConversationId)+'/attachments/'+encodeURIComponent(item.attachment_id)+'/content';
+  const isPreviewableImage=item=>item?.kind==='IMAGE'&&PREVIEWABLE_IMAGES.has(String(item.content_type||'').toLowerCase());
   function cleanDisplayText(value){
     return String(value??'')
       .replace(/^\s*#{1,6}\s+/gm,'')
@@ -103,7 +106,9 @@
     if(!conversations.length){list.innerHTML='<div class="empty-copy">No conversations yet.</div>';return}
     list.innerHTML=conversations.map(c=>{
       const active=c.conversation_id===currentConversationId?' active':'';
-      const preview=truncate(c.first_user_preview||'No messages yet',78);
+      const role=c.last_message_role==='USER'?'You':(c.last_message_role==='ASSISTANT'?(c.agent_call_name||c.agent_display_name):'');
+      const rawPreview=c.last_message_preview||'No messages yet';
+      const preview=truncate((role?role+': ':'')+rawPreview,78);
       const time=humanTime(c.updated_at);
       return '<div class="ai-conversation-item'+active+'" data-ai-conversation-row="'+escapeHtml(c.conversation_id)+'">'
         +'<button type="button" class="ai-conversation-open" data-ai-conversation="'+escapeHtml(c.conversation_id)+'">'
@@ -119,6 +124,13 @@
   function attachmentChips(items,bound=false){
     if(!items?.length)return '';
     return '<div class="ai-message-attachments">'+items.map(item=>{
+      if(isPreviewableImage(item)){
+        const url=attachmentUrl(item);
+        return '<a class="ai-message-image" href="'+escapeHtml(url)+'" target="_blank" rel="noopener" title="Open '+escapeHtml(item.filename||'photo')+'">'
+          +'<img src="'+escapeHtml(url)+'" alt="'+escapeHtml(item.filename||'Uploaded photo')+'" loading="lazy">'
+          +'<span><strong>'+escapeHtml(item.filename||'photo')+'</strong><small>'+escapeHtml(humanBytes(item.byte_size))+(bound?' · saved':'')+'</small></span>'
+          +'</a>';
+      }
       const icon=item.kind==='IMAGE'?'Photo':'File';
       return '<span class="ai-message-attachment"><span>'+icon+'</span><strong>'+escapeHtml(item.filename||'attachment')+'</strong><small>'+escapeHtml(humanBytes(item.byte_size))+(bound?' · saved':'')+'</small></span>';
     }).join('')+'</div>';
@@ -143,12 +155,15 @@
     const box=$('#aiPendingAttachments');
     if(!box)return;
     box.hidden=!pendingAttachments.length;
-    box.innerHTML=pendingAttachments.map(item=>'<div class="ai-pending-attachment">'
-      +'<span class="ai-pending-kind">'+(item.kind==='IMAGE'?'Photo':'File')+'</span>'
-      +'<span class="ai-pending-name">'+escapeHtml(item.filename)+'</span>'
-      +'<span class="ai-pending-size">'+escapeHtml(humanBytes(item.byte_size))+'</span>'
-      +'<button type="button" data-ai-remove-attachment="'+escapeHtml(item.attachment_id)+'" aria-label="Remove attachment">×</button>'
-      +'</div>').join('');
+    box.innerHTML=pendingAttachments.map(item=>{
+      const preview=isPreviewableImage(item)?'<img class="ai-pending-thumb" src="'+escapeHtml(attachmentUrl(item))+'" alt="" loading="lazy">':'<span class="ai-pending-kind">'+(item.kind==='IMAGE'?'Photo':'File')+'</span>';
+      return '<div class="ai-pending-attachment">'
+        +preview
+        +'<span class="ai-pending-name">'+escapeHtml(item.filename)+'</span>'
+        +'<span class="ai-pending-size">'+escapeHtml(humanBytes(item.byte_size))+'</span>'
+        +'<button type="button" data-ai-remove-attachment="'+escapeHtml(item.attachment_id)+'" aria-label="Remove attachment">×</button>'
+        +'</div>';
+    }).join('');
   }
 
   async function refreshPendingAttachments(id=currentConversationId){
@@ -173,7 +188,7 @@
   }
 
   async function refreshConversations(){
-    const data=await api('/dashboard/api/ai-workspace/conversations');
+    const data=await api('/dashboard/api/ai-workspace/conversation-cards');
     conversations=data.items||[];
     renderConversations();
   }
@@ -285,7 +300,7 @@
       $('#aiMultiTab').hidden=!access.multi_agent_allowed;
       const [agentData,conversationData]=await Promise.all([
         api('/dashboard/api/ai-workspace/chat/agents'),
-        api('/dashboard/api/ai-workspace/conversations')
+        api('/dashboard/api/ai-workspace/conversation-cards')
       ]);
       agents=agentData.items||[];conversations=conversationData.items||[];
       renderAgentOptions();renderConversations();
