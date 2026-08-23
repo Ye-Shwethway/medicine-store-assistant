@@ -118,7 +118,6 @@ def oauth_metadata_compat() -> dict[str, Any]:
 
 @router.get("/.well-known/openid-configuration/oauth", include_in_schema=False)
 def oidc_compat_metadata() -> dict[str, Any]:
-    # OAuth-only service. This compatibility discovery document intentionally contains no OIDC user-info claims.
     return _metadata()
 
 
@@ -187,7 +186,7 @@ async def register_client(request: Request) -> JSONResponse:
     )
 
 
-@router.get("/oauth/authorize", response_class=HTMLResponse)
+@router.get("/oauth/authorize", response_class=HTMLResponse, response_model=None)
 def authorize(
     client_id: str,
     redirect_uri: str,
@@ -197,7 +196,7 @@ def authorize(
     code_challenge: str | None = None,
     code_challenge_method: str | None = None,
     resource: str | None = None,
-) -> HTMLResponse | RedirectResponse:
+) -> Any:
     engine = _engine()
     try:
         with engine.connect() as connection:
@@ -278,12 +277,12 @@ def authorize(
     )
 
 
-@router.post("/oauth/authorize/login")
+@router.post("/oauth/authorize/login", response_model=None)
 def authorize_login(
     request_id: str = Form(...),
     username: str = Form(...),
     password: str = Form(...),
-) -> RedirectResponse | HTMLResponse:
+) -> Any:
     engine = _engine()
     try:
         with engine.connect() as connection:
@@ -506,7 +505,6 @@ def token_endpoint(
                 requested_scopes = _scope_list(scope) if scope else list(stored["oauth_scopes"] or [])
                 if not set(requested_scopes).issubset(set(stored["oauth_scopes"] or [])):
                     return _json_error("invalid_scope", "Refresh cannot expand OAuth scopes")
-                # Rotate the refresh token so a stolen old token cannot be reused indefinitely.
                 connection.execute(
                     text("UPDATE mcp_oauth_tokens SET revoked_at = now() WHERE token_digest = :digest"),
                     {"digest": stored["token_digest"]},
