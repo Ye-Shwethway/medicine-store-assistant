@@ -61,7 +61,7 @@ jobs:
           assert substrate.down_revision == attachments.revision
           assert head.down_revision == substrate.revision
           assert EXPECTED_MIGRATION == head.revision
-          assert MULTI_AGENT_REVIEW_ASSET_VERSION == 'f72d48-review-ui-1'
+          assert MULTI_AGENT_REVIEW_ASSET_VERSION == 'f72d48-review-ui-2'
 
           paths=set(app.openapi()['paths'])
           required={
@@ -102,6 +102,8 @@ jobs:
           grep -Fq 'Depends(require_owner_session)' backend/app/multi_agent_review.py
           grep -Fq 'item["runtime_mode"] != "INTERNAL_MODEL"' backend/app/multi_agent_review.py
           grep -Fq '_set_status(connection, work_item_id, "WAITING_OWNER")' backend/app/multi_agent_review.py
+          grep -Fq 'SET status=CAST(:target AS varchar)' backend/app/multi_agent_review.py
+          ! grep -Fq "completed_at=CASE WHEN :target" backend/app/multi_agent_review.py
           grep -Fq '"production_mutation": False' backend/app/multi_agent_review.py
           grep -Fq 'Depends(require_owner_session)' backend/app/multi_agent_review_ui_api.py
           grep -Fq "w.work_type='NATIVE_REVIEW'" backend/app/multi_agent_review_ui_api.py
@@ -116,15 +118,20 @@ jobs:
           grep -Fq 'data-copy-message' backend/app/dashboard_assets/dashboard_ai_workspace.js
           grep -Fq 'reviewSessionSelect' backend/app/dashboard_assets/dashboard_multi_agent_review.js
           grep -Fq 'reviewSaveRoles' backend/app/dashboard_assets/dashboard_multi_agent_review.js
+          grep -Fq 'rolesSaved' backend/app/dashboard_assets/dashboard_multi_agent_review.js
+          grep -Fq "save.textContent=rolesSaved?'Saved':'Save roles'" backend/app/dashboard_assets/dashboard_multi_agent_review.js
           grep -Fq 'reviewEvidenceConversation' backend/app/dashboard_assets/dashboard_multi_agent_review.js
           grep -Fq '/dashboard/api/ai-workspace/multi-agent/reviews' backend/app/dashboard_assets/dashboard_multi_agent_review.js
           grep -Fq '/dashboard/api/ai-workspace/multi-agent/work-items' backend/app/dashboard_assets/dashboard_multi_agent_review.js
+          grep -Fq 'review-chat-stream' backend/app/dashboard_assets/dashboard_multi_agent_review.js
           grep -Fq 'Production mutation: NO' backend/app/dashboard_assets/dashboard_multi_agent_review.js
           grep -Fq '.review-grid' backend/app/dashboard_assets/dashboard_multi_agent_review.css
+          grep -Fq '.review-chat-stream' backend/app/dashboard_assets/dashboard_multi_agent_review.css
           grep -Fq '@media(max-width:760px)' backend/app/dashboard_assets/dashboard_multi_agent_review.css
-          grep -Fq 'MULTI_AGENT_REVIEW_ASSET_VERSION = "f72d48-review-ui-1"' backend/app/main.py
+          grep -Fq 'MULTI_AGENT_REVIEW_ASSET_VERSION = "f72d48-review-ui-2"' backend/app/main.py
           grep -Fq 'dashboard_multi_agent_review.css?v={MULTI_AGENT_REVIEW_ASSET_VERSION}' backend/app/main.py
           grep -Fq 'dashboard_multi_agent_review.js?v={MULTI_AGENT_REVIEW_ASSET_VERSION}' backend/app/main.py
           grep -Fq 'no-store, max-age=0' backend/app/main.py
           ! grep -Fq 'f72d48-review-ui-0' backend/app/main.py
+          ! grep -Fq 'f72d48-review-ui-1' backend/app/main.py
           echo 'ai_workspace_review_asset_chain=pass'
