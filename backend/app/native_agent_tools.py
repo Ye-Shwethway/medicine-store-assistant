@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from app.shadow_read_api import _query
@@ -7,6 +8,45 @@ from app.shadow_read_api import _query
 
 MAX_TOOL_ROWS = 25
 MAX_REVIEW_REASONS = 30
+EXCEL_EPOCH = datetime(1899, 12, 30, tzinfo=timezone.utc)
+
+
+def _excel_serial_to_date(value: Any) -> str | None:
+    try:
+        serial = float(value)
+    except (TypeError, ValueError):
+        return None
+    if serial <= 0 or serial > 200_000:
+        return None
+    try:
+        return (EXCEL_EPOCH + timedelta(days=serial)).date().isoformat()
+    except (OverflowError, ValueError):
+        return None
+
+
+def _evidence_status() -> dict[str, Any]:
+    return {
+        "database_canonical": False,
+        "migration_baseline_accepted": False,
+        "label": "test/shadow, non-canonical evidence",
+    }
+
+
+def _display_payload(payload: Any) -> dict[str, Any]:
+    source = payload if isinstance(payload, dict) else {}
+    expiry_raw = source.get("expiry_date")
+    return {
+        "item_name": source.get("item_name"),
+        "unit": source.get("unit"),
+        "expiry_date": _excel_serial_to_date(expiry_raw),
+        "expiry_date_raw": expiry_raw,
+        "remaining_stock": source.get("remaining_stock"),
+        "this_month_usage": source.get("this_month_usage"),
+        "stock_status_today": source.get("stock_status_today"),
+        "received_stock": source.get("received_stock"),
+        "cms_name": source.get("cs_name"),
+        "cms_serial_code": source.get("serial_code"),
+    }
 
 
 def latest_inventory_summary() -> dict[str, Any]:
@@ -30,11 +70,25 @@ def latest_inventory_summary() -> dict[str, Any]:
         LIMIT 1
         """
     )
+    batch = rows[0] if rows else None
+    presentation = None
+    if batch:
+        presentation = {
+            "total_rows": batch.get("row_count"),
+            "safe_rows": batch.get("safe_count"),
+            "review_rows": batch.get("review_count"),
+            "conflict_rows": batch.get("conflict_count"),
+            "new_unmapped_rows": batch.get("new_unmapped_count"),
+            "source_kind": batch.get("source_kind"),
+            "status": batch.get("status"),
+            "evidence": _evidence_status(),
+        }
     return {
         "tool": "inventory_summary",
         "database_canonical": False,
         "migration_baseline_accepted": False,
-        "batch": rows[0] if rows else None,
+        "presentation": presentation,
+        "batch": batch,
     }
 
 
@@ -63,10 +117,26 @@ def latest_new_unmapped_rows(limit: int = MAX_TOOL_ROWS) -> dict[str, Any]:
             """,
             {"migration_batch_id": batch_id, "limit": bounded_limit},
         )
+    presentation_items = [
+        {
+            "source_sheet": row.get("source_sheet"),
+            "source_row": row.get("source_row_no"),
+            "classification": row.get("classification"),
+            "review_reason": row.get("review_reason"),
+            **_display_payload(row.get("payload")),
+        }
+        for row in items
+    ]
     return {
         "tool": "new_unmapped_rows",
         "database_canonical": False,
         "migration_baseline_accepted": False,
+        "presentation": {
+            "count": len(items),
+            "limit": bounded_limit,
+            "items": presentation_items,
+            "evidence": _evidence_status(),
+        },
         "migration_batch_id": batch_id,
         "items": items,
         "count": len(items),
@@ -100,6 +170,10 @@ def latest_review_reasons(limit: int = MAX_REVIEW_REASONS) -> dict[str, Any]:
         "tool": "review_reasons",
         "database_canonical": False,
         "migration_baseline_accepted": False,
+        "presentation": {
+            "groups": items,
+            "evidence": _evidence_status(),
+        },
         "migration_batch_id": batch_id,
         "items": items,
         "count": len(items),
@@ -112,7 +186,7 @@ def native_read_tool_definitions() -> list[dict[str, Any]]:
             "type": "function",
             "function": {
                 "name": "inventory_summary",
-                "description": "Read the latest bounded MSA inventory/shadow migration summary, including row and classification counts. Current evidence is test/shadow and non-canonical unless explicitly stated otherwise.",
+                "description": "Read the latest bounded MSA inventory/shadow migration summary. Prefer the presentation object for user-facing answers; raw batch metadata is provenance/debug evidence.",
                 "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
             },
         },
@@ -120,7 +194,7 @@ def native_read_tool_definitions() -> list[dict[str, Any]]:
             "type": "function",
             "function": {
                 "name": "new_unmapped_rows",
-                "description": "Read bounded NEW_UNMAPPED shadow rows from the latest MSA migration batch, including source sheet/row, review reason, and payload.",
+                "description": "Read bounded NEW_UNMAPPED shadow rows. Prefer presentation.items for human-facing facts; raw items preserve source evidence and identifiers.",
                 "parameters": {
                     "type": "object",
                     "properties": {"limit": {"type": "integer", "minimum": 1, "maximum": MAX_TOOL_ROWS}},
@@ -132,7 +206,7 @@ def native_read_tool_definitions() -> list[dict[str, Any]]:
             "type": "function",
             "function": {
                 "name": "review_reasons",
-                "description": "Read a bounded grouped summary of REVIEW, CONFLICT, and NEW_UNMAPPED reasons in the latest MSA shadow migration batch.",
+                "description": "Read a bounded grouped summary of REVIEW, CONFLICT, and NEW_UNMAPPED reasons. Prefer presentation for normal answers; raw batch ID is provenance.",
                 "parameters": {
                     "type": "object",
                     "properties": {"limit": {"type": "integer", "minimum": 1, "maximum": MAX_REVIEW_REASONS}},
@@ -157,24 +231,17 @@ def execute_native_read_tool(name: str, arguments: dict[str, Any] | None = None)
 def select_native_read_tools(message: str) -> list[str]:
     text_value = (message or "").casefold()
     selected: list[str] = []
-
     inventory_terms = (
         "inventory", "stock", "summary", "on hand", "on-hand", "လက်ကျန်", "စတော့", "စာရင်းချုပ်", "အကျဉ်းချုပ်"
     )
-    unmapped_terms = (
-        "new_unmapped", "unmapped", "mapping", "မပ်", "မချိတ်", "မကိုက်"
-    )
-    review_terms = (
-        "review reason", "review reasons", "review", "conflict", "shadow", "စစ်ဆေး", "ပြန်စစ်", "အကြောင်းရင်း"
-    )
-
+    unmapped_terms = ("new_unmapped", "unmapped", "mapping", "မပ်", "မချိတ်", "မကိုက်")
+    review_terms = ("review reason", "review reasons", "review", "conflict", "shadow", "စစ်ဆေး", "ပြန်စစ်", "အကြောင်းရင်း")
     if any(term in text_value for term in unmapped_terms):
         selected.append("new_unmapped_rows")
     if any(term in text_value for term in review_terms):
         selected.append("review_reasons")
     if any(term in text_value for term in inventory_terms) or selected:
         selected.insert(0, "inventory_summary")
-
     return list(dict.fromkeys(selected))
 
 
