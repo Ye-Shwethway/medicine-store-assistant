@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from app.access_request_confirmed import router as access_request_confirmed_router
 from app.account_password_confirmed import router as account_password_confirmed_router
 from app.agent_management import router as agent_management_router
+from app.agent_model_assignments import router as agent_model_assignments_router
 from app.audit_events import router as audit_events_router
 from app.credential_lifecycle import router as credential_lifecycle_router
 from app.dashboard import ASSET_DIR, DASHBOARD_CSP, router as dashboard_router
@@ -54,7 +55,7 @@ app = FastAPI(
         "Typed API boundary for the Medicine Store Assistant backend. "
         "Authenticated inventory, canonical human identity/User Management/credential and email-recovery lifecycle, catalogue, "
         "test-only shadow reads, the F7 dashboard, F7.2D named Agent Management/multi-agent session foundation, "
-        "Owner-only Provider Registry/model discovery, tested saved-model catalog and agent model-assignment foundation, "
+        "Owner-only Provider Registry/model discovery, tested saved-model catalog, ordered native-agent assignment/fallback contract, "
         "external MCP named-agent binding, minimal MCP audit evidence, broad typed read-only shadow detail access, "
         "NanoGPT detailed catalog enrichment, and the MCP/OAuth protocol surface are available; "
         "canonical inventory writes remain disabled."
@@ -197,6 +198,7 @@ app.include_router(dashboard_router)
 app.include_router(email_recovery_page_router)
 app.include_router(user_management_router)
 app.include_router(agent_management_router)
+app.include_router(agent_model_assignments_router)
 app.include_router(mcp_agent_binding_router)
 app.include_router(audit_events_router)
 app.include_router(provider_registry_router)
@@ -230,6 +232,7 @@ def health() -> dict[str, object]:
         "agent_management": "f7.2d2",
         "provider_registry": "f7.2d3",
         "saved_model_catalog": "f7.2d3.1",
+        "internal_agent_assignment_chain": "f7.2d4b",
         "nanogpt_detailed_catalog": "enabled",
         "production_inventory_writes": False,
     }
