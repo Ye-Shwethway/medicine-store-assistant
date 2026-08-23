@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Implementation Plan
 
-Status: **F7.2A/B/C, F7.2D0 custom MCP connectivity + finalized 94-action schema v2, F7.2D2 named Agent Management/multi-agent sessions, F7.2D3 Provider Registry/saved-model catalog, F7.2D4A external MCP named-agent binding, F7.3A minimal MCP audit evidence, and F7.3B broad typed reads are verified foundations; F7.2D4 internal model assignment/fallback/runtime identity continues next; production inventory write authority remains unauthorized**
+Status: **F7.2A/B/C, F7.2D0 custom MCP connectivity + finalized 106-action schema v2.1, F7.2D2 named Agent Management/multi-agent sessions, F7.2D3 Provider Registry/saved-model catalog, F7.2D4A external MCP named-agent binding, F7.3A minimal MCP audit evidence, and F7.3B broad typed reads are verified foundations; F7.2D4 internal model assignment/fallback/runtime identity continues next; production inventory write authority remains unauthorized**
 
 This file is the execution contract for current MSA implementation order and boundaries.
 
@@ -46,7 +46,7 @@ Verified complete/foundational:
 - F7.2B User Management/profile
 - F7.2C Credential + Recovery Lifecycle
 - F7.2D0 custom MCP/OAuth connectivity
-- F7.2D0 MCP schema finalization v2 — 94 runtime actions
+- F7.2D0 MCP schema finalization **v2.1 — 106 runtime actions**
 - F7.2D2 named Agent Management + multi-agent session topology
 - F7.2D3 Provider Registry + dynamic detailed discovery + tested saved-model catalog
 - F7.2D4A external MCP OAuth grant -> named-agent binding
@@ -63,34 +63,36 @@ Custom MCP is the verified primary ChatGPT access path:
 
 Current granted external-client scopes are `mcp:connect`, `mcp:read`, and `offline_access`; propose/write/control remain disabled. Custom GPT Actions are optional/fallback only.
 
-### 4.1 Final MCP schema v2 — VERIFIED
+### 4.1 Final MCP schema v2.1 — VERIFIED
 
 Canonical design: `docs/architecture/F7_2D0_MCP_SCHEMA_FINALIZATION_V2.md`
 
 Runtime evidence:
 
-- PR #76
-- merge `bed14194661f0f2d6536d1d90b0e79d4e37e6da3`
-- deploy run `32637213532`
+- PR #78
+- merge `4e523645ab05063577b0e3fbc4c6ca5f870ce1dd`
+- deploy run `32637806906`
 - issue #26 `status=success`
-- schema version `2026-08-23.v2`
-- runtime action count `94`
-- tool-name SHA-256 `3031969fec8e5e3ea52937b8c00ba3106b6da185e998d161cea855d5db616662`
+- schema version `2026-08-23.v2.1`
+- runtime action count `106`
+- tool-name SHA-256 `f12fcebfbf2b8cb0dd334e53faea25c9503eb3e99e94a71a378ba1133c3554d0`
 
-The v2 catalog is intended to be the long-lived ChatGPT app contract. It already publishes stable typed surfaces for:
+The v2.1 catalog is intended to be the long-lived ChatGPT app contract. It publishes stable typed surfaces for:
 
 - identity/system/schema manifest;
-- inventory/usage/movements/lots/location balances and future writes;
+- inventory/usage/movements/lots/location balances and future typed operational writes;
 - row-level shadow migration diagnostics;
-- catalogue/reconciliation/transfers;
+- catalogue query/manage and reconciliation query/review/commit;
+- transfers;
 - locations/store policy/preferences;
-- calculator/receipts;
-- deterministic analysis;
+- calculator/receipts and receipt lifecycle;
+- deterministic analysis and reports;
 - human User Management without credential/password operations;
-- named agents, internal-agent invocation, and multi-agent sessions;
-- provider/model metadata, tests, saved-model catalog and assignments without credential provisioning/read-back;
+- named agents, internal-agent invocation, external-client metadata/lifecycle, and multi-agent sessions;
+- provider/model metadata, tests, provider lifecycle, saved-model catalog and assignments without credential provisioning/read-back;
 - actor-aware Audit search;
 - alerts/notifications;
+- scheduled system automations;
 - sync/source ingestion/integrations;
 - settings;
 - migration baseline and explicit canonicality control.
@@ -107,15 +109,16 @@ Explicit MCP exclusions:
 - shell/filesystem access;
 - generic unrestricted HTTP proxy.
 
-Schema-change rule after the Owner recreates the ChatGPT MCP app:
+Long-lived schema rule after the Owner recreates the ChatGPT MCP app:
 
 1. implement an existing published action where possible;
-2. add optional backward-compatible fields rather than new actions;
-3. new action names are exceptional and require explicit justification/Owner approval;
-4. CI must keep runtime tools identical to the v2 manifest;
-5. `msa_system_schema_manifest` is the runtime source for version/count/hash diagnosis.
+2. for extensible domain `query/manage` actions, add a backend-allowlisted action-string value rather than changing the client schema;
+3. add optional backward-compatible fields rather than new actions where practical;
+4. new action names are exceptional and require explicit justification/Owner approval;
+5. CI must keep runtime tools identical to the v2.1 manifest;
+6. `msa_system_schema_manifest` is the runtime source for version/count/hash diagnosis.
 
-Before deleting/recreating the ChatGPT app, verify the server manifest reports version `2026-08-23.v2` and count 94. After creating the replacement app, verify its Actions list includes `msa_system_schema_manifest` and `msa_shadow_read_rows` and matches the expected action count before deleting the old app.
+Before deleting the existing ChatGPT app, create and scan a replacement against `https://inventory.drthorne.uk/mcp`. The replacement must show 106 Actions including `msa_system_schema_manifest` and `msa_shadow_read_rows`; then verify the manifest version/count/hash, a row-level `NEW_UNMAPPED` read, and the resulting Audit event before the old app is removed.
 
 ## 5. F7.2D2 — VERIFIED COMPLETE
 
@@ -141,7 +144,7 @@ Implemented:
 - internal agent provider/saved-model binding foundation;
 - SSRF-safe custom provider URLs and bounded provider responses.
 
-Provider credentials remain Web/VPS-only; the final MCP schema contains metadata/test/catalog controls but no credential provision/read-back action.
+Provider credentials remain Web/VPS-only; the final MCP schema contains metadata/test/catalog/lifecycle controls but no credential provision/read-back action.
 
 ## 7. F7.2D4A — VERIFIED COMPLETE — external MCP named-agent binding
 
@@ -182,7 +185,7 @@ Full F7.3 remains later, but these foundations were intentionally front-loaded:
 - detail-read events can be audited;
 - raw SQL and secret-bearing auth/security tables remain excluded.
 
-The replacement ChatGPT MCP app must scan the finalized v2 catalog before F7.3B is considered externally usable from ChatGPT.
+The replacement ChatGPT MCP app must scan the finalized v2.1 catalog before F7.3B is considered externally usable from ChatGPT.
 
 ## 9. Web UI workflow
 
@@ -269,7 +272,7 @@ UI filters must include at least:
 - store/location/target;
 - operation/correlation ID.
 
-Monthly archive/history navigation should preserve records; it must not silently delete or rewrite audit history. `msa_audit_search` already reserves this full filter surface in the MCP v2 schema.
+Monthly archive/history navigation should preserve records; it must not silently delete or rewrite audit history. `msa_audit_search` already reserves this full filter surface in the MCP v2.1 schema.
 
 ## Later sequence
 
@@ -286,6 +289,6 @@ Monthly archive/history navigation should preserve records; it must not silently
 
 ## Immediate execution boundary
 
-Proceed next with **F7.2D4 internal model assignment/fallback/runtime identity** after the Owner recreates/scans the replacement ChatGPT MCP app against schema v2 and confirms the expected Actions list.
+Proceed next with **F7.2D4 internal model assignment/fallback/runtime identity** after the Owner recreates/scans the replacement ChatGPT MCP app against schema v2.1 and confirms the 106-action list plus manifest/read/audit acceptance.
 
 Do not enable production inventory writes, AI inventory writes, transfers, Smart Calculator deduction, Telegram/Flutter stock mutation, Sheet mirror conversion, or PostgreSQL canonical promotion during F7.2D4.
