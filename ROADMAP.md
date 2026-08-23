@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Project Roadmap
 
-Status: **F0/F1/F2/F3/F4/F5/F5.1/F6A/F6C/F7.1/F7.2A/F7.2B/F7.2C/F7.2D0/F7.2D2/F7.2D3/F7.2D4A/F7.2D4B/F7.2D4C/F7.2D4E/F7.2D4F/F7.2D4G verified; F7.3A minimal MCP audit evidence and F7.3B broad typed reads verified; current refinement is D4.7A hybrid deterministic + model-driven native tool calling before live failover proof; F6B remains test-only; PostgreSQL remains non-canonical**
+Status: **F0/F1/F2/F3/F4/F5/F5.1/F6A/F6C/F7.1/F7.2A/F7.2B/F7.2C/F7.2D0/F7.2D2/F7.2D3/F7.2D4A/F7.2D4B/F7.2D4C/F7.2D4E/F7.2D4F/F7.2D4G verified; D4.7A hybrid native tool calling deployed/manual accepted; F7.3A minimal MCP audit evidence and F7.3B broad typed reads verified; current refinement is D4.7B human-friendly response normalization + attachment-ready AI Workspace; F6B remains test-only; PostgreSQL remains non-canonical**
 
 The live Google workbook/source documents remain operationally authoritative. F6B is test-only and not an accepted migration baseline.
 
@@ -36,6 +36,7 @@ No AI/client receives arbitrary SQL, DB credentials, VPS shell/filesystem, Sheet
 - F7.2D4F bounded native internal-agent reads and grounding
 - F7.2D4G Chat UX/lifecycle: long output, deterministic USER -> ASSISTANT sequence, clean display, Copy/select, conversation preview/time, owner-scoped delete
 - D4.7 Owner UI exposes PRIMARY + ordered FALLBACK assignment chain; live failover proof remains pending
+- D4.7A hybrid deterministic + model-driven native read-tool calling; contextual follow-up manual acceptance passed with MiniMax M3
 - F7.3A minimal external-MCP actor audit evidence
 - F7.3B broad typed row/detail reads
 
@@ -68,31 +69,44 @@ Native internal agent:
 
 These are peer paths. Direct MCP actions do not require an internal-agent hop. Internal agents do not use public MCP as their ordinary tool gateway. `msa_agent_invoke` is optional delegation/orchestration only.
 
-## F7.2D4 current refinement — D4.7A native tool calling
+## D4.7A native tool calling — ACCEPTED
 
 Canonical checkpoint: `docs/checkpoints/F7_2D47A_NATIVE_TOOL_CALLING_PLAN_2026-08-23.md`.
 
-Keep the already accepted deterministic native-read router as a fast path, but add a bounded model-driven native tool loop for tool-capable internal models.
+Accepted behavior:
+
+- deterministic keyword router remains the explicit-request fast path;
+- tool-capable models can independently request current native read tools for contextual/ambiguous follow-ups;
+- current native registry is `inventory_summary`, `new_unmapped_rows`, `review_reasons`;
+- every model-selected tool name is backend allowlisted before execution;
+- native tool execution remains Owner-only until human/location authority intersection is implemented for staff;
+- public MCP is not used;
+- no native write/control tools are exposed.
+
+The external MCP 106-action manifest is not copied into the internal model runtime. Only implemented native typed adapters that pass backend authority checks are exposed.
+
+## F7.2D4 current refinement — D4.7B response + attachments
+
+Canonical checkpoint: `docs/checkpoints/F7_2D47B_RESPONSE_AND_ATTACHMENTS_PLAN_2026-08-24.md`.
 
 Current work:
 
-- expose every currently implemented and backend-authorized native read tool to a tool-capable internal model;
-- initial registry remains `inventory_summary`, `new_unmapped_rows`, `review_reasons`;
-- allow the model to request these tools for contextual/ambiguous follow-ups even when the current user message does not contain a deterministic routing keyword;
-- validate every requested tool name server-side before execution;
-- preserve deterministic fast-path prefetch for explicit inventory/NEW_UNMAPPED/review requests;
-- persist exposed-tool and model-tool-call provenance;
-- keep native tool execution Owner-only during this refinement until human/location authority intersection is implemented for staff;
-- public MCP remains unused for native tools;
-- no write/control tools are exposed.
+- normalize native tool output into human-facing presentation plus preserved raw provenance;
+- deterministic spreadsheet serial-date conversion may be supplied by backend while retaining the raw serial value;
+- instruct agents to answer the user's question first and omit internal IDs/raw JSON/debug fields unless requested or necessary;
+- distinguish retrieved fact, deterministic derived value, and inference;
+- prohibit unsupported promises that fixing one blocker automatically changes classification/state;
+- add photo and generic file attachment controls to each AI Workspace chat composer contract;
+- single-agent Chat persists bounded attachment evidence with conversation/message ownership;
+- current Multi-Agent surface shows the same attachment contract but remains disabled until D4.8 execution lands;
+- attachment bytes are not yet sent to provider models, OCR, or vision pipelines;
+- upload evidence never grants authority.
 
-The external MCP 106-action manifest is not automatically copied into the internal model runtime. Only native typed adapters that exist and pass backend authority checks are exposed.
+Attachment foundation is specifically intended for later typed workflows such as issue-paper photo batch intake, Daily Usage extraction, and stock-transfer evidence processing.
 
 ## D4.7 fallback management / failover
 
-Owner fallback configuration UI is implemented. A second saved healthy provider/model can be configured in ordered fallback position. After D4.7A is accepted, run live PRIMARY failure -> FALLBACK success acceptance with full provenance and `fallback_used=true`.
-
-Provider/model assignment never changes agent identity or authority.
+Owner fallback configuration UI is implemented. Live PRIMARY failure -> ordered FALLBACK success acceptance remains pending. Provider/model assignment never changes agent identity or authority.
 
 ## Access-control invariants
 
@@ -102,26 +116,28 @@ Non-owner Chat:
 
 `authenticated user -> global gate -> per-user entitlement -> agent eligibility -> native runtime/tool authority`
 
-Owner always bypasses the global user Chat gate. Global OFF blocks all non-owner Chat before provider calls. Tool authority is an intersection, never a union. During D4.7A, non-owner Chat is reasoning-only for native store tools until explicit human/location authority intersection is wired.
+Owner always bypasses the global user Chat gate. Global OFF blocks all non-owner Chat before provider calls. Tool authority is an intersection, never a union. Non-owner Chat remains reasoning-only for native store tools until explicit human/location authority intersection is wired.
+
+Attachment access follows the same authenticated workspace and conversation-ownership boundary. Multi-Agent attachment processing remains Owner-only with Multi-Agent execution.
 
 ## Immediate implementation order
 
-1. D4.7A hybrid fast-path + model-driven native tool-calling deployment and manual contextual-follow-up acceptance.
-2. D4.7 live failover proof with two healthy saved models.
-3. D4.8 Owner-only Multi-Agent GROUP/COMPARE/REVIEW/DEBATE execution.
+1. D4.7B response normalization + attachment persistence/UI deployment and manual acceptance.
+2. D4.7 live failover proof with two healthy saved models when a stable secondary provider/model is available.
+3. D4.8 Owner-only Multi-Agent GROUP/COMPARE/REVIEW/DEBATE execution using the same attachment contract.
 4. Per-user Chat entitlement/allowed-agent UI and human/location tool-authority intersection before staff tool rollout.
-5. Expand native typed tools over shared MSA service contracts as product workflows require.
+5. Expand native typed tools and attachment-processing pipelines over shared MSA service contracts as product workflows require.
 6. D4.9 optional MCP -> native-agent delegation.
 7. Continue full actor-aware audit and later controlled writes only after prerequisites.
 
 ## Later sequence
 
-1. F7.2D4 — fallback/multi-agent/native-tool hardening
+1. F7.2D4 — fallback/multi-agent/native-tool/attachment hardening
 2. F7.3 — full actor-aware Audit / operation ledger
 3. F7.4 — Inventory Locations / Store Policy / Preferences
 4. F7.5 — Smart Calculator / receipts
 5. F7.6 — deterministic Smart Analysis
-6. F7.7 — richer internal AI workflows
+6. F7.7 — richer internal AI workflows, including vision/OCR evidence intake
 7. F7.8 — Alerts & Notifications
 8. F9 — controlled typed writes after authority/audit/location/idempotency prerequisites
 9. F10 — real workflow + fresh migration + Sheet sync validation
@@ -130,6 +146,6 @@ Owner always bypasses the global user Chat gate. Global OFF blocks all non-owner
 
 ## Immediate boundary
 
-Proceed with **D4.7A native tool-calling refinement**, then return to D4.7 live failover proof.
+Proceed with **D4.7B human-friendly response + attachment-ready AI Workspace**, then return to live failover proof when a stable secondary model is available.
 
-Do not enable production inventory writes, AI inventory writes, transfers, Smart Calculator deductions, Telegram/Flutter stock mutations, Sheet mirror conversion, or PostgreSQL canonical promotion.
+Do not enable production inventory writes, AI inventory writes, transfers, Smart Calculator deductions, Telegram/Flutter stock mutations, Sheet mirror conversion, automatic OCR/vision commits, or PostgreSQL canonical promotion.
