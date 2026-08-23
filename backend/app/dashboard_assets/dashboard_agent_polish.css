@@ -1,0 +1,88 @@
+/* F7.2D Agent Management UI polish.
+   Keep the modal form aligned with the MSA control language and make the
+   primary creation/save actions visually distinct from secondary controls. */
+
+#agentCreateOpen,
+#agentFormSubmit {
+  min-height: 44px;
+  border: 1px solid #0f766e;
+  border-radius: 10px;
+  background: #0f766e;
+  color: #fff;
+  padding: 0 16px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+#agentCreateOpen:hover,
+#agentFormSubmit:hover {
+  background: #0b655f;
+  border-color: #0b655f;
+}
+
+#agentCreateOpen:disabled,
+#agentFormSubmit:disabled {
+  cursor: not-allowed;
+  opacity: .58;
+}
+
+.agent-form-grid {
+  align-items: start;
+}
+
+.agent-form-grid > label {
+  align-self: start;
+  align-content: start;
+}
+
+.agent-form-grid input[type="text"],
+.agent-form-grid input[type="number"],
+.agent-form-grid select,
+.agent-form-grid textarea {
+  width: 100%;
+  border: 1px solid var(--border, #d7dee6);
+  border-radius: 10px;
+  background: var(--panel, #fff);
+  color: var(--text, #17202a);
+  font: inherit;
+}
+
+.agent-form-grid input[type="text"],
+.agent-form-grid input[type="number"],
+.agent-form-grid select {
+  height: 44px;
+  min-height: 44px;
+  padding: 0 12px;
+}
+
+.agent-form-grid textarea {
+  min-height: 96px;
+  padding: 10px 12px;
+  line-height: 1.45;
+}
+
+#agentDisplayName,
+#agentCallName {
+  height: 44px;
+  min-height: 44px;
+  margin: 0;
+}
+
+.agent-modal-actions #agentFormCancel {
+  min-height: 44px;
+  border: 1px solid var(--border, #d7dee6);
+  border-radius: 10px;
+  background: var(--panel2, #f8fafc);
+  color: var(--text, #17202a);
+  padding: 0 14px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+@media (max-width: 720px) {
+  #agentCreateOpen,
+  #agentFormSubmit,
+  .agent-modal-actions #agentFormCancel {
+    min-height: 46px;
+  }
+}

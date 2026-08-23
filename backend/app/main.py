@@ -32,6 +32,7 @@ SERVICE_VERSION = os.getenv("MSA_SERVICE_VERSION", "0.1.0-dev")
 ENVIRONMENT = os.getenv("MSA_ENVIRONMENT", "development")
 BUILD_SHA = os.getenv("MSA_BUILD_SHA", "unknown")
 SAVED_MODEL_ASSET_VERSION = "f72d31-2"
+AGENT_POLISH_ASSET_VERSION = "f72d31-agentui-1"
 
 
 @asynccontextmanager
@@ -83,7 +84,8 @@ def dashboard_shell_with_saved_model_assets() -> HTMLResponse:
     html = (ASSET_DIR / "dashboard.html").read_text(encoding="utf-8")
     html = html.replace(
         "</head>",
-        f'<link rel="stylesheet" href="/dashboard/assets/dashboard_saved_models.css?v={SAVED_MODEL_ASSET_VERSION}">\n</head>',
+        f'<link rel="stylesheet" href="/dashboard/assets/dashboard_saved_models.css?v={SAVED_MODEL_ASSET_VERSION}">\n'
+        f'<link rel="stylesheet" href="/dashboard/assets/dashboard_agent_polish.css?v={AGENT_POLISH_ASSET_VERSION}">\n</head>',
         1,
     )
     html = html.replace(
@@ -99,6 +101,16 @@ def dashboard_shell_with_saved_model_assets() -> HTMLResponse:
 @app.get("/dashboard/assets/dashboard_saved_models.css", include_in_schema=False)
 def saved_model_css() -> FileResponse:
     response = FileResponse(ASSET_DIR / "dashboard_saved_models.css", media_type="text/css")
+    response.headers["Cache-Control"] = "no-store, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
+@app.get("/dashboard/assets/dashboard_agent_polish.css", include_in_schema=False)
+def agent_polish_css() -> FileResponse:
+    response = FileResponse(ASSET_DIR / "dashboard_agent_polish.css", media_type="text/css")
     response.headers["Cache-Control"] = "no-store, max-age=0"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
