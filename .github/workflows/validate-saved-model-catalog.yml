@@ -7,6 +7,7 @@ on:
       - 'backend/app/saved_model_catalog.py'
       - 'backend/app/provider_model_view.py'
       - 'backend/app/main.py'
+      - 'backend/app/db.py'
       - 'backend/app/dashboard_assets/dashboard_saved_models.js'
       - 'backend/app/dashboard_assets/dashboard_saved_models.css'
       - 'backend/alembic/versions/0013_saved_provider_models.py'
@@ -51,14 +52,16 @@ jobs:
           grep -Fq 'dashboard_saved_models.css' backend/app/main.py
           grep -Fq 'no-store, max-age=0' backend/app/main.py
           echo 'saved_model_ui_contract=pass'
-      - name: Validate migration chain
+      - name: Validate migration and readiness chain
         run: |
           PYTHONPATH=backend python - <<'PY'
           import importlib.util
           from pathlib import Path
+          from app.db import EXPECTED_MIGRATION
           p=Path('backend/alembic/versions/0013_saved_provider_models.py')
           spec=importlib.util.spec_from_file_location('m',p);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
           assert m.revision=='0013_saved_models'
           assert m.down_revision=='0012_providers'
-          print('saved_model_migration_chain=pass')
+          assert EXPECTED_MIGRATION==m.revision, (EXPECTED_MIGRATION,m.revision)
+          print('saved_model_migration_readiness_chain=pass')
           PY
