@@ -12,6 +12,8 @@ Normal continuation does not require manual VPS commands, Termux/SSH/tmux, Bambo
 
 Runtime secrets remain only on the VPS. Normal backend deployment must not read/import the live workbook.
 
+For Web releases, merge/CI/backend evidence is not sufficient by itself. Changed CSS/JS must have a matching current entrypoint asset version, browser assets remain no-store/no-cache while manual versioning is used, and the live browser delivery chain must be consistent with the deployed SHA. Canonical checklist: `docs/design/WEB_ASSET_RELEASE_INTEGRITY.md`.
+
 ## Product direction
 
 MSA is a multi-client intelligent store-operations platform. Web, custom MCP, future Telegram/Flutter, internal AI, scheduled jobs, and optional external clients reuse the same typed backend contracts and authority engine.
@@ -121,6 +123,8 @@ Default Web workflow:
 
 Figma is optional and only used when explicitly requested.
 
+Every Web release must additionally satisfy `docs/design/WEB_ASSET_RELEASE_INTEGRITY.md`: changed CSS/JS must use a current entrypoint cache identity, stale asset markers must not survive CI, and live browser delivery must match the deployed SHA before the UI is called verified.
+
 ## F7.2D4 — Internal model assignment, fallback & runtime identity — **NEXT**
 
 Next slice:
@@ -177,6 +181,7 @@ Do not enable production inventory writes, AI inventory writes, transfers, Smart
 - `design-system/medicine-store-assistant/MASTER.md`
 - `design-system/medicine-store-assistant/pages/dashboard.md`
 - `docs/design/UI_UX_PRO_MAX_INTEGRATION.md`
+- `docs/design/WEB_ASSET_RELEASE_INTEGRITY.md`
 
 ## Continuity rule
 
