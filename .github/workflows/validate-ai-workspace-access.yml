@@ -1,0 +1,33 @@
+name: Validate AI Workspace access policy
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'backend/app/ai_workspace_access.py'
+      - 'backend/app/ai_workspace_access_verify.py'
+      - 'backend/app/main.py'
+      - 'backend/app/dashboard_assets/dashboard_ai_workspace_access.js'
+      - 'backend/alembic/versions/0017_ai_workspace_access.py'
+      - '.github/workflows/validate-ai-workspace-access.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate-ai-workspace-access:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install backend requirements
+        run: python -m pip install --disable-pip-version-check -q -r backend/requirements.txt
+      - name: Compile backend
+        run: python -m compileall -q backend/app backend/alembic
+      - name: Validate access policy contract
+        run: PYTHONPATH=backend python backend/app/ai_workspace_access_verify.py
+      - name: Validate Dashboard access-control asset
+        run: |
+          node --check backend/app/dashboard_assets/dashboard_ai_workspace_access.js
+          grep -Fq 'AI Workspace access' backend/app/dashboard_assets/dashboard_ai_workspace_access.js
+          grep -Fq 'dashboard_ai_workspace_access.js' backend/app/main.py
+          grep -Fq 'AI_WORKSPACE_ACCESS_ASSET_VERSION' backend/app/main.py
