@@ -23,11 +23,12 @@ Before changing code/config/schema/runtime in a fresh chat, read in this order:
 11. `docs/architecture/F7_2D2_AGENT_MANAGEMENT_AND_MULTI_AGENT_SESSIONS.md`
 12. `docs/architecture/F7_2D4A_EXTERNAL_MCP_AGENT_BINDING.md`
 13. `docs/checkpoints/F7_2D0_MCP_CONNECTIVITY_VERIFIED_2026-08-23.md`
-14. `docs/checkpoints/F7_2D2_AGENT_MANAGEMENT_2026-08-23.md`
-15. `docs/checkpoints/F7_2D3_PROVIDER_REGISTRY_VERIFIED_2026-08-23.md`
-16. `docs/checkpoints/F7_2D4A_MCP_AGENT_BINDING_VERIFIED_2026-08-23.md`
-17. task-relevant F7 architecture/design docs
-18. current repository/runtime/deployment evidence
+14. `docs/checkpoints/F7_2D0_MCP_SCHEMA_V2_VERIFIED_2026-08-23.md`
+15. `docs/checkpoints/F7_2D2_AGENT_MANAGEMENT_2026-08-23.md`
+16. `docs/checkpoints/F7_2D3_PROVIDER_REGISTRY_VERIFIED_2026-08-23.md`
+17. `docs/checkpoints/F7_2D4A_MCP_AGENT_BINDING_VERIFIED_2026-08-23.md`
+18. task-relevant F7 architecture/design docs
+19. current repository/runtime/deployment evidence
 
 Treat newer verified repository/runtime evidence as authoritative over remembered chat context.
 
@@ -69,7 +70,7 @@ Verified complete/foundational:
 - F7.2B User Management/profile
 - F7.2C Credential + Recovery Lifecycle
 - F7.2D0 custom MCP/OAuth connectivity
-- F7.2D0 MCP schema finalization v2 — 94-action runtime catalog
+- F7.2D0 MCP schema finalization **v2.1 — 106-action runtime catalog**
 - F7.2D2 named AI Agent Management + multi-agent session topology
 - F7.2D3 Provider Registry + dynamic model catalog + tested saved-model catalog
 - F7.2D4A external MCP OAuth grant -> named-agent binding
@@ -99,21 +100,23 @@ The MCP server is full-schema/policy-gated. Future typed grants can be unlocked 
 
 Custom GPT Actions are optional/fallback only.
 
-### MCP schema v2 — current durable truth
+### MCP schema v2.1 — current durable truth
 
 Runtime anchor:
 
-- PR #76
-- merge SHA `bed14194661f0f2d6536d1d90b0e79d4e37e6da3`
-- deploy run `32637213532`
+- PR #78
+- merge SHA `4e523645ab05063577b0e3fbc4c6ca5f870ce1dd`
+- deploy run `32637806906`
 - issue #26 `status=success`
-- schema version `2026-08-23.v2`
-- expected runtime actions **94**
-- tool-name SHA-256 `3031969fec8e5e3ea52937b8c00ba3106b6da185e998d161cea855d5db616662`
+- schema version `2026-08-23.v2.1`
+- expected runtime actions **106**
+- tool-name SHA-256 `f12fcebfbf2b8cb0dd334e53faea25c9503eb3e99e94a71a378ba1133c3554d0`
 
 `msa_system_schema_manifest` is the server-owned schema identity. It reports version/count/hash/build/domain coverage and explicit exclusion classes.
 
-The finalized catalog already reserves typed actions for current and future inventory/shadow/catalogue/reconciliation/transfers/locations/store policy/preferences/calculator/receipts/analysis/users/agents/multi-agent sessions/providers/audit/alerts/notifications/sync/sources/integrations/settings/migration-control domains.
+The finalized catalog reserves typed actions for current and future inventory/usage/movements, shadow migration, catalogue/reconciliation/transfers, locations/store policy/preferences, calculator/receipts, analysis/reports, users, agents/external clients/multi-agent sessions, providers/model catalog, Audit, alerts/notifications, scheduled automations, sync/sources/integrations, settings and migration/canonicality-control domains.
+
+Extensible query/manage tools intentionally use stable string selectors rather than client-frozen action enums; backend implementations must allowlist accepted action values and fail closed for unknown values. This is specifically to reduce future ChatGPT MCP schema rescans.
 
 Important exclusions:
 
@@ -124,9 +127,9 @@ Important exclusions:
 - no shell/filesystem access;
 - no generic unrestricted HTTP proxy.
 
-Future work should normally implement existing `NOT_ENABLED` actions or extend inputs backward-compatibly. Adding new MCP action names is exceptional because the ChatGPT custom app may hold a scanned schema snapshot.
+Future work should normally implement an existing `NOT_ENABLED` action, add a backend-allowlisted action string value, or add backward-compatible optional inputs. Adding new MCP action names is exceptional because the ChatGPT custom app may hold a scanned schema snapshot.
 
-Before deleting/recreating the ChatGPT app, the deployed manifest must still report 94 actions. After creating the replacement app, verify the Actions list includes at least `msa_system_schema_manifest` and `msa_shadow_read_rows` and matches the expected count before deleting the old app.
+Before deleting the existing ChatGPT app, create/scan a replacement against `https://inventory.drthorne.uk/mcp`. The replacement must show **106 Actions**, including `msa_system_schema_manifest` and `msa_shadow_read_rows`. Then verify the manifest reports v2.1/count 106/hash above, a row-level `NEW_UNMAPPED` read works, and Audit records the read under the named MCP agent. Only after those checks should the old app be removed.
 
 ## F7.2D2 — named Agent Management truth
 
@@ -199,7 +202,7 @@ The full Audit UI still needs date/month, human, agent, runtime/client, provider
 
 ## Next authorized slice
 
-Continue **F7.2D4 — internal model assignment/fallback/runtime identity**.
+Continue **F7.2D4 — internal model assignment/fallback/runtime identity** after the replacement ChatGPT MCP app passes the v2.1 scan/manifest/read/audit acceptance.
 
 Required direction:
 
