@@ -18,6 +18,7 @@ from app.email_recovery import router as email_recovery_router
 from app.email_recovery_page import router as email_recovery_page_router
 from app.mcp_oauth import router as mcp_oauth_router
 from app.mcp_server import mcp, mcp_http_app
+from app.provider_registry import router as provider_registry_router
 from app.read_api import router as read_router
 from app.recovery_identifier import router as recovery_identifier_router
 from app.shadow_read_api import router as shadow_read_router
@@ -43,7 +44,8 @@ app = FastAPI(
         "Typed API boundary for the Medicine Store Assistant backend. "
         "Authenticated inventory, canonical human identity/User Management/credential and email-recovery lifecycle, catalogue, "
         "test-only shadow reads, the F7 dashboard, F7.2D named Agent Management/multi-agent session foundation, "
-        "and the MCP/OAuth protocol surface are available; canonical inventory writes remain disabled."
+        "Owner-only Provider Registry/model discovery, and the MCP/OAuth protocol surface are available; "
+        "canonical inventory writes remain disabled."
     ),
     lifespan=app_lifespan,
 )
@@ -68,6 +70,7 @@ app.include_router(dashboard_router)
 app.include_router(email_recovery_page_router)
 app.include_router(user_management_router)
 app.include_router(agent_management_router)
+app.include_router(provider_registry_router)
 app.include_router(access_request_confirmed_router)
 app.include_router(credential_lifecycle_router)
 app.include_router(account_password_confirmed_router)
@@ -90,6 +93,7 @@ def health() -> dict[str, object]:
         "mcp_surface": "full-schema-policy-gated",
         "mcp_oauth": "enabled",
         "agent_management": "f7.2d2",
+        "provider_registry": "f7.2d3",
         "production_inventory_writes": False,
     }
 

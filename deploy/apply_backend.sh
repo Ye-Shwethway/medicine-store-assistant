@@ -45,7 +45,7 @@ docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm \
   api python -c 'from app.dashboard_auth import ensure_bootstrap_owner; u=ensure_bootstrap_owner(); print("canonical_owner_bootstrap=pass user_id=" + u["user_id"] + " username=" + u["username"])'
 
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm \
-  api sh -c 'grep -Fq "user-profile-card" app/dashboard_assets/dashboard.html && grep -Fq "User Management" app/dashboard_assets/dashboard.html && grep -Fq "AI Agent Management" app/dashboard_assets/dashboard.html && grep -Fq "Multi-agent sessions" app/dashboard_assets/dashboard.html && grep -Fq "dashboard_agents.js" app/dashboard_assets/dashboard.html && grep -Fq "Account security" app/dashboard_assets/dashboard.html && grep -Fq "Change username" app/dashboard_assets/dashboard.html && grep -Fq "Change password" app/dashboard_assets/dashboard.html && grep -Fq "Request access" app/dashboard_assets/login.html && grep -Fq "Confirm password" app/dashboard_assets/login.html && grep -Fq "Forgot password" app/dashboard_assets/login.html && grep -Fq "verified recovery email" app/dashboard_assets/login.html && grep -Fq "One-time reset" app/dashboard_assets/login.html && grep -Fq "Recovery email" app/dashboard_assets/recovery_email.html && echo "f7_2d2_ui_contract=pass"'
+  api sh -c 'grep -Fq "user-profile-card" app/dashboard_assets/dashboard.html && grep -Fq "User Management" app/dashboard_assets/dashboard.html && grep -Fq "AI Agent Management" app/dashboard_assets/dashboard.html && grep -Fq "Multi-agent sessions" app/dashboard_assets/dashboard.html && grep -Fq "dashboard_agents.js" app/dashboard_assets/dashboard.html && grep -Fq "External / MCP agents" app/dashboard_assets/dashboard_agents.js && grep -Fq "Internal / provider-backed agents" app/dashboard_assets/dashboard_agents.js && grep -Fq "Provider Registry" app/dashboard_assets/dashboard_agents.js && grep -Fq "classList.add('"'"'secondary'"'"')" app/dashboard_assets/dashboard_agents.js && grep -Fq "Account security" app/dashboard_assets/dashboard.html && grep -Fq "Change username" app/dashboard_assets/dashboard.html && grep -Fq "Change password" app/dashboard_assets/dashboard.html && grep -Fq "Request access" app/dashboard_assets/login.html && grep -Fq "Confirm password" app/dashboard_assets/login.html && grep -Fq "Forgot password" app/dashboard_assets/login.html && grep -Fq "verified recovery email" app/dashboard_assets/login.html && grep -Fq "One-time reset" app/dashboard_assets/login.html && grep -Fq "Recovery email" app/dashboard_assets/recovery_email.html && echo "f7_2d2_d3_ui_contract=pass"'
 
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d api
 
@@ -99,6 +99,14 @@ for route in \
   '/dashboard/api/agents/sessions/{session_id}' \
   '/dashboard/api/agents/sessions/{session_id}/close' \
   '/dashboard/api/agents/sessions/{session_id}/reopen' \
+  '/dashboard/api/providers' \
+  '/dashboard/api/providers/{provider_id}' \
+  '/dashboard/api/providers/{provider_id}/credential' \
+  '/dashboard/api/providers/{provider_id}/test' \
+  '/dashboard/api/providers/{provider_id}/models/fetch' \
+  '/dashboard/api/providers/{provider_id}/models' \
+  '/dashboard/api/providers/{provider_id}/enable' \
+  '/dashboard/api/providers/{provider_id}/disable' \
   '/dashboard/api/account/username' \
   '/dashboard/api/account/password' \
   '/dashboard/api/account/recovery-email' \
@@ -148,6 +156,12 @@ if [[ "$ANON_AGENTS_STATUS" != "401" && "$ANON_AGENTS_STATUS" != "503" ]]; then
   exit 1
 fi
 
+ANON_PROVIDERS_STATUS="$(curl --silent --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:${API_PORT}/dashboard/api/providers")"
+if [[ "$ANON_PROVIDERS_STATUS" != "401" && "$ANON_PROVIDERS_STATUS" != "503" ]]; then
+  echo "error: anonymous Provider Registry returned HTTP ${ANON_PROVIDERS_STATUS}, expected 401 or fail-closed 503" >&2
+  exit 1
+fi
+
 ANON_ACCOUNT_STATUS="$(curl --silent --output /dev/null --write-out '%{http_code}' -X POST -H 'Content-Type: application/json' -d '{"current_password":"x","new_password":"1234567890"}' "http://127.0.0.1:${API_PORT}/dashboard/api/account/password")"
 if [[ "$ANON_ACCOUNT_STATUS" != "401" && "$ANON_ACCOUNT_STATUS" != "503" ]]; then
   echo "error: anonymous account credential change returned HTTP ${ANON_ACCOUNT_STATUS}, expected 401 or fail-closed 503" >&2
@@ -182,6 +196,10 @@ docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T \
   -e MSA_DASHBOARD_VERIFY_BASE_URL=http://127.0.0.1:8080 \
   api python -m app.agent_management_verify
 
+# Exercise F7.2D3 Provider Registry without making any real provider API call.
+docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T \
+  api python -m app.provider_registry_verify
+
 wait_for_url "${PUBLIC_BASE_URL}/health"
 wait_for_url "${PUBLIC_BASE_URL}/dashboard/login"
 wait_for_url "${PUBLIC_BASE_URL}/dashboard/api/session"
@@ -208,11 +226,18 @@ if [[ "$PUBLIC_AGENTS_STATUS" != "401" && "$PUBLIC_AGENTS_STATUS" != "503" ]]; t
   exit 1
 fi
 
+PUBLIC_PROVIDERS_STATUS="$(curl --silent --output /dev/null --write-out '%{http_code}' "${PUBLIC_BASE_URL}/dashboard/api/providers")"
+if [[ "$PUBLIC_PROVIDERS_STATUS" != "401" && "$PUBLIC_PROVIDERS_STATUS" != "503" ]]; then
+  echo "error: public unauthenticated Provider Registry returned HTTP ${PUBLIC_PROVIDERS_STATUS}, expected 401 or fail-closed 503" >&2
+  exit 1
+fi
+
 echo "shadow_routes=pass shadow_test_batch=pass anonymous_auth_guard=pass"
 echo "f7_2a_identity=pass canonical_owner=pass username_password=pass durable_sessions=pass backend_rbac=pass access_denied_403=pass disabled_user_denied=pass"
 echo "f7_2b_user_management=pass request_pending=pass approval=pass rejection=pass role_assignment=pass disable_reactivate=pass session_revoke=pass owner_escalation_guard=pass account_events=pass notification_events=pass profile_ui=pass"
 echo "f7_2c_credential_lifecycle=pass username_change=pass password_change=pass current_password_reauth=pass reset_enumeration_safe=pass owner_reset_issue=pass reset_token_digest_only=pass reset_single_use=pass credential_session_revoke=pass credential_events=pass account_ui=pass"
 echo "f7_2c1_email_recovery_foundation=pass confirm_password=pass automated_recovery_enumeration_safe=pass recovery_email_auth_guard=pass provider_activation_optional=pass"
-echo "f7_2d2_agent_management=pass named_agents=pass self_identity=pass multi_agent_sessions=pass provider_inference=disabled system_write_gate=closed"
-echo "dashboard_public_route=pass dashboard_public_private_gate=pass:${PUBLIC_PRIVATE_STATUS} user_management_public_gate=pass:${PUBLIC_USERS_STATUS} agent_management_public_gate=pass:${PUBLIC_AGENTS_STATUS} public_base=${PUBLIC_BASE_URL}"
+echo "f7_2d2_agent_management=pass named_agents=pass self_identity=pass multi_agent_sessions=pass system_write_gate=closed"
+echo "f7_2d3_provider_registry=pass provider_crud=pass credential_write_only=pass model_catalog=pass provider_execution=not_invoked"
+echo "dashboard_public_route=pass dashboard_public_private_gate=pass:${PUBLIC_PRIVATE_STATUS} user_management_public_gate=pass:${PUBLIC_USERS_STATUS} agent_management_public_gate=pass:${PUBLIC_AGENTS_STATUS} provider_registry_public_gate=pass:${PUBLIC_PROVIDERS_STATUS} public_base=${PUBLIC_BASE_URL}"
 echo "MSA backend deployed at ${CURRENT_SHA}; inventory remains read-only; no live workbook import executed."

@@ -16,9 +16,12 @@ services:
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       MSA_MCP_RESOURCE_URL: ${MSA_MCP_RESOURCE_URL:-https://inventory.drthorne.uk/mcp}
       MSA_MCP_AUTH_ISSUER_URL: ${MSA_MCP_AUTH_ISSUER_URL:-https://inventory.drthorne.uk/oauth}
+      MSA_PROVIDER_SECRET_DIR: /var/lib/msa/provider-secrets
       DATABASE_URL: postgresql://${POSTGRES_USER:-msa}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-msa}
     ports:
       - "127.0.0.1:${MSA_API_HOST_PORT:-8088}:8080"
+    volumes:
+      - msa_provider_secrets:/var/lib/msa/provider-secrets
     mem_limit: 384m
     networks:
       - msa_internal
@@ -48,3 +51,4 @@ networks:
 
 volumes:
   msa_postgres_data:
+  msa_provider_secrets:
