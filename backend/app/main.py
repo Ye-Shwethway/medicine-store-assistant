@@ -38,6 +38,7 @@ ENVIRONMENT = os.getenv("MSA_ENVIRONMENT", "development")
 BUILD_SHA = os.getenv("MSA_BUILD_SHA", "unknown")
 SAVED_MODEL_ASSET_VERSION = "f72d31-2"
 AGENT_ASSIGNMENT_GUARD_ASSET_VERSION = "f72d4-preflight-1"
+NATIVE_AGENT_TEST_ASSET_VERSION = "f72d4d-native-test-1"
 AGENT_POLISH_ASSET_VERSION = "f72d31-agentui-1"
 MCP_BINDING_ASSET_VERSION = "f72d4a-mcpbind-1"
 AUDIT_ASSET_VERSION = "f73a-mcpaudit-1"
@@ -57,8 +58,8 @@ app = FastAPI(
         "Authenticated inventory, canonical human identity/User Management/credential and email-recovery lifecycle, catalogue, "
         "test-only shadow reads, the F7 dashboard, F7.2D named Agent Management/multi-agent session foundation, "
         "Owner-only Provider Registry/model discovery, tested saved-model catalog, ordered native-agent assignment/fallback contract, "
-        "MCP-independent native internal-agent inference, external MCP named-agent binding, minimal MCP audit evidence, "
-        "broad typed read-only shadow detail access, NanoGPT detailed catalog enrichment, and the MCP/OAuth protocol surface are available; "
+        "MCP-independent native internal-agent inference plus a bounded Dashboard test surface, external MCP named-agent binding, "
+        "minimal MCP audit evidence, broad typed read-only shadow detail access, NanoGPT detailed catalog enrichment, and the MCP/OAuth protocol surface are available; "
         "canonical inventory writes remain disabled."
     ),
     lifespan=app_lifespan,
@@ -103,6 +104,7 @@ def dashboard_shell_with_saved_model_assets() -> HTMLResponse:
         "</body>",
         f'<script src="/dashboard/assets/dashboard_saved_models.js?v={SAVED_MODEL_ASSET_VERSION}" defer></script>\n'
         f'<script src="/dashboard/assets/dashboard_agent_assignment_guard.js?v={AGENT_ASSIGNMENT_GUARD_ASSET_VERSION}" defer></script>\n'
+        f'<script src="/dashboard/assets/dashboard_native_agent_test.js?v={NATIVE_AGENT_TEST_ASSET_VERSION}" defer></script>\n'
         f'<script src="/dashboard/assets/dashboard_mcp_binding.js?v={MCP_BINDING_ASSET_VERSION}" defer></script>\n'
         f'<script src="/dashboard/assets/dashboard_audit.js?v={AUDIT_ASSET_VERSION}" defer></script>\n</body>',
         1,
@@ -174,6 +176,16 @@ def agent_assignment_guard_js() -> FileResponse:
     return response
 
 
+@app.get("/dashboard/assets/dashboard_native_agent_test.js", include_in_schema=False)
+def native_agent_test_js() -> FileResponse:
+    response = FileResponse(ASSET_DIR / "dashboard_native_agent_test.js", media_type="text/javascript")
+    response.headers["Cache-Control"] = "no-store, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
 @app.get("/dashboard/assets/dashboard_mcp_binding.js", include_in_schema=False)
 def mcp_binding_js() -> FileResponse:
     response = FileResponse(ASSET_DIR / "dashboard_mcp_binding.js", media_type="text/javascript")
@@ -236,6 +248,7 @@ def health() -> dict[str, object]:
         "saved_model_catalog": "f7.2d3.1",
         "internal_agent_assignment_chain": "f7.2d4b",
         "native_internal_agent_inference": "f7.2d4c",
+        "native_internal_agent_test_ui": "f7.2d4d",
         "native_internal_agent_tools": False,
         "nanogpt_detailed_catalog": "enabled",
         "production_inventory_writes": False,

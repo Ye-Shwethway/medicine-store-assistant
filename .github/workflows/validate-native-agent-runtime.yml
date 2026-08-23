@@ -7,6 +7,7 @@ on:
       - 'backend/app/native_agent_runtime.py'
       - 'backend/app/native_agent_runtime_verify.py'
       - 'backend/app/agent_model_assignments.py'
+      - 'backend/app/dashboard_assets/dashboard_native_agent_test.js'
       - 'backend/app/main.py'
       - '.github/workflows/validate-native-agent-runtime.yml'
 
@@ -24,3 +25,11 @@ jobs:
         run: python -m compileall -q backend/app
       - name: Validate native invocation contract
         run: PYTHONPATH=backend python backend/app/native_agent_runtime_verify.py
+      - name: Validate dashboard native-test asset
+        run: |
+          node --check backend/app/dashboard_assets/dashboard_native_agent_test.js
+          grep -Fq 'Test native runtime' backend/app/dashboard_assets/dashboard_native_agent_test.js
+          grep -Fq 'mcp_used' backend/app/dashboard_assets/dashboard_native_agent_test.js
+          grep -Fq 'dashboard_native_agent_test.js' backend/app/main.py
+          grep -Fq 'f72d4d-native-test-' backend/app/main.py
+          echo 'native_agent_test_ui=pass'
