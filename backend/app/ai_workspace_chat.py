@@ -17,6 +17,7 @@ router = APIRouter(prefix="/dashboard/api/ai-workspace", tags=["ai-workspace-cha
 
 MAX_CONTEXT_MESSAGES = 24
 MAX_MESSAGE_CHARS = 20_000
+MAX_MESSAGE_ATTACHMENTS = 4
 AUTHORITY_ORDER = {"READ": 1, "PROPOSE": 2, "WRITE": 3, "CONTROL": 4}
 WORKSPACE_OUTPUT_TOKENS = 2048
 WORKSPACE_TOOL_OUTPUT_TOKENS = 4096
@@ -28,7 +29,8 @@ class ConversationCreateInput(BaseModel):
 
 
 class WorkspaceMessageInput(BaseModel):
-    message: str = Field(min_length=1, max_length=MAX_MESSAGE_CHARS)
+    message: str = Field(default="", max_length=MAX_MESSAGE_CHARS)
+    attachment_ids: list[str] = Field(default_factory=list, max_length=MAX_MESSAGE_ATTACHMENTS)
 
 
 def _no_store(response: Response) -> None:
@@ -99,6 +101,7 @@ def _owned_conversation(connection: Any, conversation_id: str, principal: dict[s
         {"conversation_id": conversation_id, "owner_user_id": principal["user_id"]},
     ).mappings().first()
     if row is None:
+        # Do not reveal whether another user's conversation exists.
         raise HTTPException(status_code=404, detail="Conversation not found")
     if row["state"] != "ACTIVE":
         raise HTTPException(status_code=409, detail="Conversation is not active")
@@ -129,9 +132,35 @@ def _attach_tool_context(contextual_message: str, tool_results: list[dict[str, A
         + serialized
         + "\n--- END MSA NATIVE READ RESULTS ---\n"
         + "Use these results as the only source for current Medicine Store Assistant/store-specific facts in this answer. "
-          "The current database evidence is test/shadow and non-canonical unless a result explicitly says otherwise. "
-          "Do not invent missing rows, counts, prices, expiries, mappings, or capabilities. "
-          "Answer in the user's language when practical."
+          "Prefer each tool result's presentation object for the normal user-facing answer. Raw batch IDs, row UUIDs, source labels, and raw field names are provenance/debug details: omit them unless the user requests them or they are needed to answer accurately. "
+          "Deterministic derived display values supplied by the backend, such as a calendar date derived from a stored spreadsheet serial, may be shown as derived values while the raw source value remains provenance. "
+          "The current database evidence is test/shadow and non-canonical unless a result explicitly says otherwise. Keep that warning concise. "
+          "Do not invent missing rows, counts, prices, expiries, mappings, capabilities, or state transitions. "
+          "A missing field or blocker does not prove that fixing it will automatically change classification: say revalidation/reclassification must run and pass. "
+          "Clearly separate retrieved facts from your inference. Answer in the user's language when practical."
+    )
+
+
+def _attach_upload_context(contextual_message: str, attachments: list[dict[str, Any]]) -> str:
+    if not attachments:
+        return contextual_message
+    metadata = [
+        {
+            "attachment_id": item["attachment_id"],
+            "kind": item["kind"],
+            "filename": item["original_filename"],
+            "content_type": item["content_type"],
+            "byte_size": item["byte_size"],
+        }
+        for item in attachments
+    ]
+    return (
+        contextual_message
+        + "\n\n--- USER ATTACHMENTS ---\n"
+        + json.dumps(metadata, ensure_ascii=False, separators=(",", ":"))
+        + "\n--- END USER ATTACHMENTS ---\n"
+        + "Attachment metadata is persisted as conversation evidence, but attachment bytes are NOT supplied to this model in the current slice. "
+          "Do not claim to have seen, OCRed, read, or interpreted the image/file contents. If the user's request requires the contents, state briefly that attachment processing is not wired yet."
     )
 
 
@@ -139,10 +168,71 @@ def _workspace_response_prompt(contextual_message: str) -> str:
     return (
         contextual_message
         + "\n\n--- AI WORKSPACE PRESENTATION ---\n"
-          "Return a complete answer. Use clean plain text that is easy to read on a phone. "
+          "Answer the user's actual question first. Use clean plain text that is easy to read on a phone. "
           "Do not use Markdown heading markers (#), bold/italic markers (** or __), backticks, or pipe-table syntax. "
-          "Use short sections and simple hyphen bullets only when useful. Preserve exact data values from tool results."
+          "Use short natural section labels and simple hyphen bullets only when useful. "
+          "Avoid developer-style dumps, internal UUIDs, raw JSON keys, and repeated provenance unless the user explicitly asks for technical details. "
+          "Preserve exact factual values from tool results and never turn an inference into a verified fact."
     )
+
+
+def _load_pending_attachments(connection: Any, conversation_id: str, attachment_ids: list[str], principal: dict[str, str]) -> list[dict[str, Any]]:
+    ids = list(dict.fromkeys(attachment_ids))
+    if len(ids) != len(attachment_ids):
+        raise HTTPException(status_code=422, detail="Duplicate attachment IDs are not allowed")
+    if len(ids) > MAX_MESSAGE_ATTACHMENTS:
+        raise HTTPException(status_code=422, detail=f"At most {MAX_MESSAGE_ATTACHMENTS} attachments can be sent with one message")
+    if not ids:
+        return []
+    rows = connection.execute(
+        text(
+            """
+            SELECT attachment_id::text AS attachment_id, kind, original_filename,
+                   content_type, byte_size, sha256, state, message_id
+            FROM ai_workspace_attachments
+            WHERE conversation_id=CAST(:conversation_id AS uuid)
+              AND owner_user_id=CAST(:owner_user_id AS uuid)
+              AND attachment_id::text = ANY(CAST(:attachment_ids AS text[]))
+            ORDER BY created_at, attachment_id
+            """
+        ),
+        {
+            "conversation_id": conversation_id,
+            "owner_user_id": principal["user_id"],
+            "attachment_ids": ids,
+        },
+    ).mappings().all()
+    if len(rows) != len(ids):
+        raise HTTPException(status_code=404, detail="One or more attachments were not found")
+    result = [dict(row) for row in rows]
+    if any(item["state"] != "PENDING" or item["message_id"] is not None for item in result):
+        raise HTTPException(status_code=409, detail="Only pending attachments can be sent")
+    return result
+
+
+def _message_attachment_map(connection: Any, conversation_id: str, principal: dict[str, str]) -> dict[str, list[dict[str, Any]]]:
+    rows = connection.execute(
+        text(
+            """
+            SELECT attachment_id::text AS attachment_id, message_id::text AS message_id,
+                   kind, original_filename, content_type, byte_size, sha256, state, created_at
+            FROM ai_workspace_attachments
+            WHERE conversation_id=CAST(:conversation_id AS uuid)
+              AND owner_user_id=CAST(:owner_user_id AS uuid)
+              AND message_id IS NOT NULL
+            ORDER BY created_at, attachment_id
+            """
+        ),
+        {"conversation_id": conversation_id, "owner_user_id": principal["user_id"]},
+    ).mappings().all()
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        item = dict(row)
+        message_id = str(item.pop("message_id"))
+        item["filename"] = item.pop("original_filename")
+        item["processing_status"] = "NOT_PROCESSED"
+        grouped.setdefault(message_id, []).append(item)
+    return grouped
 
 
 @router.get("/chat/agents", summary="List internal agents available to AI Workspace Chat")
@@ -316,7 +406,13 @@ def read_conversation(
                 ),
                 {"conversation_id": conversation_id},
             ).mappings().all()
-            return {"conversation": conversation, "messages": [dict(row) for row in rows]}
+            attachments = _message_attachment_map(connection, conversation_id, principal)
+            messages = []
+            for row in rows:
+                item = dict(row)
+                item["attachments"] = attachments.get(item["message_id"], [])
+                messages.append(item)
+            return {"conversation": conversation, "messages": messages}
     finally:
         engine.dispose()
 
@@ -330,14 +426,15 @@ def send_conversation_message(
 ) -> dict[str, Any]:
     _no_store(response)
     message = payload.message.strip()
-    if not message:
-        raise HTTPException(status_code=422, detail="message is required")
+    if not message and not payload.attachment_ids:
+        raise HTTPException(status_code=422, detail="message or attachment is required")
 
     engine = _engine()
     try:
         with engine.connect() as connection:
             conversation = _owned_conversation(connection, conversation_id, principal)
             agent = _eligible_agent(connection, conversation["agent_id"])
+            pending_attachments = _load_pending_attachments(connection, conversation_id, payload.attachment_ids, principal)
             history = [
                 dict(row)
                 for row in connection.execute(
@@ -362,12 +459,16 @@ def send_conversation_message(
                 ).mappings().all()
             ]
 
+        prompt_message = message or "The user sent attachment evidence without additional text."
         native_store_tools_allowed = principal.get("role") == "OWNER" and _agent_read_allowed(agent)
-        requested_tools = select_native_read_tools(message) if native_store_tools_allowed else []
+        requested_tools = select_native_read_tools(prompt_message) if native_store_tools_allowed else []
         tool_results: list[dict[str, Any]] = run_native_read_tools(requested_tools) if requested_tools else []
 
         contextual_message = _workspace_response_prompt(
-            _attach_tool_context(_context_prompt(history, message), tool_results)
+            _attach_upload_context(
+                _attach_tool_context(_context_prompt(history, prompt_message), tool_results),
+                pending_attachments,
+            )
         )
         output_tokens = WORKSPACE_TOOL_OUTPUT_TOKENS if tool_results else WORKSPACE_OUTPUT_TOKENS
         runtime = invoke_native_agent(
@@ -399,9 +500,12 @@ def send_conversation_message(
             "native_store_tools_allowed": native_store_tools_allowed,
             "agent_read_allowed": _agent_read_allowed(agent),
             "workspace_output_tokens": output_tokens,
+            "attachment_ids": [item["attachment_id"] for item in pending_attachments],
+            "attachment_processing": "NOT_PROCESSED",
         }
         with engine.begin() as connection:
             _owned_conversation(connection, conversation_id, principal)
+            rebound = _load_pending_attachments(connection, conversation_id, payload.attachment_ids, principal)
             connection.execute(
                 text(
                     """
@@ -411,6 +515,25 @@ def send_conversation_message(
                 ),
                 {"message_id": user_message_id, "conversation_id": conversation_id, "content": message},
             )
+            if rebound:
+                connection.execute(
+                    text(
+                        """
+                        UPDATE ai_workspace_attachments
+                        SET message_id=CAST(:message_id AS uuid), state='BOUND'
+                        WHERE conversation_id=CAST(:conversation_id AS uuid)
+                          AND owner_user_id=CAST(:owner_user_id AS uuid)
+                          AND attachment_id::text = ANY(CAST(:attachment_ids AS text[]))
+                          AND state='PENDING' AND message_id IS NULL
+                        """
+                    ),
+                    {
+                        "message_id": user_message_id,
+                        "conversation_id": conversation_id,
+                        "owner_user_id": principal["user_id"],
+                        "attachment_ids": [item["attachment_id"] for item in rebound],
+                    },
+                )
             connection.execute(
                 text(
                     """
@@ -429,15 +552,27 @@ def send_conversation_message(
                 text("UPDATE ai_workspace_conversations SET updated_at=now() WHERE conversation_id=CAST(:conversation_id AS uuid)"),
                 {"conversation_id": conversation_id},
             )
+        attachment_metadata = [
+            {
+                "attachment_id": item["attachment_id"],
+                "kind": item["kind"],
+                "filename": item["original_filename"],
+                "content_type": item["content_type"],
+                "byte_size": item["byte_size"],
+                "processing_status": "NOT_PROCESSED",
+            }
+            for item in pending_attachments
+        ]
         return {
             "ok": True,
             "conversation_id": conversation_id,
-            "user_message": {"message_id": user_message_id, "role": "USER", "content": message},
+            "user_message": {"message_id": user_message_id, "role": "USER", "content": message, "attachments": attachment_metadata},
             "assistant_message": {
                 "message_id": assistant_message_id,
                 "role": "ASSISTANT",
                 "content": runtime["response"],
                 "runtime_provenance": provenance,
+                "attachments": [],
             },
         }
     finally:

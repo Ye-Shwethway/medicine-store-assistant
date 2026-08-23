@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import inspect
 
+import app.ai_workspace_attachments as attachments
 import app.ai_workspace_chat as chat
 import app.native_agent_runtime as runtime
 import app.native_agent_tool_runtime as tool_runtime
@@ -17,9 +18,15 @@ def main() -> None:
     assert "inventory_summary" in review and "review_reasons" in review
     assert tools.select_native_read_tools("Investigate this further") == []
 
+    assert tools._excel_serial_to_date(46235) == "2026-08-01"
+    display = tools._display_payload({"item_name": "Example", "expiry_date": 46235, "remaining_stock": 3})
+    assert display["expiry_date"] == "2026-08-01"
+    assert display["expiry_date_raw"] == 46235
+
     definitions = tools.native_read_tool_definitions()
     names = [item["function"]["name"] for item in definitions]
     assert names == ["inventory_summary", "new_unmapped_rows", "review_reasons"]
+    assert all("presentation" in item["function"]["description"] for item in definitions)
     rejected = tools.execute_native_read_tool("not_a_real_tool", {})
     assert rejected["ok"] is False and rejected["error_code"] == "NATIVE_TOOL_NOT_ALLOWED"
 
@@ -35,6 +42,18 @@ def main() -> None:
     assert "native_model_tool_calls" in chat_source
     assert "native_tools_exposed" in chat_source
     assert "MSA NATIVE READ RESULTS" in chat_source
+    assert "Prefer each tool result's presentation object" in chat_source
+    assert "revalidation/reclassification must run and pass" in chat_source
+    assert "Attachment metadata is persisted" in chat_source
+    assert "attachment_processing" in chat_source
+    assert "MAX_MESSAGE_ATTACHMENTS = 4" in chat_source
+
+    attachment_source = inspect.getsource(attachments)
+    assert "MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024" in attachment_source
+    assert "MAX_PENDING_ATTACHMENTS = 4" in attachment_source
+    assert "Depends(require_ai_chat_access)" in attachment_source
+    assert "owner_user_id" in attachment_source
+    assert "Only pending attachments can be removed independently" in attachment_source
 
     runtime_source = inspect.getsource(runtime)
     assert "Never invent Medicine Store Assistant facts" in runtime_source

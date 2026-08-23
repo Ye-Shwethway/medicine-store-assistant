@@ -14,6 +14,7 @@ on:
       - 'backend/alembic/versions/0016_revoke_stale_chatgpt_oauth.py'
       - 'backend/alembic/versions/0017_ai_workspace_access.py'
       - 'backend/alembic/versions/0018_ai_workspace_conversations.py'
+      - 'backend/alembic/versions/0019_ai_workspace_attachments.py'
       - '.github/workflows/validate-mcp-audit.yml'
 
 permissions:
@@ -45,12 +46,14 @@ jobs:
           audit=load(Path('backend/alembic/versions/0015_mcp_audit_events.py'),'audit_migration')
           stale_oauth=load(Path('backend/alembic/versions/0016_revoke_stale_chatgpt_oauth.py'),'stale_oauth_migration')
           workspace_access=load(Path('backend/alembic/versions/0017_ai_workspace_access.py'),'workspace_access_migration')
-          head=load(Path('backend/alembic/versions/0018_ai_workspace_conversations.py'),'head_migration')
+          conversations=load(Path('backend/alembic/versions/0018_ai_workspace_conversations.py'),'conversations_migration')
+          head=load(Path('backend/alembic/versions/0019_ai_workspace_attachments.py'),'head_migration')
           assert audit.revision=='0015_mcp_audit'
           assert audit.down_revision=='0014_mcp_agent_bindings'
           assert stale_oauth.down_revision==audit.revision
           assert workspace_access.down_revision==stale_oauth.revision
-          assert head.down_revision==workspace_access.revision
+          assert conversations.down_revision==workspace_access.revision
+          assert head.down_revision==conversations.revision
           assert EXPECTED_MIGRATION==head.revision
           assert '/dashboard/api/audit/recent' in set(app.openapi()['paths'])
           assert AUDIT_ASSET_VERSION.startswith('f73a-')

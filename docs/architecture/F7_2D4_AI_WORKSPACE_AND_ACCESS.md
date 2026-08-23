@@ -1,6 +1,6 @@
 # F7.2D4 — AI Workspace and Access-Control Architecture
 
-Status: CANONICAL DESIGN — APPROVED 2026-08-23
+Status: CANONICAL DESIGN — APPROVED 2026-08-23; attachment contract extended 2026-08-24
 
 ## Purpose
 
@@ -40,11 +40,47 @@ The Chat surface includes:
 - new/resume conversation;
 - durable conversation history;
 - message thread and composer;
+- photo/image attachment control;
+- generic file attachment control;
+- selected/pending attachment chips with remove-before-send;
 - selected agent identity/state;
 - compact response provenance, with richer runtime details available to Owner;
 - no direct provider/model choice for ordinary users.
 
 Agent identity remains stable when provider/model assignments change.
+
+## Shared attachment contract — LOCKED
+
+Single-agent Chat and Multi-Agent execution share one attachment architecture. Do not build separate upload systems for each mode.
+
+Attachment evidence may later drive typed workflows such as:
+
+- issue-paper photo -> vision/OCR -> draft batch intake -> human review -> controlled typed commit;
+- Daily Usage photo/file -> extraction -> validation -> draft usage rows -> review/commit;
+- stock-transfer photo/file -> extraction -> location/authority validation -> proposed transfer -> controlled commit.
+
+Current attachment rules:
+
+- authenticated workspace access is required before upload;
+- single-agent attachments are owned by the authenticated user and conversation;
+- Multi-Agent upload/execution remains Owner-only in the current phase;
+- bounded count/size and MIME allowlists are enforced server-side;
+- server-generated attachment IDs are used; model-visible metadata never exposes filesystem paths or credentials;
+- an uploaded file grants **no** tool, location, write, or control authority;
+- attachment evidence must remain traceable to the message and any later derived draft/operation;
+- initial persistence may precede vision/OCR processing; if bytes are not supplied to a model, the model must not claim it inspected them;
+- future processors must use typed workflows and explicit review/confirmation boundaries before mutation.
+
+## Human-facing response contract
+
+Native tool results preserve exact source evidence but should also provide a presentation layer for normal chat answers.
+
+- answer the user's question first;
+- prefer human names, dates, counts and concise status over raw UUIDs/JSON keys;
+- raw IDs/source labels remain provenance and can be surfaced when requested or necessary;
+- deterministic backend derivations, such as spreadsheet serial -> calendar date, may be displayed while retaining the raw source value;
+- distinguish retrieved facts, deterministic derived values, and model inference;
+- identifying a blocker does not prove a future state transition; revalidation/reclassification must actually run and pass.
 
 ## Multi-Agent UX
 
@@ -55,6 +91,7 @@ The workspace may expose:
 - session preset selector;
 - mode (`GROUP`, `COMPARE`, `REVIEW`, `DEBATE`);
 - ordered participants and role labels;
+- shared photo/file composer contract;
 - run transcript/results;
 - per-agent identity/provenance;
 - final synthesis where the mode requires one.
@@ -122,7 +159,7 @@ When native typed tools are attached, effective permission must never come from 
 - location scope;
 - operation class and confirmation policy.
 
-Provider/model choice never grants or expands authority.
+Provider/model choice and attachment presence never grant or expand authority.
 
 ## Navigation contract
 
@@ -145,8 +182,9 @@ The exact visual navigation may evolve, but configuration and operational chat m
 3. Top-level AI Workspace shell with Chat tab and internal-agent selector.
 4. Native runtime hookup using the existing MCP-independent invocation service.
 5. Clear access-denial UX with zero provider call on denied requests.
-6. Owner-only Multi-Agent workspace execution in a later D4 slice.
-7. Native typed tools and user/agent/location authority intersection after the chat foundation is stable.
+6. Human-facing native-tool presentation and shared attachment persistence/composer contract.
+7. Owner-only Multi-Agent workspace execution reusing the attachment contract.
+8. Native typed tools, attachment processors, and user/agent/location authority intersection after the chat foundation is stable.
 
 ## Security invariants
 
@@ -154,5 +192,6 @@ The exact visual navigation may evolve, but configuration and operational chat m
 - Multi-Agent execution is Owner-only in both frontend and backend during this phase.
 - Ordinary user Chat requires global + per-user eligibility.
 - Denied users never trigger provider calls.
+- Attachment upload never expands user/agent authority.
 - Internal agents never depend on public MCP for ordinary operation.
-- No production inventory write authority is enabled by AI Workspace access.
+- No production inventory write authority is enabled by AI Workspace access or attachment upload.

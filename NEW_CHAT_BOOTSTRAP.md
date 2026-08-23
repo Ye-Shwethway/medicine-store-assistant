@@ -23,8 +23,9 @@ Before changing code/config/schema/runtime, read:
 11. `docs/checkpoints/F7_2D4G_CHAT_UX_LIFECYCLE_PLAN_2026-08-23.md`
 12. `docs/checkpoints/F7_2D47_FALLBACK_MANAGEMENT_PLAN_2026-08-23.md`
 13. `docs/checkpoints/F7_2D47A_NATIVE_TOOL_CALLING_PLAN_2026-08-23.md`
-14. current runtime/deployment evidence, especially issue #26
-15. `docs/design/UI_UX_PRO_MAX_INTEGRATION.md` and `docs/design/WEB_ASSET_RELEASE_INTEGRITY.md` for Web work
+14. `docs/checkpoints/F7_2D47B_RESPONSE_AND_ATTACHMENTS_PLAN_2026-08-24.md`
+15. current runtime/deployment evidence, especially issue #26
+16. `docs/design/UI_UX_PRO_MAX_INTEGRATION.md` and `docs/design/WEB_ASSET_RELEASE_INTEGRITY.md` for Web work
 
 Treat newer verified repository/runtime evidence as authoritative over remembered chat context.
 
@@ -35,7 +36,7 @@ Treat newer verified repository/runtime evidence as authoritative over remembere
 - F6B is test-only and not an accepted migration baseline.
 - `database_canonical=false`.
 - `migration_baseline_accepted=false`.
-- No production inventory write, AI inventory write, transfer, Calculator deduction, Telegram/Flutter stock mutation, Sheet mirror conversion, or DB canonical promotion is authorized.
+- No production inventory write, AI inventory write, transfer, Calculator deduction, Telegram/Flutter stock mutation, Sheet mirror conversion, automatic OCR/vision commit, or DB canonical promotion is authorized.
 
 ## Delivery policy
 
@@ -68,6 +69,7 @@ Production/manual accepted:
 - durable top-level AI Workspace Chat;
 - bounded grounded native reads over F6B test/shadow evidence;
 - long response handling, deterministic USER -> ASSISTANT ordering, clean display, Copy/select, richer conversation cards, and owner-scoped conversation deletion;
+- D4.7A deterministic fast path + model-driven native tool calling; contextual follow-up manual acceptance passed with MiniMax M3;
 - external MCP direct read/audit remains independent;
 - production inventory writes remain disabled.
 
@@ -83,6 +85,7 @@ Owner-only requires backend authorization plus UI restriction.
 
 - `Chat` — one selected internal agent; Owner + authorized users.
 - `Multi-Agent` — GROUP/COMPARE/REVIEW/DEBATE execution; Owner-only for this phase and not yet wired.
+- Both composer contracts use the same photo/file attachment architecture. Single-agent upload is the first implementation; Multi-Agent reuses it when D4.8 execution lands.
 
 ## Access + authority
 
@@ -90,13 +93,21 @@ Owner always has AI Workspace access. Global OFF hard-blocks all non-owner Chat 
 
 Native tool authority intersects system gate, authenticated human authority, selected-agent capability/ceiling, location scope, operation class, and confirmation policy. Never union privileges. Provider/model assignment never grants authority.
 
-During current D4.7A rollout, native store-tool execution is backend-restricted to Owner sessions plus selected-agent READ authority. Non-owner Chat is reasoning-only for store tools until explicit human/location tool authority is implemented.
+Native store-tool execution is currently backend-restricted to Owner sessions plus selected-agent READ authority. Non-owner Chat is reasoning-only for store tools until explicit human/location tool authority is implemented.
 
-## Current work — D4.7A native tool calling
+Uploaded attachment evidence is also ownership-scoped. An attachment never grants tool/write authority.
+
+## D4.7A native tool calling — VERIFIED
 
 Canonical checkpoint: `docs/checkpoints/F7_2D47A_NATIVE_TOOL_CALLING_PLAN_2026-08-23.md`.
 
-The first safe native-read slice used deterministic current-message keyword routing. Keep that as a fast path, but add model-driven tool selection for tool-capable internal models.
+Accepted hybrid behavior:
+
+1. Explicit supported request -> deterministic backend fast-path prefetch -> grounded model answer.
+2. If no fast-path evidence exists and the assigned tool-capable OpenAI-compatible model supports tools -> expose all currently authorized native read tools -> model may request tools -> backend allowlist/authority validation -> typed result -> final answer.
+3. Tool loop is bounded to four rounds.
+4. Unsupported providers/models fall back to grounded reasoning and must not claim tool execution.
+5. Public MCP is not used.
 
 Current native tool registry:
 
@@ -104,38 +115,46 @@ Current native tool registry:
 - `new_unmapped_rows`
 - `review_reasons`
 
-Current hybrid behavior:
+The public MCP schema has 106 actions, but those are not automatically internal-agent tools. Only implemented native typed adapters that are backend-authorized are exposed.
 
-1. Explicit supported request -> deterministic backend fast-path prefetch -> grounded model answer.
-2. If no fast-path evidence exists and the assigned OpenAI-compatible model advertises tool support -> expose all currently authorized native read tools -> model may request tools -> backend allowlist/authority validation -> typed result -> model final answer.
-3. Tool loop is bounded to four rounds.
-4. Unsupported providers/models fall back to normal grounded reasoning; they must not claim tool execution.
-5. Public MCP is not used.
+## Current work — D4.7B response + attachment readiness
 
-Important: the public MCP schema has 106 actions, but those are not automatically internal-agent tools. Only native typed adapters that are implemented and backend-authorized are exposed to internal models.
+Canonical checkpoint: `docs/checkpoints/F7_2D47B_RESPONSE_AND_ATTACHMENTS_PLAN_2026-08-24.md`.
+
+Current implementation target:
+
+- native read tools expose a human-friendly presentation layer while retaining raw evidence/provenance;
+- deterministic spreadsheet serial-date conversion may be shown as a derived value while preserving the raw serial;
+- agents answer the user's question first and do not lead with UUIDs, raw JSON keys, batch/source IDs, or repeated canonicality boilerplate unless requested/needed;
+- facts, deterministic derived values, and inference must remain distinct;
+- identifying one blocker does not prove a state transition; revalidation/reclassification must run and pass;
+- single-agent Chat gets Photo and File buttons, selected attachment chips, remove-before-send, bounded persistence, and message binding;
+- max 4 pending attachments, max 8 MB each, MIME allowlist, authenticated conversation ownership;
+- bound attachment metadata survives conversation reload; conversation deletion cascades attachments;
+- attachment bytes are NOT yet supplied to provider models, OCR, or vision processing; model receives metadata only and must not claim inspection;
+- Multi-Agent UI visibly reserves the same attachment contract but remains disabled until D4.8 execution is wired.
+
+Future typed workflows using this attachment evidence include issue-paper photo batch intake, Daily Usage extraction, and stock-transfer evidence/proposals. Extraction must produce a draft/review stage before any controlled write.
 
 ## Next authorized order
 
-1. Deploy D4.7A and manually verify explicit fast path plus contextual model-driven tool calling.
-2. Run D4.7 live PRIMARY -> FALLBACK proof with two healthy saved models.
-3. D4.8 Owner-only Multi-Agent execution.
+1. Deploy D4.7B and manually verify human-facing response + attachment upload/remove/send/reload behavior.
+2. Run D4.7 live PRIMARY -> FALLBACK proof when a stable secondary model/provider is available.
+3. D4.8 Owner-only Multi-Agent execution using the shared attachment contract.
 4. Per-user Chat entitlement/allowed-agent UI plus human/location tool-authority intersection before staff tool rollout.
-5. Expand native typed tools as product workflows require.
+5. Expand native typed tools and vision/OCR attachment processors only through bounded typed workflows.
 6. D4.9 optional MCP -> native-agent delegation.
 
-## Manual acceptance prompt for D4.7A
+## D4.7B manual acceptance
 
-Use an Owner AI Workspace conversation with a tool-capable internal model.
+In Owner AI Workspace Chat:
 
-First ask an explicit request such as:
-
-`Show the current NEW_UNMAPPED rows.`
-
-Then in the same conversation ask a contextual follow-up without tool keywords, for example:
-
-`Investigate this further and verify anything you need from MSA instead of asking me to supply the facts.`
-
-Expected: the second turn may request one or more exposed native read tools itself; provenance records exposed/tool-called names; no public MCP is used; no write occurs.
+1. ask for NEW_UNMAPPED or inventory evidence and confirm the reply leads with human-facing facts rather than batch UUIDs/raw field dumps;
+2. confirm calendar dates can be shown as backend-derived values while the source serial remains preserved in provenance;
+3. attach one photo and one supported file, confirm chips show filename/size, remove one, then send the other;
+4. reload the conversation and confirm the bound attachment metadata remains visible;
+5. ask the agent about the file contents and confirm it explicitly says vision/OCR content processing is not wired yet rather than pretending it inspected the file;
+6. confirm no inventory write occurs.
 
 ## Survival proof
 

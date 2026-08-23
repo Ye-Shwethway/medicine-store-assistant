@@ -11,6 +11,7 @@ from app.account_password_confirmed import router as account_password_confirmed_
 from app.agent_management import router as agent_management_router
 from app.agent_model_assignments import router as agent_model_assignments_router
 from app.ai_workspace_access import router as ai_workspace_access_router
+from app.ai_workspace_attachments import router as ai_workspace_attachments_router
 from app.ai_workspace_chat import router as ai_workspace_chat_router
 from app.audit_events import router as audit_events_router
 from app.credential_lifecycle import router as credential_lifecycle_router
@@ -42,7 +43,7 @@ SAVED_MODEL_ASSET_VERSION = "f72d31-2"
 AGENT_ASSIGNMENT_GUARD_ASSET_VERSION = "f72d4-preflight-1"
 NATIVE_AGENT_TEST_ASSET_VERSION = "f72d4d-native-test-1"
 AI_WORKSPACE_ACCESS_ASSET_VERSION = "f72d4-access-1"
-AI_WORKSPACE_ASSET_VERSION = "f72d4f-reads-1"
+AI_WORKSPACE_ASSET_VERSION = "f72d47b-attachments-1"
 AGENT_POLISH_ASSET_VERSION = "f72d31-agentui-1"
 MCP_BINDING_ASSET_VERSION = "f72d4a-mcpbind-1"
 AUDIT_ASSET_VERSION = "f73a-mcpaudit-1"
@@ -60,7 +61,7 @@ app = FastAPI(
     description=(
         "Typed API boundary for the Medicine Store Assistant backend. "
         "Authenticated inventory, human identity/User Management, native AI Agent Management, "
-        "Provider Registry/model assignments, MCP-independent internal-agent inference, AI Workspace access policy, durable Chat and bounded native reads, "
+        "Provider Registry/model assignments, MCP-independent internal-agent inference, AI Workspace access policy, durable Chat, bounded native reads and attachment evidence, "
         "external MCP/OAuth typed operations and audit evidence are available; canonical inventory writes remain disabled."
     ),
     lifespan=app_lifespan,
@@ -109,15 +110,35 @@ AI_WORKSPACE_PANEL = r'''
                   <div class="ai-chat-head"><div><h2 id="aiChatTitle">New conversation</h2><p class="sub" id="aiChatAgent">Select an agent and start a chat.</p></div></div>
                   <div class="ai-chat-thread" id="aiChatThread"><div class="ai-workspace-empty">Open AI Workspace to load your conversations.</div></div>
                   <form class="ai-chat-form" id="aiChatForm" hidden>
-                    <textarea id="aiMessageInput" maxlength="20000" placeholder="Message your selected MSA agent…" aria-label="AI Chat message" required></textarea>
+                    <div class="ai-pending-attachments" id="aiPendingAttachments" hidden></div>
+                    <div class="ai-attachment-actions">
+                      <input id="aiPhotoInput" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple hidden>
+                      <input id="aiFileInput" type="file" accept="application/pdf,text/plain,text/csv,.xls,.xlsx,.docx" multiple hidden>
+                      <button class="ai-attach-button" id="aiPhotoButton" type="button" aria-label="Attach photo">Photo</button>
+                      <button class="ai-attach-button" id="aiFileButton" type="button" aria-label="Attach file">File</button>
+                      <span class="ai-attachment-hint">Up to 4 attachments, 8 MB each</span>
+                    </div>
+                    <textarea id="aiMessageInput" maxlength="20000" placeholder="Message your selected MSA agent…" aria-label="AI Chat message"></textarea>
                     <button id="aiSend" type="submit">Send</button>
                   </form>
-                  <p class="ai-runtime-note">Native internal-agent runtime. Bounded read-only MSA tools are attached for supported inventory/shadow questions. Production writes remain disabled.</p>
+                  <p class="ai-runtime-note">Native internal-agent runtime. Bounded read-only MSA tools are available. Uploaded photos/files are persisted as evidence, but vision/OCR processing is not wired yet. Production writes remain disabled.</p>
                 </article>
               </div>
             </div>
             <div id="aiMultiMode" hidden>
-              <article class="card panel ai-multi-placeholder"><h2>Multi-Agent Workspace</h2><p class="sub">Owner-only execution surface.</p><p>Reusable participant sets already live in AI Agent Management. Group, compare, review, and debate execution will be wired in a later slice.</p></article>
+              <article class="card panel ai-multi-placeholder">
+                <h2>Multi-Agent Workspace</h2><p class="sub">Owner-only execution surface.</p>
+                <p>Reusable participant sets already live in AI Agent Management. Group, compare, review, and debate execution will be wired in a later slice.</p>
+                <div class="ai-multi-compose-shell" aria-label="Future Multi-Agent composer">
+                  <div class="ai-attachment-actions">
+                    <button class="ai-attach-button" type="button" disabled>Photo</button>
+                    <button class="ai-attach-button" type="button" disabled>File</button>
+                    <span class="ai-attachment-hint">Attachment contract is shared with Chat; enabled when Multi-Agent execution lands.</span>
+                  </div>
+                  <textarea placeholder="Multi-Agent message…" disabled></textarea>
+                  <button type="button" disabled>Send</button>
+                </div>
+              </article>
             </div>
           </div>
         </section>
@@ -246,6 +267,7 @@ app.include_router(agent_management_router)
 app.include_router(agent_model_assignments_router)
 app.include_router(native_agent_runtime_router)
 app.include_router(ai_workspace_access_router)
+app.include_router(ai_workspace_attachments_router)
 app.include_router(ai_workspace_chat_router)
 app.include_router(mcp_agent_binding_router)
 app.include_router(audit_events_router)
@@ -284,8 +306,9 @@ def health() -> dict[str, object]:
         "native_internal_agent_inference": "f7.2d4c",
         "native_internal_agent_test_ui": "f7.2d4d",
         "ai_workspace_access_policy": "f7.2d4-access",
-        "ai_workspace_chat": "f7.2d4e",
-        "native_internal_agent_tools": "f7.2d4f-read-only-bounded",
+        "ai_workspace_chat": "f7.2d47b-attachments",
+        "native_internal_agent_tools": "f7.2d47b-human-presentation",
+        "ai_workspace_attachments": "metadata-and-evidence-persistence-no-model-processing",
         "nanogpt_detailed_catalog": "enabled",
         "production_inventory_writes": False,
     }
