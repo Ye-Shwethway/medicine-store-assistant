@@ -44,18 +44,19 @@ def _credential_hash(token: str) -> str:
 
 
 class MSAServiceTokenVerifier(TokenVerifier):
-    """Resolve existing MSA service credentials into MCP access-token context."""
+    """Resolve bootstrap service credentials or persistent OAuth grants into MCP request context."""
 
     async def verify_token(self, token: str) -> AccessToken | None:
         if not token or not DATABASE_URL:
             return None
+        token_digest = _credential_hash(token)
         engine = _engine()
         try:
             with engine.connect() as connection:
-                row = connection.execute(
+                service_row = connection.execute(
                     text(
                         """
-                        SELECT sp.service_principal_id::text AS service_principal_id,
+                        SELECT sp.service_principal_id::text AS principal_id,
                                sp.name,
                                sc.scopes
                         FROM service_credentials sc
@@ -67,26 +68,65 @@ class MSAServiceTokenVerifier(TokenVerifier):
                         LIMIT 1
                         """
                     ),
-                    {"key_hash": _credential_hash(token)},
+                    {"key_hash": token_digest},
+                ).mappings().first()
+
+                if service_row is not None:
+                    scopes = [str(scope) for scope in (service_row["scopes"] or [])]
+                    if "mcp:connect" not in scopes and "*" not in scopes:
+                        return None
+                    principal_id = str(service_row["principal_id"])
+                    return AccessToken(
+                        token=token,
+                        client_id=principal_id,
+                        subject=principal_id,
+                        scopes=scopes,
+                    )
+
+                oauth_row = connection.execute(
+                    text(
+                        """
+                        SELECT t.client_id,
+                               g.user_id::text AS user_id,
+                               t.oauth_scopes,
+                               g.capability_scopes
+                        FROM mcp_oauth_tokens t
+                        JOIN mcp_oauth_grants g ON g.grant_id = t.grant_id
+                        JOIN mcp_oauth_clients c ON c.client_id = t.client_id
+                        JOIN users u ON u.user_id = g.user_id
+                        WHERE t.token_digest = :token_digest
+                          AND t.token_kind = 'ACCESS'
+                          AND t.revoked_at IS NULL
+                          AND t.expires_at > now()
+                          AND g.state = 'ACTIVE'
+                          AND c.revoked_at IS NULL
+                          AND u.state = 'ACTIVE'
+                        LIMIT 1
+                        """
+                    ),
+                    {"token_digest": token_digest},
                 ).mappings().first()
         except SQLAlchemyError:
             return None
         finally:
             engine.dispose()
 
-        if row is None:
+        if oauth_row is None:
             return None
 
-        scopes = [str(scope) for scope in (row["scopes"] or [])]
-        if "mcp:connect" not in scopes and "*" not in scopes:
+        transport_scopes = {str(scope) for scope in (oauth_row["oauth_scopes"] or [])}
+        capability_scopes = {str(scope) for scope in (oauth_row["capability_scopes"] or [])}
+        if "mcp:connect" not in transport_scopes:
             return None
 
-        principal_id = str(row["service_principal_id"])
+        # Capability grants are looked up on every call. Later policy changes therefore take effect
+        # without rebuilding or reconnecting the ChatGPT MCP app.
+        effective_scopes = sorted(transport_scopes | capability_scopes)
         return AccessToken(
             token=token,
-            client_id=principal_id,
-            subject=principal_id,
-            scopes=scopes,
+            client_id=str(oauth_row["client_id"]),
+            subject=str(oauth_row["user_id"]),
+            scopes=effective_scopes,
         )
 
 

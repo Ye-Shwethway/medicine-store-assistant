@@ -43,6 +43,34 @@ jobs:
         working-directory: source
         run: bash deploy/apply_backend.sh
 
+      - name: Verify public MCP OAuth boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://inventory.drthorne.uk"
+          AUTH_META="$(curl --fail --silent --show-error "${BASE}/.well-known/oauth-authorization-server/oauth")"
+          RESOURCE_META="$(curl --fail --silent --show-error "${BASE}/.well-known/oauth-protected-resource/mcp")"
+          python3 - "$AUTH_META" "$RESOURCE_META" <<'PY'
+          import json, sys
+          auth = json.loads(sys.argv[1])
+          resource = json.loads(sys.argv[2])
+          assert auth["issuer"] == "https://inventory.drthorne.uk/oauth"
+          assert auth["authorization_endpoint"].endswith("/oauth/authorize")
+          assert auth["token_endpoint"].endswith("/oauth/token")
+          assert auth["registration_endpoint"].endswith("/oauth/register")
+          assert "offline_access" in auth["scopes_supported"]
+          assert "S256" in auth["code_challenge_methods_supported"]
+          assert resource["resource"] == "https://inventory.drthorne.uk/mcp"
+          assert "https://inventory.drthorne.uk/oauth" in resource["authorization_servers"]
+          print("mcp_oauth_public_metadata=pass")
+          PY
+          MCP_STATUS="$(curl --silent --output /dev/null --write-out '%{http_code}' "${BASE}/mcp")"
+          if [[ "$MCP_STATUS" != "401" ]]; then
+            echo "error: unauthenticated MCP endpoint returned HTTP ${MCP_STATUS}, expected 401" >&2
+            exit 1
+          fi
+          echo "mcp_unauthenticated_guard=pass:401"
+
       - name: Publish deployment status
         if: always()
         continue-on-error: true
