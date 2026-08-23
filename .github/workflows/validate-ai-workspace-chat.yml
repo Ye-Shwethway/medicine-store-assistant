@@ -10,6 +10,9 @@ on:
       - 'backend/app/native_agent_runtime.py'
       - 'backend/app/native_agent_tool_runtime.py'
       - 'backend/app/native_agent_tools.py'
+      - 'backend/app/multi_agent_review.py'
+      - 'backend/app/multi_agent_review_registration.py'
+      - 'backend/app/provider_model_view.py'
       - 'backend/app/main.py'
       - 'backend/app/db.py'
       - 'backend/app/dashboard_assets/dashboard_ai_workspace.js'
@@ -17,6 +20,7 @@ on:
       - 'backend/alembic/versions/0018_ai_workspace_conversations.py'
       - 'backend/alembic/versions/0019_ai_workspace_attachments.py'
       - 'backend/alembic/versions/0020_work_review_substrate.py'
+      - 'backend/alembic/versions/0021_review_orchestration_roles.py'
       - '.github/workflows/validate-ai-workspace-chat.yml'
 
 permissions:
@@ -46,11 +50,13 @@ jobs:
 
           conversations=load('backend/alembic/versions/0018_ai_workspace_conversations.py','m0018')
           attachments=load('backend/alembic/versions/0019_ai_workspace_attachments.py','m0019')
-          head=load('backend/alembic/versions/0020_work_review_substrate.py','m0020')
+          substrate=load('backend/alembic/versions/0020_work_review_substrate.py','m0020')
+          head=load('backend/alembic/versions/0021_review_orchestration_roles.py','m0021')
           assert conversations.revision == '0018_ai_workspace_conversations'
           assert attachments.revision == '0019_ai_workspace_attachments'
           assert attachments.down_revision == conversations.revision
-          assert head.down_revision == attachments.revision
+          assert substrate.down_revision == attachments.revision
+          assert head.down_revision == substrate.revision
           assert EXPECTED_MIGRATION == head.revision
 
           paths=set(app.openapi()['paths'])
@@ -64,6 +70,10 @@ jobs:
               '/dashboard/api/ai-workspace/conversations/{conversation_id}/attachments',
               '/dashboard/api/ai-workspace/conversations/{conversation_id}/attachments/{attachment_id}',
               '/dashboard/api/ai-workspace/conversations/{conversation_id}/attachments/{attachment_id}/content',
+              '/dashboard/api/ai-workspace/multi-agent/sessions/{session_id}/roles',
+              '/dashboard/api/ai-workspace/multi-agent/reviews',
+              '/dashboard/api/ai-workspace/multi-agent/work-items/{work_item_id}',
+              '/dashboard/api/ai-workspace/multi-agent/work-items/{work_item_id}/return-for-revision',
           }
           assert required <= paths, sorted(required-paths)
           delete_op=app.openapi()['paths']['/dashboard/api/ai-workspace/conversations/{conversation_id}'].get('delete')
@@ -92,6 +102,10 @@ jobs:
           grep -Fq 'last_message_preview' backend/app/ai_workspace_attachments.py
           grep -Fq 'content_bytes' backend/app/ai_workspace_attachments.py
           grep -Fq 'owner_user_id=CAST(:owner_user_id AS uuid)' backend/app/ai_workspace_attachments.py
+          grep -Fq 'Depends(require_owner_session)' backend/app/multi_agent_review.py
+          grep -Fq "runtime_mode'] != \"INTERNAL_MODEL\"" backend/app/multi_agent_review.py
+          grep -Fq "_set_status(connection, work_item_id, \"WAITING_OWNER\")" backend/app/multi_agent_review.py
+          grep -Fq 'production_mutation": False' backend/app/multi_agent_review.py
           grep -Fq 'Uploaded photos/files are persisted as evidence' backend/app/main.py
           echo 'ai_workspace_chat_security_sequence=pass'
       - name: Validate Dashboard Chat assets
