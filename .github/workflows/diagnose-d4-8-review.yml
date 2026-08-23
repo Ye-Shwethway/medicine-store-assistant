@@ -1,0 +1,29 @@
+name: Diagnose D4.8 Review runtime
+
+on:
+  push:
+    branches: [diag/d4-8-review-runtime]
+    paths:
+      - 'backend/app/multi_agent_review_runtime_verify.py'
+      - '.github/workflows/diagnose-d4-8-review.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose-review-runtime:
+    runs-on: [self-hosted, linux, msa-vps]
+    timeout-minutes: 10
+    steps:
+      - name: Check out diagnostic branch
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Run exact Review persistence path with deterministic agent stub
+        shell: bash
+        run: |
+          set -euo pipefail
+          ENV_FILE=/opt/medicine-store-assistant/secrets/runtime.env
+          export COMPOSE_PROJECT_NAME=deploy
+          docker compose --env-file "$ENV_FILE" -f deploy/docker-compose.yml build api
+          docker compose --env-file "$ENV_FILE" -f deploy/docker-compose.yml run --rm api python -m app.multi_agent_review_runtime_verify
