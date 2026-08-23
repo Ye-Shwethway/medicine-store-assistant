@@ -49,8 +49,14 @@ def main() -> None:
             "confirmation_policy": "READ_ONLY",
         }
     )
-    if "independently of ChatGPT" not in prompt or "no MSA typed tools attached yet" not in prompt:
-        raise SystemExit("native identity/boundary prompt is incomplete")
+    required_prompt = (
+        "independently of ChatGPT",
+        "Never invent Medicine Store Assistant facts",
+        "MSA NATIVE READ RESULTS",
+        "If the user writes Burmese, answer in Burmese",
+    )
+    if not all(fragment in prompt for fragment in required_prompt):
+        raise SystemExit("native identity/grounding prompt is incomplete")
 
     print("native_internal_agent_runtime=pass")
 
