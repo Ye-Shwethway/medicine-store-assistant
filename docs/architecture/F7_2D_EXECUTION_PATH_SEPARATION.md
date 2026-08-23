@@ -1,6 +1,6 @@
 # F7.2D — Execution Path Separation
 
-Status: **canonical architecture invariant**
+Status: **canonical architecture invariant — locked 2026-08-23**
 
 ## Purpose
 
@@ -159,3 +159,7 @@ Do not:
 - equate an MCP client/grant with an internal provider-backed agent;
 - let assignment/provider changes alter authority;
 - expose arbitrary SQL, DB credentials, shell/filesystem, or secret-bearing infrastructure to any AI path.
+
+## Continuity enforcement
+
+Any future implementation or documentation change that implies MCP is the required gateway for native internal agents, or that direct MCP actions must transit through an internal agent, conflicts with this document and must be corrected before merge.

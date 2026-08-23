@@ -15,24 +15,24 @@ Before changing code/config/schema/runtime in a fresh chat, read in this order:
 3. `ROADMAP.md`
 4. `IMPLEMENTATION_PLAN.md`
 5. `docs/architecture/README.md`
-6. `docs/design/UI_UX_PRO_MAX_INTEGRATION.md` for Web work
-7. `docs/design/WEB_ASSET_RELEASE_INTEGRITY.md` for Web release verification
-8. `docs/architecture/F7_2D_AI_AGENT_MANAGEMENT.md`
-9. `docs/architecture/F7_2D0_MCP_FULL_CAPABILITY_SCHEMA.md`
-10. `docs/architecture/F7_2D0_MCP_SCHEMA_FINALIZATION_V2.md`
-11. `docs/architecture/F7_2D2_AGENT_MANAGEMENT_AND_MULTI_AGENT_SESSIONS.md`
-12. `docs/architecture/F7_2D4A_EXTERNAL_MCP_AGENT_BINDING.md`
-13. `docs/checkpoints/F7_2D0_MCP_CONNECTIVITY_VERIFIED_2026-08-23.md`
-14. `docs/checkpoints/F7_2D0_MCP_SCHEMA_V2_VERIFIED_2026-08-23.md`
-15. `docs/checkpoints/F7_2D2_AGENT_MANAGEMENT_2026-08-23.md`
-16. `docs/checkpoints/F7_2D3_PROVIDER_REGISTRY_VERIFIED_2026-08-23.md`
-17. `docs/checkpoints/F7_2D4A_MCP_AGENT_BINDING_VERIFIED_2026-08-23.md`
-18. task-relevant F7 architecture/design docs
-19. current repository/runtime/deployment evidence
+6. `docs/architecture/F7_2D_AI_AGENT_MANAGEMENT.md`
+7. `docs/architecture/F7_2D_EXECUTION_PATH_SEPARATION.md`
+8. `docs/architecture/F7_2D0_MCP_FULL_CAPABILITY_SCHEMA.md`
+9. `docs/architecture/F7_2D0_MCP_SCHEMA_FINALIZATION_V2.md`
+10. `docs/architecture/F7_2D2_AGENT_MANAGEMENT_AND_MULTI_AGENT_SESSIONS.md`
+11. `docs/architecture/F7_2D4A_EXTERNAL_MCP_AGENT_BINDING.md`
+12. `docs/checkpoints/F7_2D0_MCP_CONNECTIVITY_VERIFIED_2026-08-23.md`
+13. `docs/checkpoints/F7_2D0_MCP_SCHEMA_V2_VERIFIED_2026-08-23.md`
+14. `docs/checkpoints/F7_2D2_AGENT_MANAGEMENT_2026-08-23.md`
+15. `docs/checkpoints/F7_2D3_PROVIDER_REGISTRY_VERIFIED_2026-08-23.md`
+16. `docs/checkpoints/F7_2D4A_MCP_AGENT_BINDING_VERIFIED_2026-08-23.md`
+17. `docs/design/UI_UX_PRO_MAX_INTEGRATION.md` for Web work
+18. `docs/design/WEB_ASSET_RELEASE_INTEGRITY.md` for Web release verification
+19. task-relevant architecture/checkpoint docs and current runtime/deployment evidence
 
 Treat newer verified repository/runtime evidence as authoritative over remembered chat context.
 
-## Current authority boundary
+## Current authority/canonicality boundary
 
 - Google Sheet/source documents remain operationally authoritative.
 - PostgreSQL is deployed but **not canonical**.
@@ -49,34 +49,25 @@ Canonical flow:
 
 Do not require routine Termux, SSH, tmux, Bamboo/Bamboo Claw, or manual Actions work from the Owner. Runtime secrets remain on the VPS.
 
-For Web changes, never infer that green backend/CI evidence means the browser feature is live. Changed CSS/JS must have a current entrypoint asset version, manually versioned assets remain no-store/no-cache, and browser delivery must match the deployed SHA. Follow `docs/design/WEB_ASSET_RELEASE_INTEGRITY.md`.
+For Web changes, changed CSS/JS must have current entrypoint asset versions, manually versioned assets remain no-store/no-cache, and browser delivery must match the deployed SHA.
 
-## Verified checkpoints
+## Verified foundation
 
 Verified complete/foundational:
 
-- F0 VPS inspection
-- F1 runtime skeleton
-- Cloudflare public HTTPS route
-- F2 PostgreSQL foundation
-- F3 authenticated read-only API
-- F4 synthetic ledger foundation
-- F5 CMS catalogue versioning
-- F5.1 catalogue read API
-- F6A synthetic shadow migration adapter
-- F6C authenticated shadow read API
-- F7.1 read-only Web Dashboard
+- F0/F1/Cloudflare/F2/F3/F4/F5/F5.1/F6A/F6C
+- F7.1 read-only Dashboard
 - F7.2A canonical human identity/sessions
 - F7.2B User Management/profile
 - F7.2C Credential + Recovery Lifecycle
 - F7.2D0 custom MCP/OAuth connectivity
-- F7.2D0 MCP schema finalization **v2.1 — 106-action runtime catalog**
+- F7.2D0 MCP schema finalization **v2.1 — 106 actions**
 - F7.2D0 replacement ChatGPT MCP scan/manifest/read/audit acceptance — **verified 2026-08-23**
 - F7.2D2 named AI Agent Management + multi-agent session topology
 - F7.2D3 Provider Registry + dynamic model catalog + tested saved-model catalog
 - F7.2D4A external MCP OAuth grant -> named-agent binding
 - F7.3A minimal external-MCP actor audit evidence
-- F7.3B broad typed row-level shadow reads, including live replacement-client `NEW_UNMAPPED` read proof
+- F7.3B broad typed row-level shadow reads, including live replacement-client `NEW_UNMAPPED` proof
 
 ## F6B test-only snapshot
 
@@ -89,156 +80,139 @@ Verified complete/foundational:
 
 Never silently promote this dataset into migration truth.
 
-## Custom MCP — verified primary ChatGPT path
+## Critical architecture invariant — DO NOT DRIFT
+
+MSA has **peer execution paths** over one shared typed backend/authority core.
+
+### External MCP path
+
+`ChatGPT model -> MCP action -> MCP authority gate -> typed MSA backend operation -> result`
+
+The external model is itself the reasoning engine. If an MCP action is implemented and the bound external agent/client has authority, it executes that action **directly**. It does not need an internal agent as an intermediary.
+
+Production proof:
+
+`ChatGPT/SOL -> msa_shadow_read_rows -> shadow backend -> PostgreSQL shadow data -> result`
+
+Audit proof: `IANEO -> msa_shadow_read_rows -> SUCCESS` under `EXTERNAL_MCP` / `EXTERNAL_MCP_CLIENT` / `mcp:read`.
+
+MCP provides typed backend operations, not arbitrary SQL/DB credentials.
+
+### Native internal-agent path
+
+`MSA Web chat / future Telegram / Flutter / automation -> native internal-agent runtime -> assigned provider/model -> internal typed-tool adapter -> typed MSA backend operation -> response`
+
+`INTERNAL_MODEL` agents are first-class MSA runtimes. They must work independently of ChatGPT and independently of the MCP transport. ChatGPT being unavailable must not disable native MSA agents.
+
+### Shared-core rule
+
+MCP actions, Web/API endpoints, and internal-agent tools reuse shared backend domain/service functions wherever practical. Do not chain adapters just to reach the same operation.
+
+In particular:
+
+- internal agents do not call public MCP as their normal tool/data gateway;
+- MCP does not call internal agents merely to perform actions the external model can already execute directly;
+- Web/API does not route through MCP for ordinary backend operations.
+
+Canonical contract: `docs/architecture/F7_2D_EXECUTION_PATH_SEPARATION.md`.
+
+## `msa_agent_invoke` meaning
+
+`msa_agent_invoke` is an **optional delegation/orchestration bridge**, not the central gateway for MSA operations.
+
+Valid use:
+
+`External MCP model -> msa_agent_invoke -> selected INTERNAL_MODEL agent -> independent specialist analysis/result`
+
+Examples: independent review, specialist delegation, compare/review/debate, or explicitly asking a native internal agent to reason about a task.
+
+Do not add an unnecessary double-agent hop when the external MCP model already has direct authority for the requested typed MSA action.
+
+## Custom MCP — current durable truth
 
 Verified path:
 
 `ChatGPT Developer Mode -> OAuth/PKCE -> https://inventory.drthorne.uk/mcp -> typed MSA backend`
 
-Current external-client scopes are `mcp:connect`, `mcp:read`, and `offline_access`; propose/write/control remain disabled.
+Current external-client scopes: `mcp:connect`, `mcp:read`, `offline_access`; propose/write/control remain disabled.
 
-The MCP server is full-schema/policy-gated. Future typed grants can be unlocked through backend policy without rebuilding the connector. Raw SQL, DB credentials, shell/filesystem, plaintext secrets, Google Sheet credentials, and generic unrestricted HTTP proxying remain excluded.
+Schema identity:
 
-Custom GPT Actions are optional/fallback only.
-
-### MCP schema v2.1 — current durable truth
-
-Runtime anchor:
-
-- PR #78
-- merge SHA `4e523645ab05063577b0e3fbc4c6ca5f870ce1dd`
-- schema deployment run `32637806906`
-- issue #26 `status=success`
-- schema version `2026-08-23.v2.1`
-- expected runtime actions **106**
+- version `2026-08-23.v2.1`
+- expected actions **106**
 - tool-name SHA-256 `f12fcebfbf2b8cb0dd334e53faea25c9503eb3e99e94a71a378ba1133c3554d0`
-
-`msa_system_schema_manifest` is the server-owned schema identity. It reports version/count/hash/build/domain coverage and explicit exclusion classes.
-
-The finalized catalog reserves typed actions for current and future inventory/usage/movements, shadow migration, catalogue/reconciliation/transfers, locations/store policy/preferences, calculator/receipts, analysis/reports, users, agents/external clients/multi-agent sessions, providers/model catalog, Audit, alerts/notifications, scheduled automations, sync/sources/integrations, settings and migration/canonicality-control domains.
-
-Extensible query/manage tools intentionally use stable string selectors rather than client-frozen action enums; backend implementations must allowlist accepted action values and fail closed for unknown values. This is specifically to reduce future ChatGPT MCP schema rescans.
 
 Important exclusions:
 
-- no provider API-key/credential provisioning or secret read-back through MCP;
+- no provider/API-key credential provision/read-back through MCP;
 - no password/token/recovery-secret action;
-- legacy `msa_agents_rotate_credential` is removed from discovery;
 - no arbitrary SQL/DB console;
-- no shell/filesystem access;
-- no generic unrestricted HTTP proxy.
+- no shell/filesystem;
+- no unrestricted HTTP proxy.
 
-Future work should normally implement an existing `NOT_ENABLED` action, add a backend-allowlisted action string value, or add backward-compatible optional inputs. Adding new MCP action names is exceptional because the ChatGPT custom app may hold a scanned schema snapshot.
+Replacement-client acceptance is complete. PR #80 cleanup preserved the newest active replacement ChatGPT grant and revoked stale duplicate grants/tokens/bindings/client registrations. Production deploy run `32639464966` succeeded and current migration head is `0016_revoke_stale_chatgpt_oauth`.
 
-### Replacement ChatGPT MCP acceptance — VERIFIED
+No further connector recreation is required for the current v2.1 contract.
 
-The one-time replacement-client scan/acceptance gate is complete and no further connector recreation is required for the current v2.1 contract.
+## Agent Management truth
 
-Runtime/cleanup evidence:
+Each named AI agent has immutable `agent_id`, editable `display_name`, unique `call_name`, runtime mode, lifecycle, capability/location/authority/execution/confirmation policy, and provenance.
 
-- stale duplicate OAuth cleanup PR #80;
-- PR #80 merge/deploy SHA `a669890d4cf34c061f28296f64c306d95d4ee012`;
-- production deploy run `32639464966` — success;
-- current Alembic head `0016_revoke_stale_chatgpt_oauth`;
-- PR #80 validation workflows all passed: backend, saved-model catalog, MCP audit, and MCP agent binding;
-- deploy workflow also passed backend verification and the public MCP OAuth metadata/unauthenticated boundary check.
+Runtime modes include `EXTERNAL_MCP_CLIENT`, `INTERNAL_MODEL`, `EXTERNAL_ACTION_CLIENT`, `SYSTEM_AUTOMATION`.
 
-Owner/runtime acceptance:
+Provider/model changes never change `agent_id` or authority.
 
-- replacement MCP app reports schema `2026-08-23.v2.1` and **106 actions**;
-- `msa_system_schema_manifest` and `msa_shadow_read_rows` are available;
-- bound named agent resolves as `IANEO`;
-- binding state is `BOUND`;
-- read authority is enabled;
-- write/control remain disabled;
-- a live `NEW_UNMAPPED` row-level read through `msa_shadow_read_rows` succeeded;
-- Dashboard Audit independently recorded `IANEO -> msa_shadow_read_rows -> SUCCESS` under `EXTERNAL_MCP` / `EXTERNAL_MCP_CLIENT` / `mcp:read` at 2026-08-23 19:02:38 local time.
+Persistent multi-agent sessions support `GROUP`, `COMPARE`, `REVIEW`, `DEBATE`, ordered participants and role labels. Current topology exists; actual provider-backed multi-agent execution is later.
 
-## F7.2D2 — named Agent Management truth
+## Provider Registry truth
 
-Runtime anchor:
+Supported provider types:
 
-- PR #58
-- merge SHA `3b385a37b95c1ff79f76883381d8268fa6c49db2`
-- deploy run `32620386876`
-- deploy job `97147568336`
-- migration `0010_mcp_oauth -> 0011_ai_agents`
+- OpenAI
+- Google Gemini
+- OpenRouter
+- NanoGPT
+- generic `OPENAI_COMPATIBLE`
 
-Agent Management is Owner-only. Each agent has immutable `agent_id`, editable `display_name`, unique human-friendly `call_name`, lifecycle, capability/location/authority/execution/confirmation metadata, and server-owned deterministic self-identity context.
+Provider credentials are write-only and server-side; DB stores opaque credential references. Discovery/test ping proves connectivity only. Owner-saved healthy models are the assignment candidates for internal agents.
 
-Persistent sessions support `GROUP`, `COMPARE`, `REVIEW`, `DEBATE`, ordered participants, role labels, and open/closed lifecycle.
+## Next authorized slice — F7.2D4 native internal-agent runtime
 
-## F7.2D3 — Provider Registry + saved model catalog truth
+Do **not** turn MCP into the internal-agent runtime.
 
-Provider Registry is Owner-only and supports OpenAI, Google Gemini, OpenRouter, NanoGPT, and generic `OPENAI_COMPATIBLE`.
+Implement in this order:
 
-Provider credentials are write-only. A dedicated server-side provider-secret volume stores secret material; PostgreSQL stores only opaque `credential_ref`. The Web/API never reads a saved provider key back to the Owner.
+1. durable primary/fallback assignment contract for `INTERNAL_MODEL` agents;
+2. native backend invocation service callable without MCP;
+3. canonical identity/policy injection on every internal invocation;
+4. real provider-backed single-agent inference;
+5. durable conversation/message persistence;
+6. MSA Web AI Chat with internal-agent selection;
+7. internal typed-tool adapter over shared MSA domain services, not public MCP;
+8. provider fallback/failover + provider/model/latency/usage provenance;
+9. actual `GROUP` / `COMPARE` / `REVIEW` / `DEBATE` execution;
+10. optional MCP -> native-agent delegation via existing `msa_agent_invoke` / session schema slots.
 
-Current provider flow:
+### F7.2D4 survival acceptance
 
-`Add provider -> provision credential -> Test connection -> Fetch models -> inspect detailed catalog -> Test model -> Save to approved provider catalog -> Enable`
+A required acceptance proof must completely remove ChatGPT from the path:
 
-Fetched/discovered models are not automatically usable models. Internal agents may bind only to Owner-saved, healthy models from the provider's approved catalog.
+`MSA Web -> selected INTERNAL_MODEL agent -> assigned provider/model -> authorized typed MSA read -> response + audit`
 
-NanoGPT detailed discovery includes normalized capabilities, pricing, subscription/paid membership where provided by official endpoints, search/filter, and explicit unknown metadata rather than guessing.
+Pass requires multiple selectable internal agents, stable identities across model changes, durable conversations, native typed-tool execution, deterministic failover, and no dependence on MCP for ordinary internal operation.
 
-## F7.2D4A — external MCP named-agent binding truth
+Production inventory writes remain closed during this slice.
 
-Runtime anchor:
+## Later sequence
 
-- PR #70
-- merge SHA `5f00458b55e85cfe4e3a78f5fb7b2f8517e159e2`
-- deploy run `32631778542`
-- issue #26 `status=success`
-- binding migration `0014_mcp_agent_bindings`
-- current production migration head `0016_revoke_stale_chatgpt_oauth` after replacement-client duplicate cleanup
-
-Verified behavior:
-
-- Owner can bind/rebind/unbind an active MCP OAuth grant to a named `EXTERNAL_MCP_CLIENT` agent from Agent Management.
-- Binding does not require reconnecting ChatGPT.
-- `msa_identity_whoami` resolves bound `agent_id`, display/call name, runtime/client context, and effective scopes.
-- Named-agent effective MCP authority is live OAuth grant capability intersected with live agent capability scope and authority ceiling.
-- Disabled/revoked/non-external agents contribute no named-agent capability authority.
-- Unbound OAuth remains connected but reports `UNBOUND`; identity is never guessed.
-- MSA cannot call back into ChatGPT through this binding. Outbound/internal AI is a separate provider-backed runtime path.
-- Production inventory write and control-plane gates remain closed.
-- Duplicate replacement-app cleanup preserves the newest ACTIVE ChatGPT grant and revokes older duplicate grants/tokens/stale bindings plus old client registrations with no remaining active grant.
-
-### Agent Management UI rules currently locked
-
-- UI/UX Pro Max + MSA design system direct-code workflow; Figma optional only when explicitly requested.
-- Primary constructive CTA uses green `.primary`.
-- Neutral/lifecycle actions use `.secondary`.
-- Destructive actions such as Revoke use `.danger-action`; browser-default action styling is not acceptable.
-- Changed UI assets use versioned/no-store delivery and must avoid self-trigger MutationObserver loops.
-
-## Early Audit/read foundations
-
-F7.3 is not fully implemented, but these verified foundations are live:
-
-- external MCP inventory/detail calls can create append-only actor-aware audit evidence;
-- Dashboard Audit exposes minimal Recent activity;
-- `mcp:read` means broad authorized typed operational reads, not summary-only;
-- `msa_shadow_read_rows`, `msa_shadow_read_batch`, and `msa_shadow_read_review_reasons` provide permanent row-level migration diagnostics;
-- replacement-client acceptance proves a live `NEW_UNMAPPED` detail read and named-agent Audit event through `msa_shadow_read_rows`;
-- raw SQL and secret-bearing auth/security tables remain excluded.
-
-The full Audit UI still needs date/month, human, agent, runtime/client, provider/model, operation/result/location filters and preserved month/archive history navigation.
-
-## Next authorized slice
-
-Continue **F7.2D4 — internal model assignment/fallback/runtime identity**. The replacement ChatGPT MCP acceptance prerequisite is already satisfied.
-
-Required direction:
-
-- assign a primary enabled provider + Owner-saved healthy model to a named internal agent;
-- optional ordered fallback chain;
-- compatibility checks against known model capabilities;
-- timeout/output policy and optional usage/cost metadata;
-- inject current canonical agent identity on every model invocation;
-- provider/model changes never alter stable `agent_id` or authority;
-- prove a narrow real provider-backed inference using Owner-configured credentials;
-- prepare actual multi-agent comparison/review/debate execution using the already-published `msa_agent_invoke` / session schema when enabled.
-
-Do not enable production inventory writes, AI inventory writes, transfers, Smart Calculator deductions, Telegram/Flutter stock mutation, Sheet mirror conversion, or PostgreSQL canonical promotion during this continuation.
+1. F7.2D4 — native internal-agent runtime/assignment/chat/tools/multi-agent execution
+2. F7.3 — full actor-aware Audit / operation ledger
+3. F7.4 — Inventory Locations / Store Policy / Preferences
+4. F7.5 — Smart Calculator / receipts
+5. F7.6 — deterministic Smart Analysis
+6. F7.7 — richer internal AI Assistant/product workflows over the native runtime
+7. F7.8 — Alerts & Notifications
+8. F9 — controlled typed writes after authority/audit/location/idempotency foundations
+9. F10 — real workflow + fresh migration + Sheet sync validation
+10. F11 — explicit canonical DB promotion
+11. Telegram/Flutter rollout over the proven shared contracts
