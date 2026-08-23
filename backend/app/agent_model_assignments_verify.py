@@ -18,11 +18,12 @@ def main() -> None:
     source = Path(__file__).with_name("agent_model_assignments.py").read_text(encoding="utf-8")
     required_fragments = (
         "MAX_FALLBACK_MODELS = 5",
-        "assignment_kind='PRIMARY'",
+        "assignment_kind WHEN 'PRIMARY' THEN 0 ELSE 1 END",
         "'FALLBACK'",
         "currently_discovered",
         "Only internal model agents can receive provider/model assignments",
         "duplicate saved models",
+        "DELETE FROM ai_agent_model_assignments",
     )
     for fragment in required_fragments:
         if fragment not in source:
