@@ -10,6 +10,7 @@ on:
       - 'backend/app/db.py'
       - 'backend/app/dashboard_assets/dashboard_saved_models.js'
       - 'backend/app/dashboard_assets/dashboard_saved_models.css'
+      - 'backend/app/dashboard_assets/dashboard_agent_assignment_guard.js'
       - 'backend/alembic/versions/0013_saved_provider_models.py'
       - '.github/workflows/validate-saved-model-catalog.yml'
 
@@ -28,7 +29,7 @@ jobs:
       - name: Validate saved-model API contract
         run: |
           PYTHONPATH=backend python - <<'PY'
-          from app.main import app, SAVED_MODEL_ASSET_VERSION
+          from app.main import app, AGENT_ASSIGNMENT_GUARD_ASSET_VERSION, SAVED_MODEL_ASSET_VERSION
           paths=set(app.openapi()['paths'])
           required={
             '/dashboard/api/providers/{provider_id}/catalog-models',
@@ -40,18 +41,31 @@ jobs:
           }
           assert required <= paths, sorted(required-paths)
           assert SAVED_MODEL_ASSET_VERSION.startswith('f72d31-')
+          assert AGENT_ASSIGNMENT_GUARD_ASSET_VERSION.startswith('f72d4-preflight-')
           print('saved_model_api_contract=pass')
           PY
       - name: Validate dashboard asset delivery contract
         run: |
           node --check backend/app/dashboard_assets/dashboard_saved_models.js
+          node --check backend/app/dashboard_assets/dashboard_agent_assignment_guard.js
           grep -Fq 'Save to catalog' backend/app/dashboard_assets/dashboard_saved_models.js
           grep -Fq 'Saved model catalog' backend/app/dashboard_assets/dashboard_saved_models.js
           grep -Fq 'agentSavedModelId' backend/app/dashboard_assets/dashboard_saved_models.js
+          grep -Fq "runtime.value==='INTERNAL_MODEL'" backend/app/dashboard_assets/dashboard_agent_assignment_guard.js
+          grep -Fq 'provider.disabled=!internal' backend/app/dashboard_assets/dashboard_agent_assignment_guard.js
+          grep -Fq 'savedModel.disabled=!internal' backend/app/dashboard_assets/dashboard_agent_assignment_guard.js
+          grep -Fq "provider.value=''" backend/app/dashboard_assets/dashboard_agent_assignment_guard.js
+          grep -Fq "savedModel.value=''" backend/app/dashboard_assets/dashboard_agent_assignment_guard.js
+          grep -Fq 'dashboard_agent_assignment_guard.js' backend/app/main.py
           grep -Fq 'dashboard_saved_models.js' backend/app/main.py
           grep -Fq 'dashboard_saved_models.css' backend/app/main.py
           grep -Fq 'no-store, max-age=0' backend/app/main.py
           echo 'saved_model_ui_contract=pass'
+      - name: Validate backend assignment guard
+        run: |
+          grep -Fq 'Only internal model agents can receive provider/model assignments' backend/app/saved_model_catalog.py
+          grep -Fq 'Only active, healthy saved models from enabled providers can be assigned' backend/app/saved_model_catalog.py
+          echo 'saved_model_backend_guard=pass'
       - name: Validate saved-model migration chain
         run: |
           PYTHONPATH=backend python - <<'PY'
