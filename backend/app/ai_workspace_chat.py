@@ -4,7 +4,7 @@ import json
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 
@@ -18,6 +18,8 @@ router = APIRouter(prefix="/dashboard/api/ai-workspace", tags=["ai-workspace-cha
 MAX_CONTEXT_MESSAGES = 24
 MAX_MESSAGE_CHARS = 20_000
 AUTHORITY_ORDER = {"READ": 1, "PROPOSE": 2, "WRITE": 3, "CONTROL": 4}
+WORKSPACE_OUTPUT_TOKENS = 2048
+WORKSPACE_TOOL_OUTPUT_TOKENS = 4096
 
 
 class ConversationCreateInput(BaseModel):
@@ -134,6 +136,16 @@ def _attach_tool_context(contextual_message: str, tool_results: list[dict[str, A
     )
 
 
+def _workspace_response_prompt(contextual_message: str) -> str:
+    return (
+        contextual_message
+        + "\n\n--- AI WORKSPACE PRESENTATION ---\n"
+          "Return a complete answer. Use clean plain text that is easy to read on a phone. "
+          "Do not use Markdown heading markers (#), bold/italic markers (** or __), backticks, or pipe-table syntax. "
+          "Use short sections and simple hyphen bullets only when useful. Preserve exact data values from tool results."
+    )
+
+
 @router.get("/chat/agents", summary="List internal agents available to AI Workspace Chat")
 def list_workspace_agents(
     response: Response,
@@ -191,10 +203,18 @@ def list_conversations(
                            c.created_at, c.updated_at,
                            a.display_name AS agent_display_name,
                            a.call_name AS agent_call_name,
-                           (SELECT count(*) FROM ai_workspace_messages m WHERE m.conversation_id=c.conversation_id) AS message_count
+                           (SELECT count(*) FROM ai_workspace_messages m WHERE m.conversation_id=c.conversation_id) AS message_count,
+                           LEFT(COALESCE((
+                               SELECT m.content
+                               FROM ai_workspace_messages m
+                               WHERE m.conversation_id=c.conversation_id AND m.role='USER'
+                               ORDER BY m.created_at, m.message_id
+                               LIMIT 1
+                           ), ''), 96) AS first_user_preview
                     FROM ai_workspace_conversations c
                     JOIN ai_agents a ON a.agent_id=c.agent_id
                     WHERE c.owner_user_id=CAST(:owner_user_id AS uuid)
+                      AND c.state='ACTIVE'
                     ORDER BY c.updated_at DESC, c.created_at DESC
                     LIMIT 100
                     """
@@ -247,6 +267,32 @@ def create_conversation(
         engine.dispose()
 
 
+@router.delete("/conversations/{conversation_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete one owned AI Workspace conversation")
+def delete_conversation(
+    conversation_id: str,
+    response: Response,
+    principal: dict[str, str] = Depends(require_ai_chat_access),
+) -> Response:
+    _no_store(response)
+    engine = _engine()
+    try:
+        with engine.begin() as connection:
+            _owned_conversation(connection, conversation_id, principal)
+            connection.execute(
+                text(
+                    """
+                    DELETE FROM ai_workspace_conversations
+                    WHERE conversation_id=CAST(:conversation_id AS uuid)
+                      AND owner_user_id=CAST(:owner_user_id AS uuid)
+                    """
+                ),
+                {"conversation_id": conversation_id, "owner_user_id": principal["user_id"]},
+            )
+        return Response(status_code=status.HTTP_204_NO_CONTENT, headers={"Cache-Control": "no-store", "Pragma": "no-cache"})
+    finally:
+        engine.dispose()
+
+
 @router.get("/conversations/{conversation_id}", summary="Read one owned AI Workspace conversation")
 def read_conversation(
     conversation_id: str,
@@ -264,7 +310,9 @@ def read_conversation(
                     SELECT message_id::text AS message_id, role, content, runtime_provenance, created_at
                     FROM ai_workspace_messages
                     WHERE conversation_id=CAST(:conversation_id AS uuid)
-                    ORDER BY created_at, message_id
+                    ORDER BY created_at,
+                             CASE role WHEN 'USER' THEN 0 ELSE 1 END,
+                             message_id
                     """
                 ),
                 {"conversation_id": conversation_id},
@@ -297,26 +345,36 @@ def send_conversation_message(
                     text(
                         """
                         SELECT role, content
-                        FROM ai_workspace_messages
-                        WHERE conversation_id=CAST(:conversation_id AS uuid)
-                        ORDER BY created_at DESC, message_id DESC
-                        LIMIT :limit
+                        FROM (
+                            SELECT role, content, created_at, message_id
+                            FROM ai_workspace_messages
+                            WHERE conversation_id=CAST(:conversation_id AS uuid)
+                            ORDER BY created_at DESC,
+                                     CASE role WHEN 'ASSISTANT' THEN 0 ELSE 1 END,
+                                     message_id DESC
+                            LIMIT :limit
+                        ) recent
+                        ORDER BY created_at,
+                                 CASE role WHEN 'USER' THEN 0 ELSE 1 END,
+                                 message_id
                         """
                     ),
                     {"conversation_id": conversation_id, "limit": MAX_CONTEXT_MESSAGES},
                 ).mappings().all()
             ]
-            history.reverse()
 
         requested_tools = select_native_read_tools(message)
         tool_results: list[dict[str, Any]] = []
         if requested_tools and _agent_read_allowed(agent):
             tool_results = run_native_read_tools(requested_tools)
 
-        contextual_message = _attach_tool_context(_context_prompt(history, message), tool_results)
+        contextual_message = _workspace_response_prompt(
+            _attach_tool_context(_context_prompt(history, message), tool_results)
+        )
+        output_tokens = WORKSPACE_TOOL_OUTPUT_TOKENS if tool_results else WORKSPACE_OUTPUT_TOKENS
         runtime = invoke_native_agent(
             conversation["agent_id"],
-            NativeAgentInvokeInput(message=contextual_message),
+            NativeAgentInvokeInput(message=contextual_message, max_output_tokens=output_tokens),
             response,
             owner=principal,
         )
@@ -336,6 +394,7 @@ def send_conversation_message(
             "native_read_tools_requested": requested_tools,
             "native_read_tools_executed": [item.get("tool") for item in tool_results],
             "agent_read_allowed": _agent_read_allowed(agent),
+            "workspace_output_tokens": output_tokens,
         }
         with engine.begin() as connection:
             # Re-check ownership immediately before persistence.
