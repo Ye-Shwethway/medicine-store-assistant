@@ -103,9 +103,9 @@ jobs:
           grep -Fq 'content_bytes' backend/app/ai_workspace_attachments.py
           grep -Fq 'owner_user_id=CAST(:owner_user_id AS uuid)' backend/app/ai_workspace_attachments.py
           grep -Fq 'Depends(require_owner_session)' backend/app/multi_agent_review.py
-          grep -Fq "runtime_mode'] != \"INTERNAL_MODEL\"" backend/app/multi_agent_review.py
-          grep -Fq "_set_status(connection, work_item_id, \"WAITING_OWNER\")" backend/app/multi_agent_review.py
-          grep -Fq 'production_mutation": False' backend/app/multi_agent_review.py
+          grep -Fq 'item["runtime_mode"] != "INTERNAL_MODEL"' backend/app/multi_agent_review.py
+          grep -Fq '_set_status(connection, work_item_id, "WAITING_OWNER")' backend/app/multi_agent_review.py
+          grep -Fq '"production_mutation": False' backend/app/multi_agent_review.py
           grep -Fq 'Uploaded photos/files are persisted as evidence' backend/app/main.py
           echo 'ai_workspace_chat_security_sequence=pass'
       - name: Validate Dashboard Chat assets
