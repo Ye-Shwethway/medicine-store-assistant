@@ -1,2 +1,0 @@
-production-root-cause-confirmed: psycopg AmbiguousParameter in multi_agent_review._set_status
-visible-pr-patcher-trigger: 3
