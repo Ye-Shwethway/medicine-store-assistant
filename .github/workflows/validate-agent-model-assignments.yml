@@ -6,6 +6,8 @@ on:
     paths:
       - 'backend/app/agent_model_assignments.py'
       - 'backend/app/agent_model_assignments_verify.py'
+      - 'backend/app/dashboard_assets/dashboard_saved_models.js'
+      - 'backend/app/dashboard_assets/dashboard_saved_models.css'
       - 'backend/app/main.py'
       - '.github/workflows/validate-agent-model-assignments.yml'
 
@@ -23,3 +25,13 @@ jobs:
         run: python -m compileall -q backend/app
       - name: Validate assignment chain contract
         run: PYTHONPATH=backend python backend/app/agent_model_assignments_verify.py
+      - name: Validate fallback management UI contract
+        run: |
+          node --check backend/app/dashboard_assets/dashboard_saved_models.js
+          grep -Fq '/model-assignments' backend/app/dashboard_assets/dashboard_saved_models.js
+          grep -Fq 'fallback_saved_model_ids' backend/app/dashboard_assets/dashboard_saved_models.js
+          grep -Fq 'agentFallbackAdd' backend/app/dashboard_assets/dashboard_saved_models.js
+          grep -Fq 'data-fallback-move' backend/app/dashboard_assets/dashboard_saved_models.js
+          grep -Fq 'data-fallback-remove' backend/app/dashboard_assets/dashboard_saved_models.js
+          grep -Fq 'agent-fallback-row' backend/app/dashboard_assets/dashboard_saved_models.css
+          echo 'fallback_management_ui=pass'
