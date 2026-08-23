@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.audit_events import record_current_mcp_event
 from app.auth import require_read_scope
 from app.db import normalize_database_url
 
@@ -64,7 +65,7 @@ def list_shadow_batches(
         """,
         {"limit": limit, "offset": offset},
     )
-    return {
+    result = {
         "items": rows,
         "count": len(rows),
         "limit": limit,
@@ -72,6 +73,13 @@ def list_shadow_batches(
         "migration_baseline_accepted": False,
         "database_canonical": False,
     }
+    record_current_mcp_event(
+        action_type="msa_inventory_read_summary",
+        capability_scope="mcp:read",
+        outcome="SUCCESS",
+        metadata={"result_count": len(rows), "database_canonical": False, "migration_baseline_accepted": False},
+    )
+    return result
 
 
 @router.get("/batches/{migration_batch_id}", summary="Read one shadow batch summary")

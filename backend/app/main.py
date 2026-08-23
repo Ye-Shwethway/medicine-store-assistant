@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from app.access_request_confirmed import router as access_request_confirmed_router
 from app.account_password_confirmed import router as account_password_confirmed_router
 from app.agent_management import router as agent_management_router
+from app.audit_events import router as audit_events_router
 from app.credential_lifecycle import router as credential_lifecycle_router
 from app.dashboard import ASSET_DIR, DASHBOARD_CSP, router as dashboard_router
 from app.dashboard_auth import SESSION_COOKIE, validate_session_token
@@ -35,6 +36,7 @@ BUILD_SHA = os.getenv("MSA_BUILD_SHA", "unknown")
 SAVED_MODEL_ASSET_VERSION = "f72d31-2"
 AGENT_POLISH_ASSET_VERSION = "f72d31-agentui-1"
 MCP_BINDING_ASSET_VERSION = "f72d4a-mcpbind-1"
+AUDIT_ASSET_VERSION = "f73a-mcpaudit-1"
 
 
 @asynccontextmanager
@@ -51,7 +53,7 @@ app = FastAPI(
         "Authenticated inventory, canonical human identity/User Management/credential and email-recovery lifecycle, catalogue, "
         "test-only shadow reads, the F7 dashboard, F7.2D named Agent Management/multi-agent session foundation, "
         "Owner-only Provider Registry/model discovery, tested saved-model catalog and agent model-assignment foundation, "
-        "external MCP named-agent binding, NanoGPT detailed catalog enrichment, and the MCP/OAuth protocol surface are available; "
+        "external MCP named-agent binding, minimal MCP audit evidence, NanoGPT detailed catalog enrichment, and the MCP/OAuth protocol surface are available; "
         "canonical inventory writes remain disabled."
     ),
     lifespan=app_lifespan,
@@ -88,13 +90,15 @@ def dashboard_shell_with_saved_model_assets() -> HTMLResponse:
         "</head>",
         f'<link rel="stylesheet" href="/dashboard/assets/dashboard_saved_models.css?v={SAVED_MODEL_ASSET_VERSION}">\n'
         f'<link rel="stylesheet" href="/dashboard/assets/dashboard_agent_polish.css?v={AGENT_POLISH_ASSET_VERSION}">\n'
-        f'<link rel="stylesheet" href="/dashboard/assets/dashboard_mcp_binding.css?v={MCP_BINDING_ASSET_VERSION}">\n</head>',
+        f'<link rel="stylesheet" href="/dashboard/assets/dashboard_mcp_binding.css?v={MCP_BINDING_ASSET_VERSION}">\n'
+        f'<link rel="stylesheet" href="/dashboard/assets/dashboard_audit.css?v={AUDIT_ASSET_VERSION}">\n</head>',
         1,
     )
     html = html.replace(
         "</body>",
         f'<script src="/dashboard/assets/dashboard_saved_models.js?v={SAVED_MODEL_ASSET_VERSION}" defer></script>\n'
-        f'<script src="/dashboard/assets/dashboard_mcp_binding.js?v={MCP_BINDING_ASSET_VERSION}" defer></script>\n</body>',
+        f'<script src="/dashboard/assets/dashboard_mcp_binding.js?v={MCP_BINDING_ASSET_VERSION}" defer></script>\n'
+        f'<script src="/dashboard/assets/dashboard_audit.js?v={AUDIT_ASSET_VERSION}" defer></script>\n</body>',
         1,
     )
     response = HTMLResponse(html)
@@ -132,10 +136,18 @@ def mcp_binding_css() -> FileResponse:
     return response
 
 
+@app.get("/dashboard/assets/dashboard_audit.css", include_in_schema=False)
+def audit_css() -> FileResponse:
+    response = FileResponse(ASSET_DIR / "dashboard_audit.css", media_type="text/css")
+    response.headers["Cache-Control"] = "no-store, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
 @app.get("/dashboard/assets/dashboard_saved_models.js", include_in_schema=False)
 def saved_model_js() -> Response:
-    # Prevent the overlay from observing descendant mutations that its own callbacks create.
-    # The base renderer replaces direct list children, so direct-child observation is sufficient.
     javascript = (ASSET_DIR / "dashboard_saved_models.js").read_text(encoding="utf-8")
     javascript = javascript.replace("{childList:true,subtree:true}", "{childList:true,subtree:false}")
     response = Response(content=javascript, media_type="text/javascript")
@@ -156,12 +168,23 @@ def mcp_binding_js() -> FileResponse:
     return response
 
 
+@app.get("/dashboard/assets/dashboard_audit.js", include_in_schema=False)
+def audit_js() -> FileResponse:
+    response = FileResponse(ASSET_DIR / "dashboard_audit.js", media_type="text/javascript")
+    response.headers["Cache-Control"] = "no-store, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
 app.include_router(dashboard_login_router)
 app.include_router(dashboard_router)
 app.include_router(email_recovery_page_router)
 app.include_router(user_management_router)
 app.include_router(agent_management_router)
 app.include_router(mcp_agent_binding_router)
+app.include_router(audit_events_router)
 app.include_router(provider_registry_router)
 app.include_router(nanogpt_catalog_router)
 app.include_router(provider_model_view_router)
@@ -188,6 +211,7 @@ def health() -> dict[str, object]:
         "mcp_surface": "full-schema-policy-gated",
         "mcp_oauth": "enabled",
         "mcp_named_agent_binding": "f7.2d4a",
+        "mcp_audit_evidence": "f7.3a",
         "agent_management": "f7.2d2",
         "provider_registry": "f7.2d3",
         "saved_model_catalog": "f7.2d3.1",
