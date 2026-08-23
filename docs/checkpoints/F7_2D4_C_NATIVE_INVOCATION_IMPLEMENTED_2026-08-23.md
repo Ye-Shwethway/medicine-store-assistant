@@ -1,6 +1,6 @@
 # F7.2D4C — Native Internal-Agent Invocation
 
-Status: IMPLEMENTED CANDIDATE; CI + PRODUCTION ACCEPTANCE PENDING
+Status: CI VERIFIED + PRODUCTION DEPLOYED; LIVE AGENT ACCEPTANCE PENDING
 Date: 2026-08-23
 
 ## Purpose
@@ -26,6 +26,29 @@ Canonical path:
 - native typed MSA tools are still disabled in this slice and the system prompt forbids claiming store/database execution;
 - production inventory writes remain closed.
 
+## Verification evidence
+
+- PR #85 merged as `4c9614b98c0ab99cdb3c9c8a068afed256f22190`;
+- dedicated `Validate native internal agent runtime` CI passed;
+- backend, saved-model, assignment, MCP binding/audit and broad-read regression workflows also passed;
+- production deploy run `32644544986` completed successfully for the native runtime;
+- PR #86 added a Dashboard `Test native runtime` acceptance surface and merged as `187971fe2bfd29cf41b6cc3d7dffc0f6299e6e8f`;
+- production deploy run `32644738010` completed successfully for the acceptance UI.
+
+## Dashboard acceptance surface
+
+Active `INTERNAL_MODEL` agent cards now expose **Test native runtime**. The modal invokes the MSA native backend directly and shows:
+
+- configured-agent response;
+- selected provider/model;
+- fallback used or not;
+- latency;
+- attempt provenance;
+- `MCP used: no`;
+- typed tools status.
+
+This is deliberately not the final chat interface.
+
 ## Not yet included
 
 - durable conversations/messages;
@@ -37,6 +60,8 @@ Canonical path:
 
 These remain subsequent F7.2D4 slices.
 
-## Acceptance target
+## Remaining live acceptance
 
-A configured internal agent with a healthy saved PRIMARY model must answer a bounded prompt through the MSA backend without any MCP/ChatGPT dependency. The response must preserve the configured agent identity and disclose selected provider/model provenance. A deliberately unavailable primary with a valid fallback must select the fallback deterministically.
+Use a configured internal agent with a healthy saved PRIMARY model and run the Dashboard native-runtime test. Pass requires a real provider response through the MSA backend, stable configured agent identity, provider/model provenance, `mcp_used=false`, and `tool_execution_enabled=false` for this slice.
+
+A later fallback acceptance must deliberately make the primary unavailable while leaving a healthy fallback configured, then verify deterministic fallback selection.
