@@ -86,3 +86,10 @@ def msa_shadow_read_review_reasons(migration_batch_id: str | None = None) -> dic
         metadata={"migration_batch_id": migration_batch_id, "result_count": result.get("count", 0)},
     )
     return {"ok": True, "status": "AVAILABLE", **result}
+
+
+# mcp_server imports this module before constructing mcp_http_app. Register both the
+# final v2 extension and its explicit exclusions/replacements here so ChatGPT scans the
+# finalized catalog rather than a construction-time partial snapshot.
+import app.mcp_schema_v2 as _mcp_schema_v2  # noqa: E402,F401
+import app.mcp_schema_v2_finalize as _mcp_schema_v2_finalize  # noqa: E402,F401
