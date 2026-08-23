@@ -99,7 +99,6 @@ def _owned_conversation(connection: Any, conversation_id: str, principal: dict[s
         {"conversation_id": conversation_id, "owner_user_id": principal["user_id"]},
     ).mappings().first()
     if row is None:
-        # Do not reveal whether another user's conversation exists.
         raise HTTPException(status_code=404, detail="Conversation not found")
     if row["state"] != "ACTIVE":
         raise HTTPException(status_code=409, detail="Conversation is not active")
@@ -363,10 +362,9 @@ def send_conversation_message(
                 ).mappings().all()
             ]
 
-        requested_tools = select_native_read_tools(message)
-        tool_results: list[dict[str, Any]] = []
-        if requested_tools and _agent_read_allowed(agent):
-            tool_results = run_native_read_tools(requested_tools)
+        native_store_tools_allowed = principal.get("role") == "OWNER" and _agent_read_allowed(agent)
+        requested_tools = select_native_read_tools(message) if native_store_tools_allowed else []
+        tool_results: list[dict[str, Any]] = run_native_read_tools(requested_tools) if requested_tools else []
 
         contextual_message = _workspace_response_prompt(
             _attach_tool_context(_context_prompt(history, message), tool_results)
@@ -381,6 +379,8 @@ def send_conversation_message(
 
         user_message_id = str(uuid.uuid4())
         assistant_message_id = str(uuid.uuid4())
+        model_tool_calls = runtime.get("native_tool_calls", []) or []
+        model_tools_executed = [item.get("tool") for item in model_tool_calls if item.get("status") == "SUCCESS"]
         provenance = {
             "transport": runtime.get("transport"),
             "mcp_used": runtime.get("mcp_used"),
@@ -393,11 +393,14 @@ def send_conversation_message(
             "attempts": runtime.get("attempts", []),
             "native_read_tools_requested": requested_tools,
             "native_read_tools_executed": [item.get("tool") for item in tool_results],
+            "native_tools_exposed": runtime.get("native_tools_exposed", []),
+            "native_model_tool_calls": model_tool_calls,
+            "native_model_tools_executed": model_tools_executed,
+            "native_store_tools_allowed": native_store_tools_allowed,
             "agent_read_allowed": _agent_read_allowed(agent),
             "workspace_output_tokens": output_tokens,
         }
         with engine.begin() as connection:
-            # Re-check ownership immediately before persistence.
             _owned_conversation(connection, conversation_id, principal)
             connection.execute(
                 text(
