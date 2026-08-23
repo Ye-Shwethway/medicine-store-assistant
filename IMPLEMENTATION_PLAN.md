@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Implementation Plan
 
-Status: **F7.2A/B/C, F7.2D0 custom MCP connectivity, and F7.2D2 named Agent Management/multi-agent session foundation are verified complete; F7.2D3 Provider Registry + model catalog is the next authorized slice; production inventory write authority remains unauthorized**
+Status: **F7.2A/B/C, F7.2D0 custom MCP connectivity, F7.2D2 named Agent Management/multi-agent sessions, and F7.2D3 Provider Registry/model catalog are verified complete; F7.2D4 internal model assignment/fallback/runtime identity is next; production inventory write authority remains unauthorized**
 
 This file is the execution contract for current MSA implementation order and boundaries.
 
@@ -34,8 +34,6 @@ Preserve:
 8. record actor/operation provenance;
 9. report success only after verification.
 
-Owner may later preauthorize narrow SAFE workflow classes; REVIEW/CONFLICT/NEW_UNMAPPED and high-risk/control-plane cases remain review boundaries.
-
 ## 3. Verified foundation
 
 Verified complete:
@@ -47,36 +45,17 @@ Verified complete:
 - F7.2C Credential + Recovery Lifecycle
 - F7.2D0 custom MCP full-schema/OAuth connectivity
 - F7.2D2 named Agent Management + multi-agent session topology
+- F7.2D3 Provider Registry + dynamic normalized model catalog
 
-F6B remains test-only:
-
-- 1,646 rows
-- SAFE 1,417
-- REVIEW 222
-- CONFLICT 0
-- NEW_UNMAPPED 7
-- `migration_baseline_accepted=false`
-- `database_canonical=false`
+F6B remains test-only: 1,646 rows; SAFE 1,417; REVIEW 222; CONFLICT 0; NEW_UNMAPPED 7; `migration_baseline_accepted=false`; `database_canonical=false`.
 
 ## 4. F7.2D0 — verified custom MCP foundation
 
-Custom MCP is the verified primary ChatGPT access path.
-
-Verified route:
+Custom MCP is the verified primary ChatGPT access path:
 
 `ChatGPT Developer Mode -> OAuth/PKCE -> custom MSA MCP -> typed backend`
 
-Current granted external-client scopes:
-
-- `mcp:connect`
-- `mcp:read`
-- `offline_access`
-
-Propose/write/control remain disabled.
-
-The durable MCP server exposes a full typed schema, but backend policy/system gates define actual authority. Connector rebuild is not required merely to unlock future typed grants.
-
-Custom GPT Actions are optional/fallback only.
+Current granted external-client scopes are `mcp:connect`, `mcp:read`, and `offline_access`; propose/write/control remain disabled. Custom GPT Actions are optional/fallback only.
 
 ## 5. F7.2D2 — VERIFIED COMPLETE
 
@@ -84,170 +63,121 @@ Canonical design: `docs/architecture/F7_2D2_AGENT_MANAGEMENT_AND_MULTI_AGENT_SES
 
 Checkpoint: `docs/checkpoints/F7_2D2_AGENT_MANAGEMENT_2026-08-23.md`
 
+Runtime anchor: PR #58; merge `3b385a37b95c1ff79f76883381d8268fa6c49db2`; deploy run `32620386876`; job `97147568336`; migration `0010_mcp_oauth -> 0011_ai_agents`.
+
+Implemented Owner-only named agents with stable `agent_id`, editable name/call name, deterministic self-identity context, lifecycle/policy metadata, and persistent multi-agent session topology (`GROUP`, `COMPARE`, `REVIEW`, `DEBATE`). Provider/model execution was intentionally deferred.
+
+## 6. F7.2D3 — VERIFIED COMPLETE
+
+Checkpoint: `docs/checkpoints/F7_2D3_PROVIDER_REGISTRY_VERIFIED_2026-08-23.md`
+
 Runtime evidence:
 
-- PR #58
-- merge `3b385a37b95c1ff79f76883381d8268fa6c49db2`
-- deploy run `32620386876`
-- job `97147568336`
-- migration `0010_mcp_oauth -> 0011_ai_agents`
+- PR #60
+- merge `882c67b0134edb59156c17e948128de0ca8c3365`
+- deploy run `32621925138`
+- job `97151213410`
+- migration `0011_ai_agents -> 0012_providers`
 - issue #26 `status=success`
 
 Implemented:
 
-- Owner-only `AI Agent Management`;
-- stable immutable `agent_id`;
-- editable `display_name`;
-- case-insensitive unique `call_name`;
-- deterministic self-identity context preview;
-- runtime mode/lifecycle/capability/location/authority/execution/confirmation metadata;
-- disable/reactivate/revoke;
-- non-Owner 403 and public anonymous 401;
-- persistent multi-agent sessions;
-- `GROUP`, `COMPARE`, `REVIEW`, `DEBATE` topology modes;
-- ordered participants and optional role labels;
-- session close/reopen;
-- provider/model inference explicitly disabled.
+- Owner-only providers: OpenAI, Gemini, OpenRouter, NanoGPT, generic `OPENAI_COMPATIBLE`;
+- stable provider records and normalized dynamic model catalog;
+- dedicated server-side provider-secret volume with opaque DB `credential_ref` only;
+- browser/API saved-key no-readback;
+- credential replace/remove lifecycle;
+- server-side provider connection test and model fetch;
+- enable gate requiring credential + healthy connection + successful model fetch;
+- provider health/model-fetch state separate from agent state;
+- bounded/sanitized model metadata and explicit unknown capabilities;
+- production SSRF boundary for custom provider URLs: HTTPS/public resolution, forbidden private/loopback/link-local/reserved destinations, blocked redirects, bounded response size/count;
+- anonymous Provider Registry 401;
+- runtime verification of write-only secrets, no DB plaintext key, enable gate, and model normalizers without making any real provider call during deployment.
 
-Runtime verifier passed named identity, stable ID across rename, self-identity context, call-name uniqueness, session persistence/order, lifecycle guards, and inference-disabled checks.
+UI refinements delivered in the same slice:
 
-### Identity rule
+- Create agent/New session buttons match dashboard secondary-control language;
+- agent list separates External/MCP from Internal/provider-backed origins;
+- agent cards expose Name / Origin / Model;
+- provider registry is colocated in the Owner-only AI control-plane page.
 
-Agent identity is server-owned configuration, not conversational memory.
+### F7.2D3 remaining operational test
 
-F7.2D4 runtime invocation assembly must inject canonical identity on each internal-agent call, using at least `display_name` + stable `agent_id`. Changing provider/model must never change agent identity.
+A real provider is not configured by deployment automation. The first Owner-configured provider must still be exercised through the Web workflow:
 
-## 6. Web UI workflow — current canonical rule
+`Add provider -> enter API key in write-only field -> Test connection -> Fetch models -> inspect -> Enable`
+
+That real credential must be entered through the Owner Web UI, never pasted into chat/Git/docs.
+
+## 7. Web UI workflow
 
 Default Web path:
 
 `UI/UX Pro Max -> design-system/medicine-store-assistant/MASTER.md + page override -> authenticated API contract -> direct code implementation -> responsive/accessibility/runtime verification`
 
-Figma is optional and not a normal implementation prerequisite. Use it only when the Owner explicitly requests it or a task genuinely requires it.
+Figma is optional and not a normal implementation prerequisite.
 
-## 7. F7.2D3 — Provider Registry + model catalog — NEXT
+## 8. F7.2D4 — Internal model assignment/fallback/runtime identity — NEXT
 
-Purpose: let Owner configure model-provider connections without coupling authority to vendor/model identity.
+Purpose: connect durable named internal agents to verified provider/model resources without coupling identity or authority to the model implementation.
 
-### Provider presets
-
-- OpenAI
-- Google Gemini
-- OpenRouter
-- NanoGPT
-- generic `OPENAI_COMPATIBLE`
-
-### Required data separation
-
-- `provider_connection` = API endpoint/configuration/secret reference
-- `model_catalog_entry` = provider-local model resource/capability metadata
-- `AI_AGENT` = durable identity/authority boundary
-
-Provider/model must never be treated as authority.
-
-### Provider connection fields
+### Required assignment data
 
 At minimum:
 
-- stable `provider_id`;
-- Owner-defined display name;
-- provider kind/preset;
-- base URL where applicable;
-- credential/secret reference only, never plaintext DB key;
-- optional non-secret compatibility configuration;
-- enabled/disabled state;
-- connection-test status/timestamps;
-- model-fetch status/timestamps;
-- provenance.
+- stable assignment identity;
+- `agent_id`;
+- primary `provider_id` + provider-local `model_id`/catalog reference;
+- ordered optional fallbacks;
+- required capability expectations;
+- request timeout/output policy;
+- optional usage/cost budget metadata;
+- enabled/disabled assignment state and provenance.
 
-### Generic OpenAI-compatible security
+### Assignment rules
 
-Custom base URLs require SSRF protections:
+- only `INTERNAL_MODEL` agents receive provider/model assignments;
+- provider must be enabled;
+- model must exist in the provider's current catalog;
+- known incompatible capability requirements must fail closed;
+- unknown capability requires explicit Owner acknowledgement rather than being treated as supported;
+- changing assignment never changes stable `agent_id`, call name, capability scope, location scope, authority ceiling, or system write gate;
+- fallback provider/model order never expands authority;
+- disabled/unhealthy provider handling must be explicit, with no silent arbitrary substitution.
 
-- HTTPS by default in production;
-- reject loopback/link-local/cloud-metadata/private destinations unless separately and explicitly authorized by architecture;
-- protect redirects to forbidden destinations;
-- re-resolve/check destinations where practical to mitigate DNS rebinding;
-- sanitize and bound provider responses.
+### Runtime identity
 
-### Credential policy
+Every internal model call must inject current canonical agent identity from MSA configuration, including at least `display_name` and stable `agent_id`. Do not rely on chat history for an agent remembering its own name.
 
-Provider API keys are write-only from the Owner UI.
+### First inference boundary
 
-Persistent DB records store `credential_ref` or equivalent non-secret metadata, never plaintext secret value.
+F7.2D4 may prove narrow model execution after an Owner has configured and enabled a provider. Initial proof should be non-inventory or read-only, e.g. deterministic identity response / simple text prompt, before any broader AI Assistant workflow.
 
-The browser must never receive provider-key read-back. Logs/errors must redact auth headers/tokens.
+Do not turn Provider Registry connection tests into agent authority. Provider/model choice remains implementation only.
 
-### Owner workflow
+### Multi-agent readiness
 
-`Add provider -> provision credential -> Test connection -> Fetch models -> inspect capabilities -> Save/enable`
+Once at least two internal agents have assignments, existing multi-agent session topology can later execute comparison/review/debate across same-provider or cross-provider models. Each participant retains its own identity and authority; permissions never union.
 
-Required operations:
+### External MCP identity relationship
 
-- add/edit provider metadata;
-- provision/replace credential securely;
-- test provider connection server-side;
-- fetch models dynamically;
-- normalize model metadata/capabilities;
-- disable/reactivate provider;
-- refresh models manually.
+The existing ChatGPT custom MCP connection is an external runtime/client. Do not auto-invent its named `AI_AGENT` identity. If Owner wants “the MCP agent” represented in Agent Management, add an explicit Owner-controlled bind/link from the registered external client/grant to a named external agent principal.
 
-### Model catalog
-
-Track where available:
-
-- provider-local model ID;
-- display name;
-- discovery/refreshed timestamps;
-- availability;
-- text capability;
-- vision capability;
-- tool/function calling;
-- structured output/JSON;
-- context/output limits;
-- other verified provider metadata.
-
-Unknown capability remains unknown; do not infer or fabricate support merely from model names.
-
-### F7.2D3 non-scope
-
-- assigning models to agents;
-- running agent inference;
-- multi-agent orchestration;
-- production inventory mutation;
-- F7.3 operational audit implementation;
-- DB canonical promotion.
-
-### F7.2D3 exit criteria
+### F7.2D4 exit criteria
 
 Pass when:
 
-1. Owner-only Provider Registry exists;
-2. non-Owner access is 403;
-3. built-in provider presets + generic OpenAI-compatible are supported;
-4. provider secret is persisted only through protected runtime secret/reference mechanism;
-5. connection test works server-side without secret exposure;
-6. dynamic model fetch works for at least one configured provider;
-7. fetched model catalog is persisted/refreshed with bounded normalized metadata;
-8. unknown capabilities remain unknown;
-9. provider disable/credential replacement works;
-10. no agent authority changes merely because provider/model config changes;
-11. no provider/model inference required for completion beyond explicit connection/model test probes;
-12. no inventory mutation/workbook import/canonical promotion occurs.
-
-## 8. F7.2D4 — Internal model assignment/fallbacks
-
-After F7.2D3:
-
-- assign primary provider/model to named agent;
-- optional ordered fallback chain;
-- capability compatibility checks;
-- timeout/output policy;
-- optional usage/cost metadata;
-- inject canonical agent self-identity every invocation;
-- enable future multi-agent session execution/comparison.
-
-Fallback must never expand capability/location/operation authority or silently substitute incompatible semantics.
+1. Owner can assign a primary enabled provider/model to an internal agent;
+2. assignment survives rename without changing `agent_id`;
+3. agent card shows actual provider/model after assignment;
+4. invalid/disabled provider or missing model is rejected;
+5. known capability mismatch is rejected and unknown capability is explicitly represented;
+6. ordered fallback configuration is durable;
+7. canonical identity context is assembled server-side for invocation;
+8. at least one configured provider/model can pass a narrow real inference probe when Owner supplies credentials through Web UI;
+9. provider/model changes do not alter authority;
+10. no production inventory write, workbook import, or canonical promotion occurs.
 
 ## 9. F7.3 and later
 
@@ -265,6 +195,6 @@ After F7.2D4:
 
 ## Immediate execution boundary
 
-Proceed next with **F7.2D3 Provider Registry + model catalog**.
+Proceed next with **F7.2D4 internal model assignment/fallback/runtime identity**.
 
-Do not enable production inventory writes, AI inventory writes, transfers, Smart Calculator deduction, Telegram/Flutter stock mutation, Sheet mirror conversion, or PostgreSQL canonical promotion during F7.2D3/F7.2D4.
+Do not enable production inventory writes, AI inventory writes, transfers, Smart Calculator deduction, Telegram/Flutter stock mutation, Sheet mirror conversion, or PostgreSQL canonical promotion during F7.2D4.
