@@ -5,7 +5,7 @@ import os
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 
-EXPECTED_MIGRATION = "0010_mcp_oauth"
+EXPECTED_MIGRATION = "0011_ai_agents"
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 

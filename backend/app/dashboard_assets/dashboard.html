@@ -7,6 +7,7 @@
   <title>Medicine Store Assistant</title>
   <link rel="stylesheet" href="/dashboard/assets/dashboard.css?v=f72c-1">
   <link rel="stylesheet" href="/dashboard/assets/dashboard_users.css?v=f72c-1">
+  <link rel="stylesheet" href="/dashboard/assets/dashboard_agents.css?v=f72d2-1">
 </head>
 <body>
 <div id="msa" data-theme="light">
@@ -38,6 +39,7 @@
         <button class="nav-btn" data-view="shadow" type="button">Shadow Inspection</button>
         <button class="nav-btn" data-view="catalogue" type="button">Catalogue</button>
         <button class="nav-btn owner-only" data-view="users" type="button" hidden>User Management</button>
+        <button class="nav-btn owner-only" data-view="agents" type="button" hidden>AI Agent Management</button>
         <button class="nav-btn" data-view="account" type="button">Account</button>
         <button class="nav-btn" data-view="audit" type="button">Audit</button>
       </nav>
@@ -89,6 +91,34 @@
             </div>
             <article class="card panel users-panel"><div class="users-panel-head"><div><h2>Human accounts</h2><p class="sub">OWNER promotion and Owner-account disable are intentionally outside this ordinary management flow.</p></div></div><div class="user-list" id="userList"><div class="empty-copy">Loading users…</div></div></article>
             <article class="card panel users-panel"><div class="users-panel-head"><div><h2>Password reset requests</h2><p class="sub">Issue a short-lived single-use link only after confirming the request through your normal staff process.</p></div></div><div id="resetIssuedBox" class="reset-issued" hidden><label for="resetIssuedLink">One-time reset link</label><div class="copy-row"><input id="resetIssuedLink" type="text" readonly><button id="copyResetLink" type="button">Copy link</button></div><p id="resetIssuedMeta" class="sub"></p></div><div class="reset-list" id="resetRequestList"><div class="empty-copy">Loading password reset requests…</div></div></article>
+          </div>
+        </section>
+
+        <section class="view" data-panel="agents">
+          <div class="management-head">
+            <div><h2>AI Agent Management</h2><p>Owner-only named AI identities, capability boundaries, and reusable multi-agent sessions.</p></div>
+            <div class="agent-head-actions"><button class="secondary" id="agentsRefresh" type="button">Refresh</button><button id="agentCreateOpen" type="button">Create agent</button></div>
+          </div>
+          <div class="agent-boundary"><strong>Current execution boundary</strong><p>Provider/model execution is not enabled in this slice. Production inventory writes remain blocked by the system write gate even if future capability classes are visible.</p></div>
+          <div id="agentsDenied" class="access-denied" hidden><strong>Access denied</strong><p>Your signed-in role does not have permission to manage AI agents.</p><button class="secondary" id="agentsDeniedOverview" type="button">Return to Overview</button></div>
+          <div id="agentsContent">
+            <div class="management-metrics">
+              <article class="card metric"><label>Active agents</label><strong id="aActive">—</strong><small>Named principals</small></article>
+              <article class="card metric"><label>Disabled</label><strong id="aDisabled">—</strong><small>Execution blocked</small></article>
+              <article class="card metric"><label>Open sessions</label><strong id="aSessions">—</strong><small>Reusable participant sets</small></article>
+              <article class="card metric"><label>Inference</label><strong>OFF</strong><small>F7.2D3/D4 pending</small></article>
+            </div>
+
+            <div class="agent-layout">
+              <article class="card panel agents-panel">
+                <div class="users-panel-head"><div><h2>Named agents</h2><p class="sub">Each agent keeps a stable ID even when its name, model, or provider changes later.</p></div></div>
+                <div id="agentList" class="agent-list"><div class="empty-copy">Loading agents…</div></div>
+              </article>
+              <article class="card panel agents-panel">
+                <div class="users-panel-head"><div><h2>Multi-agent sessions</h2><p class="sub">Select named agents now; provider/model comparison and orchestration arrive in later slices.</p></div><button id="sessionCreateOpen" type="button">New session</button></div>
+                <div id="agentSessionList" class="agent-session-list"><div class="empty-copy">Loading sessions…</div></div>
+              </article>
+            </div>
           </div>
         </section>
 
@@ -145,9 +175,46 @@
 
   <div class="detail-back" id="detailBack" role="dialog" aria-modal="true" aria-labelledby="detailTitle"><aside class="detail-drawer"><div class="detail-head"><h3 id="detailTitle">Inventory detail</h3><button id="detailClose" type="button" aria-label="Close details">×</button></div><div id="detailContent"></div></aside></div>
   <div class="modal-back" id="loginModal" role="dialog" aria-modal="true" aria-labelledby="loginTitle"><form class="login-card" id="loginForm"><h2 id="loginTitle">Sign in</h2><p>Use the dedicated sign-in page to authenticate.</p><div class="form-error" id="loginError"></div><div class="login-actions"><button class="secondary" id="loginCancel" type="button">Cancel</button><button class="primary" type="submit">Open sign in</button></div></form></div>
+
+  <div class="agent-modal-back" id="agentModal" role="dialog" aria-modal="true" aria-labelledby="agentModalTitle" hidden>
+    <form class="agent-modal-card" id="agentForm" novalidate>
+      <div class="agent-modal-head"><div><h2 id="agentModalTitle">Create agent</h2><p>Names are durable MSA identity metadata, not model names.</p></div><button class="icon-close" id="agentModalClose" type="button" aria-label="Close agent editor">×</button></div>
+      <input id="agentId" type="hidden">
+      <div class="agent-form-grid">
+        <label>Display name<input id="agentDisplayName" maxlength="80" required></label>
+        <label>Call name<input id="agentCallName" maxlength="64" required><small>Unique name used to select or address this agent.</small></label>
+        <label class="span-2">Purpose / description<textarea id="agentDescription" maxlength="1000" rows="3"></textarea></label>
+        <label>Runtime mode<select id="agentRuntimeMode"><option value="INTERNAL_MODEL">Internal model</option><option value="EXTERNAL_MCP_CLIENT">External MCP client</option><option value="EXTERNAL_ACTION_CLIENT">External Action client</option><option value="SYSTEM_AUTOMATION">System automation</option></select></label>
+        <label>Authority ceiling<select id="agentAuthority"><option value="READ">Read</option><option value="PROPOSE">Propose</option><option value="WRITE">Write</option><option value="CONTROL">Control</option></select></label>
+        <label>Execution policy<select id="agentExecution"><option value="DELEGATED">Delegated</option><option value="AUTONOMOUS">Autonomous</option></select></label>
+        <label>Confirmation policy<select id="agentConfirmation"><option value="READ_ONLY">Read only</option><option value="PROPOSE_ONLY">Propose only</option><option value="CONFIRM_BEFORE_WRITE">Confirm before write</option><option value="AUTONOMOUS_PREAUTHORIZED">Autonomous within preauthorized scope</option></select></label>
+      </div>
+      <fieldset class="agent-capabilities"><legend>Capability classes</legend><label><input type="checkbox" value="mcp:read" checked> Read</label><label><input type="checkbox" value="mcp:propose"> Propose</label><label><input type="checkbox" value="mcp:write"> Write</label><label><input type="checkbox" value="mcp:control"> Control</label></fieldset>
+      <div class="agent-warning"><strong>System write gate remains closed.</strong><span>Choosing future write/control classes here does not enable production inventory mutation.</span></div>
+      <p class="form-error" id="agentFormError" role="alert" aria-live="polite"></p>
+      <div class="agent-modal-actions"><button class="secondary" id="agentFormCancel" type="button">Cancel</button><button id="agentFormSubmit" type="submit">Save agent</button></div>
+    </form>
+  </div>
+
+  <div class="agent-modal-back" id="agentSessionModal" role="dialog" aria-modal="true" aria-labelledby="agentSessionModalTitle" hidden>
+    <form class="agent-modal-card" id="agentSessionForm" novalidate>
+      <div class="agent-modal-head"><div><h2 id="agentSessionModalTitle">New multi-agent session</h2><p>Select and order named agents. No model inference runs yet.</p></div><button class="icon-close" id="agentSessionModalClose" type="button" aria-label="Close session editor">×</button></div>
+      <input id="agentSessionId" type="hidden">
+      <div class="agent-form-grid">
+        <label>Session name<input id="agentSessionName" maxlength="120" required></label>
+        <label>Mode<select id="agentSessionMode"><option value="GROUP">Group</option><option value="COMPARE">Compare</option><option value="REVIEW">Review</option><option value="DEBATE">Debate</option></select></label>
+        <label class="span-2">Objective<textarea id="agentSessionObjective" maxlength="2000" rows="3"></textarea></label>
+      </div>
+      <fieldset class="session-participants"><legend>Participants</legend><div id="sessionParticipantPicker"><p class="muted">Create at least one active agent first.</p></div></fieldset>
+      <p class="form-error" id="agentSessionFormError" role="alert" aria-live="polite"></p>
+      <div class="agent-modal-actions"><button class="secondary" id="agentSessionFormCancel" type="button">Cancel</button><button id="agentSessionFormSubmit" type="submit">Save session</button></div>
+    </form>
+  </div>
+
   <div id="live" class="sr-only" aria-live="polite"></div>
 </div>
 <script src="/dashboard/assets/dashboard.js?v=f72c-1" defer></script>
 <script src="/dashboard/assets/dashboard_recovery.js?v=f72c2-confirm" defer></script>
+<script src="/dashboard/assets/dashboard_agents.js?v=f72d2-1" defer></script>
 </body>
 </html>

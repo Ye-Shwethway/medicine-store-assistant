@@ -1,0 +1,155 @@
+(()=>{
+  const root=document.querySelector('#msa');
+  if(!root||root.dataset.agentsReady)return;
+  root.dataset.agentsReady='1';
+  const $=s=>root.querySelector(s);
+  const $$=s=>[...root.querySelectorAll(s)];
+  const live=$('#live');
+  const agentList=$('#agentList');
+  const sessionList=$('#agentSessionList');
+  const agentModal=$('#agentModal');
+  const sessionModal=$('#agentSessionModal');
+  let agents=[];
+  let sessions=[];
+
+  function announce(text){if(live)live.textContent=text}
+  function escapeHtml(value){return String(value??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
+  function titleize(value){return String(value||'').toLowerCase().split('_').map(x=>x?x[0].toUpperCase()+x.slice(1):'').join(' ')}
+  async function api(path,opts={}){
+    const response=await fetch(path,{credentials:'same-origin',headers:{'Content-Type':'application/json',...(opts.headers||{})},...opts});
+    let data=null;try{data=await response.json()}catch{}
+    if(!response.ok){const err=new Error((data&&data.detail)||('Request failed: '+response.status));err.status=response.status;throw err}
+    return data;
+  }
+
+  function openAgentsView(event){
+    if(event){event.preventDefault();event.stopImmediatePropagation()}
+    root.classList.remove('focus','nav-open');
+    $$('.view').forEach(x=>x.classList.toggle('active',x.dataset.panel==='agents'));
+    $$('.nav-btn').forEach(x=>x.classList.toggle('active',x.dataset.view==='agents'));
+    $('#pageTitle').textContent='AI Agent Management';
+    $('#pageSubtitle').textContent='Named AI identities, capability policy, and multi-agent sessions';
+    announce('AI Agent Management opened');
+    loadAll();
+  }
+
+  const nav=$('.nav-btn[data-view="agents"]');
+  if(nav)nav.addEventListener('click',openAgentsView,true);
+
+  function showDenied(show){$('#agentsDenied').hidden=!show;$('#agentsContent').hidden=show}
+
+  async function loadAll(){
+    agentList.innerHTML='<div class="empty-copy">Loading agents…</div>';
+    sessionList.innerHTML='<div class="empty-copy">Loading sessions…</div>';
+    try{
+      const [agentData,sessionData]=await Promise.all([api('/dashboard/api/agents'),api('/dashboard/api/agents/sessions/list')]);
+      showDenied(false);agents=agentData.items||[];sessions=sessionData.items||[];renderAgents();renderSessions();renderMetrics();
+    }catch(err){
+      if(err.status===403){showDenied(true);announce('Access denied');return}
+      if(err.status===401){location.assign('/dashboard/login');return}
+      agentList.innerHTML='<div class="empty-copy">Unable to load AI agents.</div>';sessionList.innerHTML='<div class="empty-copy">Unable to load multi-agent sessions.</div>';announce(err.message)
+    }
+  }
+
+  function renderMetrics(){
+    $('#aActive').textContent=agents.filter(x=>x.state==='ACTIVE').length.toLocaleString();
+    $('#aDisabled').textContent=agents.filter(x=>x.state==='DISABLED').length.toLocaleString();
+    $('#aSessions').textContent=sessions.filter(x=>x.state==='OPEN').length.toLocaleString();
+  }
+
+  function capabilityChips(agent){return (agent.capability_scopes||[]).map(scope=>'<span class="agent-chip">'+escapeHtml(scope.replace('mcp:',''))+'</span>').join('')}
+
+  function renderAgents(){
+    if(!agents.length){agentList.innerHTML='<div class="agent-empty"><strong>No AI agents yet</strong><p>Create a named agent to establish a durable identity before provider/model assignment.</p></div>';return}
+    agentList.innerHTML=agents.map(agent=>{
+      const state=String(agent.state||'UNKNOWN');
+      const stateClass='agent-state-'+state.toLowerCase();
+      let lifecycle='';
+      if(state==='ACTIVE')lifecycle='<button class="secondary" data-agent-action="disable" data-agent-id="'+escapeHtml(agent.agent_id)+'">Disable</button>';
+      else if(state==='DISABLED')lifecycle='<button data-agent-action="reactivate" data-agent-id="'+escapeHtml(agent.agent_id)+'">Reactivate</button>';
+      if(state!=='REVOKED')lifecycle+='<button class="danger-action" data-agent-action="revoke" data-agent-id="'+escapeHtml(agent.agent_id)+'">Revoke</button>';
+      return '<div class="agent-card" data-agent-card="'+escapeHtml(agent.agent_id)+'">'+
+        '<div class="agent-card-head"><div class="agent-identity"><strong>'+escapeHtml(agent.display_name)+'</strong><span>Call as “'+escapeHtml(agent.call_name)+'” · '+escapeHtml(titleize(agent.runtime_mode))+'</span></div><span class="agent-chip '+stateClass+'">'+escapeHtml(state)+'</span></div>'+
+        (agent.description?'<p class="agent-description">'+escapeHtml(agent.description)+'</p>':'')+
+        '<div class="agent-meta"><span class="agent-chip">Ceiling: '+escapeHtml(titleize(agent.authority_ceiling))+'</span><span class="agent-chip">'+escapeHtml(titleize(agent.execution_policy))+'</span><span class="agent-chip">'+escapeHtml(titleize(agent.confirmation_policy))+'</span>'+capabilityChips(agent)+'</div>'+
+        '<div class="agent-identity-preview"><strong>Self identity preview:</strong> '+escapeHtml(agent.identity_context)+'</div>'+
+        '<div class="agent-card-actions">'+(state!=='REVOKED'?'<button data-agent-action="edit" data-agent-id="'+escapeHtml(agent.agent_id)+'">Edit agent</button>':'')+lifecycle+'</div></div>';
+    }).join('');
+  }
+
+  function renderSessions(){
+    if(!sessions.length){sessionList.innerHTML='<div class="agent-empty"><strong>No multi-agent sessions yet</strong><p>Create a participant set for future group, comparison, review, or debate workflows.</p></div>';return}
+    sessionList.innerHTML=sessions.map(session=>{
+      const participants=(session.participants||[]).map(p=>'<span class="agent-participant"><b>'+escapeHtml(p.call_name)+'</b>'+ (p.role_label?' · '+escapeHtml(p.role_label):'') +'</span>').join('')||'<span class="muted">No participants selected</span>';
+      const state=session.state||'OPEN';
+      const lifecycle=state==='OPEN'?'<button class="secondary" data-session-action="close" data-session-id="'+escapeHtml(session.session_id)+'">Close</button>':'<button data-session-action="reopen" data-session-id="'+escapeHtml(session.session_id)+'">Reopen</button>';
+      return '<div class="agent-session-card" data-session-card="'+escapeHtml(session.session_id)+'"><div class="agent-session-head"><div><strong>'+escapeHtml(session.session_name)+'</strong><span>'+escapeHtml(titleize(session.mode))+' · '+escapeHtml(state)+'</span></div><span class="agent-chip">'+(session.participants||[]).length+' agents</span></div>'+
+        (session.objective?'<p class="agent-description">'+escapeHtml(session.objective)+'</p>':'')+'<div class="agent-participants">'+participants+'</div><div class="agent-session-actions">'+(state==='OPEN'?'<button data-session-action="edit" data-session-id="'+escapeHtml(session.session_id)+'">Edit session</button>':'')+lifecycle+'</div></div>';
+    }).join('');
+  }
+
+  function selectedCapabilities(){return $$('#agentForm .agent-capabilities input[type="checkbox"]:checked').map(x=>x.value)}
+  function setCapabilities(values){const set=new Set(values||[]);$$('#agentForm .agent-capabilities input[type="checkbox"]').forEach(x=>x.checked=set.has(x.value))}
+
+  function openAgentModal(agent=null){
+    $('#agentForm').reset();$('#agentFormError').textContent='';$('#agentId').value=agent?.agent_id||'';$('#agentModalTitle').textContent=agent?'Edit agent':'Create agent';
+    $('#agentDisplayName').value=agent?.display_name||'';$('#agentCallName').value=agent?.call_name||'';$('#agentDescription').value=agent?.description||'';$('#agentRuntimeMode').value=agent?.runtime_mode||'INTERNAL_MODEL';$('#agentRuntimeMode').disabled=!!agent;
+    $('#agentAuthority').value=agent?.authority_ceiling||'READ';$('#agentExecution').value=agent?.execution_policy||'DELEGATED';$('#agentConfirmation').value=agent?.confirmation_policy||'READ_ONLY';setCapabilities(agent?.capability_scopes||['mcp:read']);
+    agentModal.hidden=false;setTimeout(()=>$('#agentDisplayName').focus(),0);
+  }
+  function closeAgentModal(){agentModal.hidden=true;$('#agentFormError').textContent=''}
+
+  async function saveAgent(event){
+    event.preventDefault();const id=$('#agentId').value;const button=$('#agentFormSubmit');$('#agentFormError').textContent='';button.disabled=true;button.textContent='Saving…';
+    const payload={display_name:$('#agentDisplayName').value,call_name:$('#agentCallName').value,description:$('#agentDescription').value||null,capability_scopes:selectedCapabilities(),location_scope:{mode:'ALL_READABLE'},authority_ceiling:$('#agentAuthority').value,execution_policy:$('#agentExecution').value,confirmation_policy:$('#agentConfirmation').value};
+    if(!id)payload.runtime_mode=$('#agentRuntimeMode').value;
+    try{await api(id?'/dashboard/api/agents/'+encodeURIComponent(id):'/dashboard/api/agents',{method:id?'PATCH':'POST',body:JSON.stringify(payload)});closeAgentModal();announce(id?'Agent updated':'Agent created');await loadAll()}catch(err){$('#agentFormError').textContent=err.message}finally{button.disabled=false;button.textContent='Save agent'}
+  }
+
+  async function agentAction(button){
+    const action=button.dataset.agentAction;const id=button.dataset.agentId;const agent=agents.find(x=>x.agent_id===id);if(!action||!agent)return;
+    if(action==='edit'){openAgentModal(agent);return}
+    if(action==='revoke'&&!window.confirm('Permanently revoke “'+agent.display_name+'”? Revoked agents cannot be reactivated.'))return;
+    if(action==='disable'&&!window.confirm('Disable “'+agent.display_name+'”?'))return;
+    button.disabled=true;
+    try{await api('/dashboard/api/agents/'+encodeURIComponent(id)+'/'+action,{method:'POST'});announce('Agent '+action+' completed');await loadAll()}catch(err){window.alert(err.message);announce(err.message);button.disabled=false}
+  }
+
+  function participantPicker(session=null){
+    const current=new Map((session?.participants||[]).map(p=>[p.agent_id,p]));
+    const active=agents.filter(a=>a.state==='ACTIVE');
+    if(!active.length)return '<p class="muted">Create at least one active agent first.</p>';
+    return '<div class="session-picker-list">'+active.map((agent,index)=>{const p=current.get(agent.agent_id);const checked=!!p;return '<label class="session-picker-row"><input type="checkbox" data-participant-agent="'+escapeHtml(agent.agent_id)+'" '+(checked?'checked':'')+'><span class="session-picker-copy"><strong>'+escapeHtml(agent.display_name)+'</strong><span>'+escapeHtml(agent.call_name)+'</span></span><input type="number" min="0" max="31" aria-label="Position for '+escapeHtml(agent.call_name)+'" data-participant-position="'+escapeHtml(agent.agent_id)+'" value="'+escapeHtml(p?.position??index)+'"><input type="text" maxlength="80" aria-label="Role label for '+escapeHtml(agent.call_name)+'" placeholder="Optional role" data-participant-role="'+escapeHtml(agent.agent_id)+'" value="'+escapeHtml(p?.role_label||'')+'"></label>'}).join('')+'</div>';
+  }
+
+  function openSessionModal(session=null){
+    $('#agentSessionForm').reset();$('#agentSessionFormError').textContent='';$('#agentSessionId').value=session?.session_id||'';$('#agentSessionModalTitle').textContent=session?'Edit multi-agent session':'New multi-agent session';$('#agentSessionName').value=session?.session_name||'';$('#agentSessionMode').value=session?.mode||'GROUP';$('#agentSessionObjective').value=session?.objective||'';$('#sessionParticipantPicker').innerHTML=participantPicker(session);sessionModal.hidden=false;setTimeout(()=>$('#agentSessionName').focus(),0)
+  }
+  function closeSessionModal(){sessionModal.hidden=true;$('#agentSessionFormError').textContent=''}
+
+  function collectParticipants(){
+    return $$('[data-participant-agent]:checked').map(box=>{const id=box.dataset.participantAgent;return {agent_id:id,position:Number($('[data-participant-position="'+CSS.escape(id)+'"]').value),role_label:$('[data-participant-role="'+CSS.escape(id)+'"]').value||null}}).sort((a,b)=>a.position-b.position).map((p,index)=>({...p,position:index}));
+  }
+
+  async function saveSession(event){
+    event.preventDefault();const id=$('#agentSessionId').value;const button=$('#agentSessionFormSubmit');$('#agentSessionFormError').textContent='';button.disabled=true;button.textContent='Saving…';const payload={session_name:$('#agentSessionName').value,objective:$('#agentSessionObjective').value||null,mode:$('#agentSessionMode').value,participants:collectParticipants()};
+    try{await api(id?'/dashboard/api/agents/sessions/'+encodeURIComponent(id):'/dashboard/api/agents/sessions',{method:id?'PATCH':'POST',body:JSON.stringify(payload)});closeSessionModal();announce(id?'Session updated':'Session created');await loadAll()}catch(err){$('#agentSessionFormError').textContent=err.message}finally{button.disabled=false;button.textContent='Save session'}
+  }
+
+  async function sessionAction(button){
+    const action=button.dataset.sessionAction;const id=button.dataset.sessionId;const session=sessions.find(x=>x.session_id===id);if(!action||!session)return;
+    if(action==='edit'){openSessionModal(session);return}
+    button.disabled=true;try{await api('/dashboard/api/agents/sessions/'+encodeURIComponent(id)+'/'+action,{method:'POST'});announce('Session '+action+' completed');await loadAll()}catch(err){window.alert(err.message);announce(err.message);button.disabled=false}
+  }
+
+  $('#agentsRefresh')?.addEventListener('click',loadAll);
+  $('#agentCreateOpen')?.addEventListener('click',()=>openAgentModal());
+  $('#sessionCreateOpen')?.addEventListener('click',()=>openSessionModal());
+  $('#agentModalClose')?.addEventListener('click',closeAgentModal);$('#agentFormCancel')?.addEventListener('click',closeAgentModal);$('#agentForm')?.addEventListener('submit',saveAgent);
+  $('#agentSessionModalClose')?.addEventListener('click',closeSessionModal);$('#agentSessionFormCancel')?.addEventListener('click',closeSessionModal);$('#agentSessionForm')?.addEventListener('submit',saveSession);
+  $('#agentsDeniedOverview')?.addEventListener('click',()=>$('.nav-btn[data-view="overview"]')?.click());
+  agentList?.addEventListener('click',event=>{const button=event.target.closest('[data-agent-action]');if(button)agentAction(button)});
+  sessionList?.addEventListener('click',event=>{const button=event.target.closest('[data-session-action]');if(button)sessionAction(button)});
+  agentModal?.addEventListener('click',event=>{if(event.target===agentModal)closeAgentModal()});sessionModal?.addEventListener('click',event=>{if(event.target===sessionModal)closeSessionModal()});
+  document.addEventListener('keydown',event=>{if(event.key==='Escape'){if(!agentModal.hidden)closeAgentModal();else if(!sessionModal.hidden)closeSessionModal()}});
+})();
