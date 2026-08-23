@@ -8,7 +8,7 @@ Use this file for project-development continuity and reconciliation in a fresh c
 
 ## Mandatory reconciliation order
 
-Before changing code/config/schema/runtime in a fresh chat, read:
+Before changing code/config/schema/runtime, read:
 
 1. `AGENTS.md`
 2. `NEW_CHAT_BOOTSTRAP.md`
@@ -21,8 +21,9 @@ Before changing code/config/schema/runtime in a fresh chat, read:
 9. `docs/architecture/F7_2D2_AGENT_MANAGEMENT_AND_MULTI_AGENT_SESSIONS.md`
 10. `docs/checkpoints/F7_2D4F_GROUNDED_NATIVE_READS_PLAN_2026-08-23.md`
 11. `docs/checkpoints/F7_2D4G_CHAT_UX_LIFECYCLE_PLAN_2026-08-23.md`
-12. current runtime/deployment evidence, especially issue #26
-13. `docs/design/UI_UX_PRO_MAX_INTEGRATION.md` and `docs/design/WEB_ASSET_RELEASE_INTEGRITY.md` for Web work
+12. `docs/checkpoints/F7_2D47_FALLBACK_MANAGEMENT_PLAN_2026-08-23.md`
+13. current runtime/deployment evidence, especially issue #26
+14. `docs/design/UI_UX_PRO_MAX_INTEGRATION.md` and `docs/design/WEB_ASSET_RELEASE_INTEGRITY.md` for Web work
 
 Treat newer verified repository/runtime evidence as authoritative over remembered chat context.
 
@@ -39,11 +40,7 @@ Treat newer verified repository/runtime evidence as authoritative over remembere
 
 `branch -> PR -> main -> automatic VPS deploy for runtime changes -> issue #26 evidence -> continuity-doc refresh`
 
-Runtime secrets remain on the VPS. Web asset delivery must follow the release-integrity contract.
-
 ## Durable execution-path invariant
-
-MSA has peer execution paths over one shared typed backend/authority core.
 
 External MCP:
 
@@ -53,96 +50,71 @@ Native internal agent:
 
 `MSA Web / future Telegram / Flutter / automation -> INTERNAL_MODEL runtime -> assigned provider/model -> internal typed-tool adapter -> typed MSA backend operation -> response`
 
-Internal agents do not depend on public MCP for ordinary tools/data. Direct authorized MCP actions do not require an internal-agent hop. `msa_agent_invoke` is optional delegation/orchestration only.
+They are peer paths. Internal agents do not depend on public MCP for ordinary work. Direct authorized MCP actions do not require an internal-agent hop. `msa_agent_invoke` is optional delegation/orchestration only.
 
-## Current verified internal-agent truth
+## Verified internal-agent truth
 
-Verified in production:
+Production/manual accepted:
 
-- named AI Agent Management and policy persistence;
-- Provider Registry + tested Owner-saved model catalog;
-- PRIMARY + ordered FALLBACK assignment chain for `INTERNAL_MODEL` agents;
-- non-internal model-assignment backend rejection and UI guard;
+- named AI Agent Management and persisted authority/policy;
+- Provider Registry + tested Owner-saved models;
+- backend PRIMARY + ordered FALLBACK chain for `INTERNAL_MODEL` agents;
+- server rejection of model assignment for non-internal agents;
 - MCP-independent native provider inference;
-- server-owned identity/policy injection;
 - provider/model/fallback/latency attempt provenance;
-- Dashboard native-runtime test with `MCP used: no`;
 - backend-first AI Workspace access policy;
-- durable top-level AI Workspace Chat with persisted per-user conversations;
-- bounded native read tools for current inventory/shadow summary, NEW_UNMAPPED rows, and review reasons;
-- manual native-read acceptance against real F6B test/shadow evidence;
-- external MCP direct read/audit path remains independent and working;
+- durable top-level AI Workspace Chat;
+- bounded grounded native reads over F6B test/shadow evidence;
+- long response handling, deterministic USER -> ASSISTANT ordering, clean display, Copy/select, richer conversation cards, and owner-scoped conversation deletion;
+- external MCP direct read/audit remains independent;
 - production inventory writes remain disabled.
 
 ## AI Workspace architecture — LOCKED
 
-Canonical design: `docs/architecture/F7_2D4_AI_WORKSPACE_AND_ACCESS.md`.
-
-Keep two product planes separate.
-
 ### AI Agent Management — Owner-only control plane
 
-Contains agent lifecycle/policy, provider/model/fallback management, reusable multi-agent session definitions, and the global non-owner AI Workspace switch.
+Contains agent lifecycle/policy, provider/model/fallback assignments, reusable multi-agent session definitions, and global non-owner AI Workspace access setting.
 
-Owner-only means backend authorization plus UI restriction. Never rely on hidden controls alone.
+Owner-only requires backend authorization plus UI restriction.
 
 ### AI Workspace — work plane
 
-- `Chat` — single internal agent; Owner + authorized users.
-- `Multi-Agent` — actual GROUP/COMPARE/REVIEW/DEBATE execution; **Owner-only for the current phase** and not yet wired.
+- `Chat` — one selected internal agent; Owner + authorized users.
+- `Multi-Agent` — GROUP/COMPARE/REVIEW/DEBATE execution; Owner-only for this phase and not yet wired.
 
-## AI Workspace access + tool authority
+## Access + authority
 
-Owner is always allowed.
+Owner always has AI Workspace access. Global OFF hard-blocks all non-owner Chat before provider calls. Per-user entitlement foundation is `INHERIT | ALLOW | BLOCK`.
 
-Global Owner setting:
+Native tool authority intersects system gate, authenticated human authority, selected-agent capability/ceiling, location scope, operation class, and confirmation policy. Never union privileges. Provider/model assignment never grants authority.
 
-`AI Workspace for non-owner users = ENABLED | DISABLED`
+## Current work — D4.7 fallback management
 
-Global OFF is a hard kill switch for all non-owner Chat. A denied request terminates before any provider call.
+Canonical checkpoint: `docs/checkpoints/F7_2D47_FALLBACK_MANAGEMENT_PLAN_2026-08-23.md`.
 
-Per-user Chat entitlement:
+Backend support already exists for one PRIMARY + up to five ordered FALLBACK models. Current work exposes that chain in Owner-only AI Agent Management:
 
-- `INHERIT`
-- `ALLOW`
-- `BLOCK`
+- primary provider/model selectors;
+- add/remove/reorder fallback models;
+- only healthy, saved, currently-discovered models from enabled providers;
+- canonical `/model-assignments` chain endpoint;
+- persisted order on reopen;
+- fallback count on agent cards;
+- non-internal assignment controls remain unavailable and server-rejected.
 
-Effective behavior:
+Live failover acceptance requires at least two healthy saved models. When available, prove PRIMARY failure -> ordered FALLBACK success with `fallback_used=true` and complete attempt provenance, without public MCP.
 
-1. Owner -> allow.
-2. Non-owner + global OFF -> deny.
-3. Non-owner + global ON + BLOCK -> deny.
-4. Non-owner + global ON + INHERIT/ALLOW -> eligible.
+## Next authorized order
 
-Native tool authority is an intersection of system gate, authenticated human authority, selected-agent capabilities/ceiling, location scope, operation class, and confirmation policy. Never union privileges. Provider/model choice never expands authority.
+1. D4.7 fallback configuration UI deployment + manual persistence/order acceptance.
+2. D4.7 live failover proof when a second healthy saved model exists.
+3. D4.8 Owner-only Multi-Agent execution.
+4. per-user Chat entitlement/allowed-agent UI before staff rollout.
+5. native typed-tool expansion as product workflows require.
+6. D4.9 optional MCP -> native-agent delegation.
 
-## Current work — F7.2D4G
-
-F7.2D4F is accepted. The native Chat can read real F6B test/shadow data without public MCP.
-
-Current slice fixes mobile Chat UX/lifecycle defects observed during manual acceptance:
-
-- long answers ending at the old workspace output budget;
-- nondeterministic USER/ASSISTANT ordering for equal transaction timestamps;
-- literal Markdown markers in replies;
-- no explicit copy action / selectable-message contract;
-- weak conversation cards with no first-message preview or human-friendly last-interaction time;
-- no conversation deletion.
-
-Implement backend-owned deletion, deterministic sequence, larger bounded response budgets, clean text presentation, Copy/selection, richer cards, and delete UX. Do not widen store authority.
-
-## Next authorized implementation order
-
-1. F7.2D4G Chat UX/lifecycle acceptance.
-2. deterministic PRIMARY -> FALLBACK real-failure acceptance and provenance completion.
-3. expand native typed reads over shared MSA services as product workflows require.
-4. Owner-only Multi-Agent execution using persisted session presets.
-5. optional MCP -> native-agent delegation.
-
-## Survival acceptance
-
-Core native survival proof is now present:
+## Survival proof
 
 `MSA Web -> selected INTERNAL_MODEL agent -> assigned provider/model -> authorized typed MSA read -> response + provenance`
 
-Remaining D4 hardening must preserve no-public-MCP dependency for ordinary native work and no privilege union.
+This proof is already live and must remain independent of public MCP.
