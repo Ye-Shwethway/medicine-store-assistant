@@ -12,6 +12,7 @@ on:
       - 'backend/app/dashboard_assets/dashboard_audit.css'
       - 'backend/alembic/versions/0015_mcp_audit_events.py'
       - 'backend/alembic/versions/0016_revoke_stale_chatgpt_oauth.py'
+      - 'backend/alembic/versions/0017_ai_workspace_access.py'
       - '.github/workflows/validate-mcp-audit.yml'
 
 permissions:
@@ -41,10 +42,12 @@ jobs:
               return mod
 
           audit=load(Path('backend/alembic/versions/0015_mcp_audit_events.py'),'audit_migration')
-          head=load(Path('backend/alembic/versions/0016_revoke_stale_chatgpt_oauth.py'),'head_migration')
+          stale_oauth=load(Path('backend/alembic/versions/0016_revoke_stale_chatgpt_oauth.py'),'stale_oauth_migration')
+          head=load(Path('backend/alembic/versions/0017_ai_workspace_access.py'),'head_migration')
           assert audit.revision=='0015_mcp_audit'
           assert audit.down_revision=='0014_mcp_agent_bindings'
-          assert head.down_revision==audit.revision
+          assert stale_oauth.down_revision==audit.revision
+          assert head.down_revision==stale_oauth.revision
           assert EXPECTED_MIGRATION==head.revision
           assert '/dashboard/api/audit/recent' in set(app.openapi()['paths'])
           assert AUDIT_ASSET_VERSION.startswith('f73a-')
