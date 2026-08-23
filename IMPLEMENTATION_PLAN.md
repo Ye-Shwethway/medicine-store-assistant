@@ -19,6 +19,7 @@ This file is the execution contract for current MSA implementation order and bou
 - Prefer smallest runnable slices; avoid unnecessary infrastructure.
 - Normal continuation uses connected tools, PRs, and the self-hosted runner; do not require routine Termux/SSH/Bamboo/manual Actions work from the Owner.
 - Significant implementation/deploy/next-work changes update `ROADMAP.md`, `NEW_CHAT_BOOTSTRAP.md`, this file, and relevant canonical docs.
+- Dashboard UI delivery must follow `docs/design/WEB_ASSET_RELEASE_INTEGRITY.md`; changed CSS/JS requires a current HTML entrypoint asset version and browser-visible delivery verification, not only green backend/CI evidence.
 
 ## 2. Existing `$msa` workflow parity
 
@@ -117,6 +118,8 @@ Default Web path:
 `UI/UX Pro Max -> design-system/medicine-store-assistant/MASTER.md + page override -> authenticated API contract -> direct code implementation -> responsive/accessibility/runtime verification`
 
 Figma is optional and not a normal implementation prerequisite.
+
+Browser delivery is part of runtime verification. For every changed Dashboard CSS/JS asset, inspect and update its HTML entrypoint cache identity, reject stale version markers in CI, keep manually versioned assets no-store/no-cache, wait for issue #26 deployment evidence, and verify that live browser behavior corresponds to the deployed source. Canonical checklist: `docs/design/WEB_ASSET_RELEASE_INTEGRITY.md`.
 
 ## 8. F7.2D4 — Internal model assignment/fallback/runtime identity — NEXT
 
