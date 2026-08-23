@@ -32,7 +32,7 @@ jobs:
       - name: Validate MCP runtime imports
         run: |
           python -m pip install --disable-pip-version-check -q -r backend/requirements.txt
-          PYTHONPATH=backend python -c 'from app.main import app; from app.mcp_server import mcp, mcp_http_app; assert app and mcp and mcp_http_app; print("mcp_runtime_import=pass")'
+          PYTHONPATH=backend python -c 'from app.main import app; from app.mcp_server import mcp, mcp_http_app; from app.agent_management import router as agent_router; assert app and mcp and mcp_http_app and agent_router; print("mcp_runtime_import=pass agent_management_import=pass")'
       - name: Validate MCP OAuth contract
         run: |
           PYTHONPATH=backend python - <<'PY'
@@ -60,10 +60,45 @@ jobs:
           assert "/.well-known/oauth-authorization-server/oauth" in router_paths
           print("mcp_oauth_contract=pass")
           PY
+      - name: Validate F7.2D2 API contract
+        run: |
+          PYTHONPATH=backend python - <<'PY'
+          from app.main import app
+          from app.agent_management import AgentCreate, SessionCreate, SessionParticipantInput
+          paths = set(app.openapi()["paths"])
+          required = {
+              "/dashboard/api/agents",
+              "/dashboard/api/agents/{agent_id}",
+              "/dashboard/api/agents/{agent_id}/disable",
+              "/dashboard/api/agents/{agent_id}/reactivate",
+              "/dashboard/api/agents/{agent_id}/revoke",
+              "/dashboard/api/agents/sessions/list",
+              "/dashboard/api/agents/sessions",
+              "/dashboard/api/agents/sessions/{session_id}",
+              "/dashboard/api/agents/sessions/{session_id}/close",
+              "/dashboard/api/agents/sessions/{session_id}/reopen",
+          }
+          assert required <= paths, sorted(required - paths)
+          a = AgentCreate(display_name="Analyst", call_name="Mira")
+          assert a.capability_scopes == ["mcp:read"]
+          s = SessionCreate(session_name="Compare", mode="COMPARE", participants=[SessionParticipantInput(agent_id="00000000-0000-0000-0000-000000000001", position=0)])
+          assert s.mode == "COMPARE" and len(s.participants) == 1
+          print("f7_2d2_api_contract=pass")
+          PY
       - name: Validate dashboard JavaScript syntax
         run: |
           node --check backend/app/dashboard_assets/dashboard.js
+          node --check backend/app/dashboard_assets/dashboard_recovery.js
+          node --check backend/app/dashboard_assets/dashboard_agents.js
           node --check backend/app/dashboard_assets/login.js
+      - name: Validate dashboard Agent Management UI contract
+        run: |
+          grep -Fq 'AI Agent Management' backend/app/dashboard_assets/dashboard.html
+          grep -Fq 'Create agent' backend/app/dashboard_assets/dashboard.html
+          grep -Fq 'Multi-agent sessions' backend/app/dashboard_assets/dashboard.html
+          grep -Fq 'dashboard_agents.js' backend/app/dashboard_assets/dashboard.html
+          grep -Fq 'dashboard_agents.css' backend/app/dashboard_assets/dashboard.html
+          echo 'f7_2d2_ui_contract=pass'
       - name: Validate deployment shell syntax
         run: |
           set -euo pipefail
