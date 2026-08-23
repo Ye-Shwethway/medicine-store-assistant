@@ -16,14 +16,15 @@ Before changing code/config/schema/runtime in a fresh chat, read in this order:
 4. `IMPLEMENTATION_PLAN.md`
 5. `docs/architecture/README.md`
 6. `docs/design/UI_UX_PRO_MAX_INTEGRATION.md` for Web work
-7. `docs/architecture/F7_2D_AI_AGENT_MANAGEMENT.md`
-8. `docs/architecture/F7_2D0_MCP_FULL_CAPABILITY_SCHEMA.md`
-9. `docs/architecture/F7_2D2_AGENT_MANAGEMENT_AND_MULTI_AGENT_SESSIONS.md`
-10. `docs/checkpoints/F7_2D0_MCP_CONNECTIVITY_VERIFIED_2026-08-23.md`
-11. `docs/checkpoints/F7_2D2_AGENT_MANAGEMENT_2026-08-23.md`
-12. `docs/checkpoints/F7_2D3_PROVIDER_REGISTRY_VERIFIED_2026-08-23.md`
-13. task-relevant F7 architecture/design docs
-14. current repository/runtime/deployment evidence
+7. `docs/design/WEB_ASSET_RELEASE_INTEGRITY.md` for Web release verification
+8. `docs/architecture/F7_2D_AI_AGENT_MANAGEMENT.md`
+9. `docs/architecture/F7_2D0_MCP_FULL_CAPABILITY_SCHEMA.md`
+10. `docs/architecture/F7_2D2_AGENT_MANAGEMENT_AND_MULTI_AGENT_SESSIONS.md`
+11. `docs/checkpoints/F7_2D0_MCP_CONNECTIVITY_VERIFIED_2026-08-23.md`
+12. `docs/checkpoints/F7_2D2_AGENT_MANAGEMENT_2026-08-23.md`
+13. `docs/checkpoints/F7_2D3_PROVIDER_REGISTRY_VERIFIED_2026-08-23.md`
+14. task-relevant F7 architecture/design docs
+15. current repository/runtime/deployment evidence
 
 Treat newer verified repository/runtime evidence as authoritative over remembered chat context.
 
@@ -43,6 +44,8 @@ Canonical flow:
 `branch -> PR -> main -> automatic VPS deploy -> issue #26 evidence -> continuity-doc refresh`
 
 Do not require routine Termux, SSH, tmux, Bamboo/Bamboo Claw, or manual Actions work from the Owner. Runtime secrets remain on the VPS.
+
+For Web changes, never infer that green backend/CI evidence means the browser feature is live. Changed CSS/JS must have a current entrypoint asset version, manually versioned assets remain no-store/no-cache, and browser delivery must match the deployed SHA. Follow `docs/design/WEB_ASSET_RELEASE_INTEGRITY.md`.
 
 ## Verified checkpoints
 
@@ -157,6 +160,8 @@ Canonical design files:
 - `design-system/medicine-store-assistant/pages/dashboard.md`
 
 **Figma is optional, not mandatory.**
+
+For every changed Dashboard CSS/JS asset, update/verify the HTML entrypoint version marker and browser delivery chain under `docs/design/WEB_ASSET_RELEASE_INTEGRITY.md` before calling the UI verified.
 
 ## Next authorized slice
 
