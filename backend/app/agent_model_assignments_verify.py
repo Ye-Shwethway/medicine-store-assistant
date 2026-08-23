@@ -4,6 +4,8 @@ from pathlib import Path
 
 from app.main import app
 
+# F7.2D4B acceptance verifier for the ordered native-agent model chain.
+
 
 def main() -> None:
     paths = set(app.openapi()["paths"])
