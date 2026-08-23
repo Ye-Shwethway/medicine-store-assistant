@@ -45,7 +45,7 @@ Treat newer verified repository/runtime evidence as authoritative over remembere
 
 Canonical flow:
 
-`branch -> PR -> main -> automatic VPS deploy -> issue #26 evidence -> continuity-doc refresh`
+`branch -> PR -> main -> automatic VPS deploy for runtime changes -> issue #26 evidence -> continuity-doc refresh`
 
 Do not require routine Termux, SSH, tmux, Bamboo/Bamboo Claw, or manual Actions work from the Owner. Runtime secrets remain on the VPS.
 
@@ -71,11 +71,12 @@ Verified complete/foundational:
 - F7.2C Credential + Recovery Lifecycle
 - F7.2D0 custom MCP/OAuth connectivity
 - F7.2D0 MCP schema finalization **v2.1 — 106-action runtime catalog**
+- F7.2D0 replacement ChatGPT MCP scan/manifest/read/audit acceptance — **verified 2026-08-23**
 - F7.2D2 named AI Agent Management + multi-agent session topology
 - F7.2D3 Provider Registry + dynamic model catalog + tested saved-model catalog
 - F7.2D4A external MCP OAuth grant -> named-agent binding
 - F7.3A minimal external-MCP actor audit evidence
-- F7.3B broad typed row-level shadow reads
+- F7.3B broad typed row-level shadow reads, including live replacement-client `NEW_UNMAPPED` read proof
 
 ## F6B test-only snapshot
 
@@ -106,7 +107,7 @@ Runtime anchor:
 
 - PR #78
 - merge SHA `4e523645ab05063577b0e3fbc4c6ca5f870ce1dd`
-- deploy run `32637806906`
+- schema deployment run `32637806906`
 - issue #26 `status=success`
 - schema version `2026-08-23.v2.1`
 - expected runtime actions **106**
@@ -129,7 +130,29 @@ Important exclusions:
 
 Future work should normally implement an existing `NOT_ENABLED` action, add a backend-allowlisted action string value, or add backward-compatible optional inputs. Adding new MCP action names is exceptional because the ChatGPT custom app may hold a scanned schema snapshot.
 
-Before deleting the existing ChatGPT app, create/scan a replacement against `https://inventory.drthorne.uk/mcp`. The replacement must show **106 Actions**, including `msa_system_schema_manifest` and `msa_shadow_read_rows`. Then verify the manifest reports v2.1/count 106/hash above, a row-level `NEW_UNMAPPED` read works, and Audit records the read under the named MCP agent. Only after those checks should the old app be removed.
+### Replacement ChatGPT MCP acceptance — VERIFIED
+
+The one-time replacement-client scan/acceptance gate is complete and no further connector recreation is required for the current v2.1 contract.
+
+Runtime/cleanup evidence:
+
+- stale duplicate OAuth cleanup PR #80;
+- PR #80 merge/deploy SHA `a669890d4cf34c061f28296f64c306d95d4ee012`;
+- production deploy run `32639464966` — success;
+- current Alembic head `0016_revoke_stale_chatgpt_oauth`;
+- PR #80 validation workflows all passed: backend, saved-model catalog, MCP audit, and MCP agent binding;
+- deploy workflow also passed backend verification and the public MCP OAuth metadata/unauthenticated boundary check.
+
+Owner/runtime acceptance:
+
+- replacement MCP app reports schema `2026-08-23.v2.1` and **106 actions**;
+- `msa_system_schema_manifest` and `msa_shadow_read_rows` are available;
+- bound named agent resolves as `IANEO`;
+- binding state is `BOUND`;
+- read authority is enabled;
+- write/control remain disabled;
+- a live `NEW_UNMAPPED` row-level read through `msa_shadow_read_rows` succeeded;
+- Dashboard Audit independently recorded `IANEO -> msa_shadow_read_rows -> SUCCESS` under `EXTERNAL_MCP` / `EXTERNAL_MCP_CLIENT` / `mcp:read` at 2026-08-23 19:02:38 local time.
 
 ## F7.2D2 — named Agent Management truth
 
@@ -167,7 +190,8 @@ Runtime anchor:
 - merge SHA `5f00458b55e85cfe4e3a78f5fb7b2f8517e159e2`
 - deploy run `32631778542`
 - issue #26 `status=success`
-- migration head `0014_mcp_agent_bindings`
+- binding migration `0014_mcp_agent_bindings`
+- current production migration head `0016_revoke_stale_chatgpt_oauth` after replacement-client duplicate cleanup
 
 Verified behavior:
 
@@ -179,6 +203,7 @@ Verified behavior:
 - Unbound OAuth remains connected but reports `UNBOUND`; identity is never guessed.
 - MSA cannot call back into ChatGPT through this binding. Outbound/internal AI is a separate provider-backed runtime path.
 - Production inventory write and control-plane gates remain closed.
+- Duplicate replacement-app cleanup preserves the newest ACTIVE ChatGPT grant and revokes older duplicate grants/tokens/stale bindings plus old client registrations with no remaining active grant.
 
 ### Agent Management UI rules currently locked
 
@@ -196,13 +221,14 @@ F7.3 is not fully implemented, but these verified foundations are live:
 - Dashboard Audit exposes minimal Recent activity;
 - `mcp:read` means broad authorized typed operational reads, not summary-only;
 - `msa_shadow_read_rows`, `msa_shadow_read_batch`, and `msa_shadow_read_review_reasons` provide permanent row-level migration diagnostics;
+- replacement-client acceptance proves a live `NEW_UNMAPPED` detail read and named-agent Audit event through `msa_shadow_read_rows`;
 - raw SQL and secret-bearing auth/security tables remain excluded.
 
 The full Audit UI still needs date/month, human, agent, runtime/client, provider/model, operation/result/location filters and preserved month/archive history navigation.
 
 ## Next authorized slice
 
-Continue **F7.2D4 — internal model assignment/fallback/runtime identity** after the replacement ChatGPT MCP app passes the v2.1 scan/manifest/read/audit acceptance.
+Continue **F7.2D4 — internal model assignment/fallback/runtime identity**. The replacement ChatGPT MCP acceptance prerequisite is already satisfied.
 
 Required direction:
 
