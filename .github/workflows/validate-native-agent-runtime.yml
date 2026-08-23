@@ -1,0 +1,26 @@
+name: Validate native internal agent runtime
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'backend/app/native_agent_runtime.py'
+      - 'backend/app/native_agent_runtime_verify.py'
+      - 'backend/app/agent_model_assignments.py'
+      - 'backend/app/main.py'
+      - '.github/workflows/validate-native-agent-runtime.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate-native-agent-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install backend requirements
+        run: python -m pip install --disable-pip-version-check -q -r backend/requirements.txt
+      - name: Compile native runtime
+        run: python -m compileall -q backend/app
+      - name: Validate native invocation contract
+        run: PYTHONPATH=backend python backend/app/native_agent_runtime_verify.py
