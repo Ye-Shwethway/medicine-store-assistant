@@ -6,6 +6,7 @@ on:
     paths:
       - 'backend/app/ai_workspace_chat.py'
       - 'backend/app/ai_workspace_access.py'
+      - 'backend/app/ai_workspace_attachments.py'
       - 'backend/app/native_agent_runtime.py'
       - 'backend/app/native_agent_tool_runtime.py'
       - 'backend/app/native_agent_tools.py'
@@ -14,6 +15,7 @@ on:
       - 'backend/app/dashboard_assets/dashboard_ai_workspace.js'
       - 'backend/app/dashboard_assets/dashboard_ai_workspace.css'
       - 'backend/alembic/versions/0018_ai_workspace_conversations.py'
+      - 'backend/alembic/versions/0019_ai_workspace_attachments.py'
       - '.github/workflows/validate-ai-workspace-chat.yml'
 
 permissions:
@@ -36,11 +38,17 @@ jobs:
           from app.db import EXPECTED_MIGRATION
           from app.main import app
 
-          spec=importlib.util.spec_from_file_location('m0018', Path('backend/alembic/versions/0018_ai_workspace_conversations.py'))
-          mod=importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
-          assert mod.revision == '0018_ai_workspace_conversations'
-          assert mod.down_revision == '0017_ai_workspace_access'
-          assert EXPECTED_MIGRATION == mod.revision
+          def load(path, name):
+              spec=importlib.util.spec_from_file_location(name, Path(path))
+              mod=importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+              return mod
+
+          conversations=load('backend/alembic/versions/0018_ai_workspace_conversations.py','m0018')
+          attachments=load('backend/alembic/versions/0019_ai_workspace_attachments.py','m0019')
+          assert conversations.revision == '0018_ai_workspace_conversations'
+          assert attachments.revision == '0019_ai_workspace_attachments'
+          assert attachments.down_revision == conversations.revision
+          assert EXPECTED_MIGRATION == attachments.revision
 
           paths=set(app.openapi()['paths'])
           required={
@@ -49,16 +57,20 @@ jobs:
               '/dashboard/api/ai-workspace/conversations',
               '/dashboard/api/ai-workspace/conversations/{conversation_id}',
               '/dashboard/api/ai-workspace/conversations/{conversation_id}/messages',
+              '/dashboard/api/ai-workspace/conversations/{conversation_id}/attachments',
+              '/dashboard/api/ai-workspace/conversations/{conversation_id}/attachments/{attachment_id}',
           }
           assert required <= paths, sorted(required-paths)
           delete_op=app.openapi()['paths']['/dashboard/api/ai-workspace/conversations/{conversation_id}'].get('delete')
-          assert delete_op is not None
+          attachment_delete=app.openapi()['paths']['/dashboard/api/ai-workspace/conversations/{conversation_id}/attachments/{attachment_id}'].get('delete')
+          assert delete_op is not None and attachment_delete is not None
           print('ai_workspace_chat_api=pass')
           PY
       - name: Validate backend security and sequence contract
         run: |
           grep -Fq 'Depends(require_ai_chat_access)' backend/app/ai_workspace_chat.py
           grep -Fq 'owner_user_id=CAST(:owner_user_id AS uuid)' backend/app/ai_workspace_chat.py
+          grep -Fq 'Do not reveal whether another user' backend/app/ai_workspace_chat.py
           grep -Fq '_eligible_agent(connection, conversation["agent_id"])' backend/app/ai_workspace_chat.py
           grep -Fq '_agent_read_allowed(agent)' backend/app/ai_workspace_chat.py
           grep -Fq 'run_native_read_tools(requested_tools)' backend/app/ai_workspace_chat.py
@@ -68,7 +80,12 @@ jobs:
           grep -Fq 'first_user_preview' backend/app/ai_workspace_chat.py
           grep -Fq 'WORKSPACE_TOOL_OUTPUT_TOKENS = 4096' backend/app/ai_workspace_chat.py
           grep -Fq 'Do not use Markdown heading markers' backend/app/ai_workspace_chat.py
-          grep -Fq 'Bounded read-only MSA tools are attached' backend/app/main.py
+          grep -Fq 'attachment_processing' backend/app/ai_workspace_chat.py
+          grep -Fq 'Attachment metadata is persisted' backend/app/ai_workspace_chat.py
+          grep -Fq 'MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024' backend/app/ai_workspace_attachments.py
+          grep -Fq 'MAX_PENDING_ATTACHMENTS = 4' backend/app/ai_workspace_attachments.py
+          grep -Fq 'state!=\x27PENDING\x27' backend/app/ai_workspace_attachments.py || true
+          grep -Fq 'Uploaded photos/files are persisted as evidence' backend/app/main.py
           echo 'ai_workspace_chat_security_sequence=pass'
       - name: Validate Dashboard Chat assets
         run: |
@@ -77,12 +94,15 @@ jobs:
           grep -Fq 'cleanDisplayText' backend/app/dashboard_assets/dashboard_ai_workspace.js
           grep -Fq 'data-copy-message' backend/app/dashboard_assets/dashboard_ai_workspace.js
           grep -Fq 'data-ai-delete' backend/app/dashboard_assets/dashboard_ai_workspace.js
+          grep -Fq 'aiPhotoInput' backend/app/main.py
+          grep -Fq 'aiFileInput' backend/app/main.py
+          grep -Fq 'uploadApi' backend/app/dashboard_assets/dashboard_ai_workspace.js
+          grep -Fq 'data-ai-remove-attachment' backend/app/dashboard_assets/dashboard_ai_workspace.js
           grep -Fq 'user-select:text' backend/app/dashboard_assets/dashboard_ai_workspace.css
           grep -Fq '.ai-conversation-preview' backend/app/dashboard_assets/dashboard_ai_workspace.css
+          grep -Fq '.ai-pending-attachment' backend/app/dashboard_assets/dashboard_ai_workspace.css
           grep -Fq 'AI Workspace' backend/app/main.py
           grep -Fq 'id="aiWorkspaceNav"' backend/app/main.py
           grep -Fq 'data-panel="ai-workspace"' backend/app/main.py
-          grep -Fq 'dashboard_ai_workspace.js' backend/app/main.py
-          grep -Fq 'dashboard_ai_workspace.css' backend/app/main.py
           grep -Fq 'Multi-Agent Workspace' backend/app/main.py
           echo 'ai_workspace_chat_ui=pass'
