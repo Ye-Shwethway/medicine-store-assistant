@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'backend/app/native_agent_tools.py'
+      - 'backend/app/native_agent_tool_runtime.py'
       - 'backend/app/native_agent_tools_verify.py'
       - 'backend/app/native_agent_runtime.py'
       - 'backend/app/ai_workspace_chat.py'
@@ -24,8 +25,16 @@ jobs:
         run: python -m pip install --disable-pip-version-check -q -r backend/requirements.txt
       - name: Compile backend
         run: python -m compileall -q backend/app
-      - name: Validate grounded read-tool contract
+      - name: Validate hybrid native tool contract
         run: PYTHONPATH=backend python backend/app/native_agent_tools_verify.py
+      - name: Validate bounded model-driven tool loop
+        run: |
+          grep -Fq 'MAX_TOOL_ROUNDS = 4' backend/app/native_agent_tool_runtime.py
+          grep -Fq '"tool_choice": "auto"' backend/app/native_agent_tool_runtime.py
+          grep -Fq 'execute_native_read_tool' backend/app/native_agent_tool_runtime.py
+          grep -Fq 'owner.get("role") != "OWNER"' backend/app/native_agent_tool_runtime.py
+          grep -Fq 'native_tools_exposed' backend/app/ai_workspace_chat.py
+          echo 'native_agent_model_tool_contract=pass'
       - name: Validate AI Workspace styling contract
         run: |
           grep -Fq '.ai-chat-form button' backend/app/dashboard_assets/dashboard_ai_workspace.css

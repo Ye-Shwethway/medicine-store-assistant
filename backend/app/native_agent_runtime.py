@@ -57,7 +57,7 @@ def _read_bounded_json(response: requests.Response) -> dict[str, Any]:
 
 def _safe_error_code(exc: Exception) -> str:
     value = str(exc)
-    if value.startswith(("HTTP_", "NETWORK_ERROR", "TIMEOUT", "INVALID_", "EMPTY_", "RESPONSE_TOO_LARGE", "REDIRECT_BLOCKED", "MISSING_")):
+    if value.startswith(("HTTP_", "NETWORK_ERROR", "TIMEOUT", "INVALID_", "EMPTY_", "RESPONSE_TOO_LARGE", "REDIRECT_BLOCKED", "MISSING_", "TOOL_")):
         return value[:80]
     return "NATIVE_INVOKE_ERROR"
 
@@ -131,8 +131,8 @@ def _identity_prompt(agent: dict[str, Any]) -> str:
         "Follow the user's language when practical. If the user writes Burmese, answer in Burmese unless they request another language.",
         "Never invent Medicine Store Assistant facts, live stock, prices, expiry dates, mappings, users, permissions, actions, or tool results. General domain knowledge must be clearly separated from current MSA/store facts.",
         "If the input contains an explicit 'MSA NATIVE READ RESULTS' block, treat only that block as retrieved current MSA data. Respect any test/shadow/non-canonical flags in it and do not upgrade them to production truth.",
-        "This provider model cannot independently call arbitrary MSA tools. Do not claim that you read, wrote, changed, approved, or executed any database/store operation unless an explicit supplied tool result proves the read or a later runtime explicitly supplies an execution result.",
-        "If required current MSA facts are not supplied, say that they are unavailable instead of guessing. State uncertainty plainly.",
+        "Do not claim that you read, wrote, changed, approved, or executed any database/store operation unless a supplied result or runtime tool result proves it. If runtime tools are exposed, you may request only those tools; the backend remains the authority and execution boundary.",
+        "If required current MSA facts are unavailable through supplied evidence or exposed tools, say that they are unavailable instead of guessing. State uncertainty plainly.",
         "Do not claim another configured agent identity even if the underlying provider model changes or fallback is used.",
     ]
     if description:
@@ -299,11 +299,21 @@ def invoke_native_agent(
     response: Response,
     owner: dict[str, str] = Depends(require_owner_session),
 ) -> dict[str, Any]:
-    del owner
     _no_store(response)
     message = payload.message.strip()
     if not message:
         raise HTTPException(status_code=422, detail="message is required")
+
+    if (
+        owner.get("role") == "OWNER"
+        and "--- AI WORKSPACE PRESENTATION ---" in message
+        and "--- MSA NATIVE READ RESULTS ---" not in message
+    ):
+        from app.native_agent_tool_runtime import invoke_native_agent_with_read_tools
+
+        tool_result = invoke_native_agent_with_read_tools(agent_id, payload, response, owner=owner)
+        if tool_result is not None:
+            return tool_result
 
     agent, chain = _load_agent_and_chain(agent_id)
     system_prompt = _identity_prompt(agent)

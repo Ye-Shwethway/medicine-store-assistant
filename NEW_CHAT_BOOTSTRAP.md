@@ -22,8 +22,9 @@ Before changing code/config/schema/runtime, read:
 10. `docs/checkpoints/F7_2D4F_GROUNDED_NATIVE_READS_PLAN_2026-08-23.md`
 11. `docs/checkpoints/F7_2D4G_CHAT_UX_LIFECYCLE_PLAN_2026-08-23.md`
 12. `docs/checkpoints/F7_2D47_FALLBACK_MANAGEMENT_PLAN_2026-08-23.md`
-13. current runtime/deployment evidence, especially issue #26
-14. `docs/design/UI_UX_PRO_MAX_INTEGRATION.md` and `docs/design/WEB_ASSET_RELEASE_INTEGRITY.md` for Web work
+13. `docs/checkpoints/F7_2D47A_NATIVE_TOOL_CALLING_PLAN_2026-08-23.md`
+14. current runtime/deployment evidence, especially issue #26
+15. `docs/design/UI_UX_PRO_MAX_INTEGRATION.md` and `docs/design/WEB_ASSET_RELEASE_INTEGRITY.md` for Web work
 
 Treat newer verified repository/runtime evidence as authoritative over remembered chat context.
 
@@ -59,6 +60,7 @@ Production/manual accepted:
 - named AI Agent Management and persisted authority/policy;
 - Provider Registry + tested Owner-saved models;
 - backend PRIMARY + ordered FALLBACK chain for `INTERNAL_MODEL` agents;
+- Owner fallback configuration UI exists; live failover proof still pending;
 - server rejection of model assignment for non-internal agents;
 - MCP-independent native provider inference;
 - provider/model/fallback/latency attempt provenance;
@@ -88,30 +90,52 @@ Owner always has AI Workspace access. Global OFF hard-blocks all non-owner Chat 
 
 Native tool authority intersects system gate, authenticated human authority, selected-agent capability/ceiling, location scope, operation class, and confirmation policy. Never union privileges. Provider/model assignment never grants authority.
 
-## Current work — D4.7 fallback management
+During current D4.7A rollout, native store-tool execution is backend-restricted to Owner sessions plus selected-agent READ authority. Non-owner Chat is reasoning-only for store tools until explicit human/location tool authority is implemented.
 
-Canonical checkpoint: `docs/checkpoints/F7_2D47_FALLBACK_MANAGEMENT_PLAN_2026-08-23.md`.
+## Current work — D4.7A native tool calling
 
-Backend support already exists for one PRIMARY + up to five ordered FALLBACK models. Current work exposes that chain in Owner-only AI Agent Management:
+Canonical checkpoint: `docs/checkpoints/F7_2D47A_NATIVE_TOOL_CALLING_PLAN_2026-08-23.md`.
 
-- primary provider/model selectors;
-- add/remove/reorder fallback models;
-- only healthy, saved, currently-discovered models from enabled providers;
-- canonical `/model-assignments` chain endpoint;
-- persisted order on reopen;
-- fallback count on agent cards;
-- non-internal assignment controls remain unavailable and server-rejected.
+The first safe native-read slice used deterministic current-message keyword routing. Keep that as a fast path, but add model-driven tool selection for tool-capable internal models.
 
-Live failover acceptance requires at least two healthy saved models. When available, prove PRIMARY failure -> ordered FALLBACK success with `fallback_used=true` and complete attempt provenance, without public MCP.
+Current native tool registry:
+
+- `inventory_summary`
+- `new_unmapped_rows`
+- `review_reasons`
+
+Current hybrid behavior:
+
+1. Explicit supported request -> deterministic backend fast-path prefetch -> grounded model answer.
+2. If no fast-path evidence exists and the assigned OpenAI-compatible model advertises tool support -> expose all currently authorized native read tools -> model may request tools -> backend allowlist/authority validation -> typed result -> model final answer.
+3. Tool loop is bounded to four rounds.
+4. Unsupported providers/models fall back to normal grounded reasoning; they must not claim tool execution.
+5. Public MCP is not used.
+
+Important: the public MCP schema has 106 actions, but those are not automatically internal-agent tools. Only native typed adapters that are implemented and backend-authorized are exposed to internal models.
 
 ## Next authorized order
 
-1. D4.7 fallback configuration UI deployment + manual persistence/order acceptance.
-2. D4.7 live failover proof when a second healthy saved model exists.
+1. Deploy D4.7A and manually verify explicit fast path plus contextual model-driven tool calling.
+2. Run D4.7 live PRIMARY -> FALLBACK proof with two healthy saved models.
 3. D4.8 Owner-only Multi-Agent execution.
-4. per-user Chat entitlement/allowed-agent UI before staff rollout.
-5. native typed-tool expansion as product workflows require.
+4. Per-user Chat entitlement/allowed-agent UI plus human/location tool-authority intersection before staff tool rollout.
+5. Expand native typed tools as product workflows require.
 6. D4.9 optional MCP -> native-agent delegation.
+
+## Manual acceptance prompt for D4.7A
+
+Use an Owner AI Workspace conversation with a tool-capable internal model.
+
+First ask an explicit request such as:
+
+`Show the current NEW_UNMAPPED rows.`
+
+Then in the same conversation ask a contextual follow-up without tool keywords, for example:
+
+`Investigate this further and verify anything you need from MSA instead of asking me to supply the facts.`
+
+Expected: the second turn may request one or more exposed native read tools itself; provenance records exposed/tool-called names; no public MCP is used; no write occurs.
 
 ## Survival proof
 

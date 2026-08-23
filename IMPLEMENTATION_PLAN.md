@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Implementation Plan
 
-Status: **F7.2D4F grounded native reads and F7.2D4G Chat UX/lifecycle are production/manual accepted; current slice is D4.7 fallback management + live failover proof; production inventory write authority remains unauthorized**
+Status: **F7.2D4F grounded native reads and F7.2D4G Chat UX/lifecycle are production/manual accepted; D4.7 fallback configuration UI is implemented; current refinement is D4.7A hybrid deterministic + model-driven native tool calling before live failover proof; production inventory write authority remains unauthorized**
 
 This file is the execution contract for current MSA implementation order and boundaries.
 
@@ -77,6 +77,8 @@ Top-level **AI Workspace** is the operational surface.
 
 Effective typed-tool authority remains an intersection of system gate, authenticated human authority, selected-agent capability/ceiling, location scope, operation class, and confirmation policy. Never union privileges.
 
+During D4.7A, native store-tool execution is additionally restricted server-side to Owner sessions until the human/location authority intersection for staff is implemented. Non-owner Chat may still reason but receives no store-tool execution authority.
+
 ## 6. Current implementation slices
 
 ### D4.4A — Access policy — VERIFIED
@@ -104,23 +106,30 @@ Production/manual acceptance confirmed:
 
 Canonical checkpoint: `docs/checkpoints/F7_2D4G_CHAT_UX_LIFECYCLE_PLAN_2026-08-23.md`.
 
-### D4.7 — Fallback management + failover provenance — CURRENT
+### D4.7 — Fallback management — CONFIGURATION IMPLEMENTED / LIVE FAILOVER PENDING
 
 Canonical checkpoint: `docs/checkpoints/F7_2D47_FALLBACK_MANAGEMENT_PLAN_2026-08-23.md`.
 
+The Owner UI now exposes the existing backend PRIMARY + up to five ordered FALLBACK assignments. Live failover acceptance remains pending until two healthy saved models are configured and a primary failure is forced/observed.
+
+### D4.7A — Hybrid native tool calling — CURRENT
+
+Canonical checkpoint: `docs/checkpoints/F7_2D47A_NATIVE_TOOL_CALLING_PLAN_2026-08-23.md`.
+
 Implement now:
 
-- expose the existing backend PRIMARY + ordered FALLBACK chain in Owner-only AI Agent Management;
-- use canonical `/model-assignments` read/replace/clear contract rather than primary-only compatibility UI;
-- allow up to five ordered fallback models from Owner-saved, healthy, currently-discovered models;
-- support add/remove/reorder and preserve order on reopen;
-- show fallback count on internal-agent cards;
-- keep non-internal provider/model/fallback controls hidden/disabled and server-rejected;
-- when at least two healthy saved models are available, force/observe PRIMARY failure and prove ordered fallback execution;
-- record failed primary + successful fallback provider/model/latency/error provenance and `fallback_used=true`;
-- public MCP must remain unused for native failover.
+- preserve deterministic keyword routing as a low-latency fast path for explicit inventory/NEW_UNMAPPED/review requests;
+- add a bounded model-driven tool-calling loop for OpenAI-compatible saved models that advertise tool support;
+- expose every currently implemented and backend-authorized native read tool definition to the model: `inventory_summary`, `new_unmapped_rows`, `review_reasons`;
+- allow tool-capable models to request those tools for contextual follow-ups even when the current message does not match a deterministic keyword;
+- validate every model-requested tool against the native allowlist before execution;
+- cap the loop at four tool rounds;
+- persist tools exposed, model-requested tools/arguments, execution status, provider/model attempts, latency, and `mcp_used=false`;
+- keep non-owner store-tool execution disabled until human/location authority intersection is implemented;
+- do not expose write/control tools;
+- do not route internal tools through public MCP.
 
-If only one healthy saved model exists, ship configuration management first and leave live failover acceptance pending until a second healthy saved model is saved.
+Provider/model tool support is a capability signal, not authority. Backend authorization remains decisive.
 
 ### D4.8 — Owner-only Multi-Agent execution
 
@@ -132,16 +141,23 @@ Backend Owner authorization is mandatory. Each participant keeps separate identi
 
 Only after the native workspace is stable, connect MCP delegation slots to the same native runtime for explicit delegation. Direct MCP operations remain direct.
 
-## 7. D4.7 acceptance
+## 7. D4.7A acceptance
 
-Configuration passes when:
+This refinement passes when:
 
-1. Owner can save PRIMARY + ordered FALLBACK chain and reopen the editor with the same order;
-2. invalid, unhealthy, stale, duplicate, or non-internal assignments are rejected by backend;
-3. agent card shows primary model and fallback count;
-4. no provider/model authority expansion occurs.
+1. explicit supported requests still execute the deterministic fast-path read tools;
+2. a contextual follow-up such as `investigate this further` can trigger a model-requested native read tool without requiring the user to manually supply facts;
+3. the model sees the full currently authorized native read-tool registry;
+4. unknown/non-exposed tool names are rejected by the backend and never execute arbitrary code/SQL;
+5. selected agent still requires READ capability + READ-or-higher authority ceiling;
+6. native store tools execute only for Owner sessions in this slice;
+7. provenance records exposed tools and model tool calls;
+8. no public MCP call occurs;
+9. no production inventory write or canonical DB promotion occurs.
 
-Runtime failover passes when a second healthy saved model is available and:
+## 8. D4.7 live failover acceptance after D4.7A
+
+When two healthy saved models are configured:
 
 1. primary attempt fails;
 2. fallback is attempted in stored order;
@@ -149,8 +165,8 @@ Runtime failover passes when a second healthy saved model is available and:
 4. attempt provenance includes failed primary and successful fallback;
 5. no public MCP call occurs.
 
-## 8. Immediate execution boundary
+## 9. Immediate execution boundary
 
-Proceed with **D4.7 Owner fallback configuration UI**, deploy and manually verify persistence/order. Then run a real failover acceptance once at least two healthy saved models are configured.
+Proceed with **D4.7A hybrid native tool calling**, deploy and manually verify both fast-path and contextual model-driven tool execution. Then return to the D4.7 live failover test.
 
 Do not enable production inventory writes, AI inventory writes, transfers, Smart Calculator deductions, Telegram/Flutter stock mutations, Sheet mirror conversion, or PostgreSQL canonical promotion in this work.

@@ -42,6 +42,7 @@ def latest_new_unmapped_rows(limit: int = MAX_TOOL_ROWS) -> dict[str, Any]:
     summary = latest_inventory_summary()
     batch = summary.get("batch") or {}
     batch_id = batch.get("migration_batch_id")
+    bounded_limit = max(1, min(int(limit), MAX_TOOL_ROWS))
     if not batch_id:
         items: list[dict[str, Any]] = []
     else:
@@ -60,7 +61,7 @@ def latest_new_unmapped_rows(limit: int = MAX_TOOL_ROWS) -> dict[str, Any]:
             ORDER BY msr.source_sheet, msr.source_row_no, msr.migration_source_row_id
             LIMIT :limit
             """,
-            {"migration_batch_id": batch_id, "limit": max(1, min(int(limit), MAX_TOOL_ROWS))},
+            {"migration_batch_id": batch_id, "limit": bounded_limit},
         )
     return {
         "tool": "new_unmapped_rows",
@@ -69,7 +70,7 @@ def latest_new_unmapped_rows(limit: int = MAX_TOOL_ROWS) -> dict[str, Any]:
         "migration_batch_id": batch_id,
         "items": items,
         "count": len(items),
-        "limit": max(1, min(int(limit), MAX_TOOL_ROWS)),
+        "limit": bounded_limit,
     }
 
 
@@ -77,6 +78,7 @@ def latest_review_reasons(limit: int = MAX_REVIEW_REASONS) -> dict[str, Any]:
     summary = latest_inventory_summary()
     batch = summary.get("batch") or {}
     batch_id = batch.get("migration_batch_id")
+    bounded_limit = max(1, min(int(limit), MAX_REVIEW_REASONS))
     if not batch_id:
         items: list[dict[str, Any]] = []
     else:
@@ -92,7 +94,7 @@ def latest_review_reasons(limit: int = MAX_REVIEW_REASONS) -> dict[str, Any]:
             ORDER BY row_count DESC, classification, review_reason
             LIMIT :limit
             """,
-            {"migration_batch_id": batch_id, "limit": max(1, min(int(limit), MAX_REVIEW_REASONS))},
+            {"migration_batch_id": batch_id, "limit": bounded_limit},
         )
     return {
         "tool": "review_reasons",
@@ -102,6 +104,54 @@ def latest_review_reasons(limit: int = MAX_REVIEW_REASONS) -> dict[str, Any]:
         "items": items,
         "count": len(items),
     }
+
+
+def native_read_tool_definitions() -> list[dict[str, Any]]:
+    return [
+        {
+            "type": "function",
+            "function": {
+                "name": "inventory_summary",
+                "description": "Read the latest bounded MSA inventory/shadow migration summary, including row and classification counts. Current evidence is test/shadow and non-canonical unless explicitly stated otherwise.",
+                "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "new_unmapped_rows",
+                "description": "Read bounded NEW_UNMAPPED shadow rows from the latest MSA migration batch, including source sheet/row, review reason, and payload.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"limit": {"type": "integer", "minimum": 1, "maximum": MAX_TOOL_ROWS}},
+                    "additionalProperties": False,
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "review_reasons",
+                "description": "Read a bounded grouped summary of REVIEW, CONFLICT, and NEW_UNMAPPED reasons in the latest MSA shadow migration batch.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"limit": {"type": "integer", "minimum": 1, "maximum": MAX_REVIEW_REASONS}},
+                    "additionalProperties": False,
+                },
+            },
+        },
+    ]
+
+
+def execute_native_read_tool(name: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
+    args = arguments or {}
+    if name == "inventory_summary":
+        return latest_inventory_summary()
+    if name == "new_unmapped_rows":
+        return latest_new_unmapped_rows(args.get("limit", MAX_TOOL_ROWS))
+    if name == "review_reasons":
+        return latest_review_reasons(args.get("limit", MAX_REVIEW_REASONS))
+    return {"ok": False, "tool": name, "error_code": "NATIVE_TOOL_NOT_ALLOWED"}
 
 
 def select_native_read_tools(message: str) -> list[str]:
@@ -125,17 +175,8 @@ def select_native_read_tools(message: str) -> list[str]:
     if any(term in text_value for term in inventory_terms) or selected:
         selected.insert(0, "inventory_summary")
 
-    # Preserve order and remove duplicates.
     return list(dict.fromkeys(selected))
 
 
 def run_native_read_tools(tool_names: list[str]) -> list[dict[str, Any]]:
-    results: list[dict[str, Any]] = []
-    for name in tool_names:
-        if name == "inventory_summary":
-            results.append(latest_inventory_summary())
-        elif name == "new_unmapped_rows":
-            results.append(latest_new_unmapped_rows())
-        elif name == "review_reasons":
-            results.append(latest_review_reasons())
-    return results
+    return [execute_native_read_tool(name) for name in tool_names]
