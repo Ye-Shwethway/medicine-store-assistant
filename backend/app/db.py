@@ -5,7 +5,7 @@ import os
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 
-EXPECTED_MIGRATION = "0016_revoke_stale_chatgpt_oauth"
+EXPECTED_MIGRATION = "0017_ai_workspace_access"
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 
