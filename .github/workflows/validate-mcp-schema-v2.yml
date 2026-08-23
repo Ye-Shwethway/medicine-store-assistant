@@ -1,0 +1,76 @@
+name: Validate MCP schema v2
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'backend/app/mcp_server.py'
+      - 'backend/app/mcp_shadow_reads.py'
+      - 'backend/app/mcp_schema_v2.py'
+      - 'backend/app/mcp_schema_v2_finalize.py'
+      - '.github/workflows/validate-mcp-schema-v2.yml'
+      - 'docs/architecture/F7_2D0_MCP_SCHEMA_FINALIZATION_V2.md'
+
+permissions:
+  contents: read
+
+jobs:
+  validate-mcp-schema-v2:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install backend requirements
+        run: python -m pip install --disable-pip-version-check -q -r backend/requirements.txt
+      - name: Compile MCP modules
+        run: python -m compileall -q backend/app
+      - name: Validate finalized runtime tool catalog
+        run: |
+          PYTHONPATH=backend python - <<'PY'
+          import app.main  # noqa: F401; constructs the production MCP application
+          from app.mcp_server import mcp
+          from app.mcp_schema_v2 import FINAL_TOOL_COUNT, FINAL_TOOL_HASH, FINAL_TOOL_NAMES, SCHEMA_VERSION
+
+          runtime_names = tuple(sorted(tool.name for tool in mcp._tool_manager.list_tools()))
+          assert SCHEMA_VERSION == '2026-08-23.v2'
+          assert FINAL_TOOL_COUNT == 94, FINAL_TOOL_COUNT
+          assert len(runtime_names) == 94, len(runtime_names)
+          assert runtime_names == FINAL_TOOL_NAMES, (set(runtime_names) ^ set(FINAL_TOOL_NAMES))
+          assert len(FINAL_TOOL_HASH) == 64
+          assert 'msa_shadow_read_rows' in runtime_names
+          assert 'msa_system_schema_manifest' in runtime_names
+          assert 'msa_agent_invoke' in runtime_names
+          assert 'msa_agent_sessions_manage' in runtime_names
+          assert 'msa_locations_manage' in runtime_names
+          assert 'msa_alerts_query' in runtime_names
+          assert 'msa_sync_manage' in runtime_names
+          assert 'msa_migration_control' in runtime_names
+          assert 'msa_inventory_read_usage' in runtime_names
+          assert 'msa_agents_rotate_credential' not in runtime_names
+          forbidden_name_fragments = ('password', 'credential', 'secret', 'raw_sql', 'sql_console', 'shell', 'filesystem')
+          assert not [name for name in runtime_names if any(fragment in name for fragment in forbidden_name_fragments)]
+          print(f'mcp_schema_v2=pass version={SCHEMA_VERSION} count={len(runtime_names)} hash={FINAL_TOOL_HASH}')
+          PY
+      - name: Validate registration happens before transport construction
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          server = Path('backend/app/mcp_server.py').read_text()
+          shadow = Path('backend/app/mcp_shadow_reads.py').read_text()
+          assert server.index('import app.mcp_shadow_reads') < server.index('mcp_http_app = mcp.streamable_http_app')
+          assert shadow.index('import app.mcp_schema_v2 ') < len(shadow)
+          assert shadow.index('import app.mcp_schema_v2_finalize ') < len(shadow)
+          print('mcp_schema_registration_order=pass')
+          PY
+      - name: Validate exclusions and policy boundaries
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          docs = Path('docs/architecture/F7_2D0_MCP_SCHEMA_FINALIZATION_V2.md').read_text()
+          finalizer = Path('backend/app/mcp_schema_v2_finalize.py').read_text()
+          assert 'credential management' in finalizer
+          assert 'mcp.remove_tool("msa_agents_rotate_credential")' in finalizer
+          assert 'arbitrary SQL' in docs
+          assert 'provider API-key / credential provisioning' in docs
+          assert 'Production inventory writes and control-plane system gates remain closed' in docs
+          print('mcp_schema_v2_boundaries=pass')
+          PY
