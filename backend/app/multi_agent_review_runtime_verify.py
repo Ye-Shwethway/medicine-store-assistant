@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import secrets
 
-from fastapi import Response
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 from sqlalchemy import text
 
-from app.dashboard_auth import _engine, ensure_bootstrap_owner
-from app.multi_agent_review import NativeReviewStartInput, run_native_review
+from app.dashboard_auth import _engine, ensure_bootstrap_owner, require_owner_session
+from app.multi_agent_review import router as review_router
+from app.multi_agent_review_ui_api import router as review_ui_router
 import app.multi_agent_review as review_module
 
 
@@ -48,6 +50,11 @@ def main() -> None:
     owner = ensure_bootstrap_owner()
     engine = _engine()
     title = f"D4.8 runtime verify {secrets.token_hex(6)}"
+    app = FastAPI()
+    app.include_router(review_router)
+    app.include_router(review_ui_router)
+    app.dependency_overrides[require_owner_session] = lambda: owner
+
     try:
         with engine.connect() as connection:
             session = connection.execute(
@@ -80,17 +87,23 @@ def main() -> None:
         original = review_module.invoke_native_agent
         review_module.invoke_native_agent = _fake_invoke
         try:
-            result = run_native_review(
-                NativeReviewStartInput(
-                    session_id=session["session_id"],
-                    title=title,
-                    task="Deterministic D4.8 runtime persistence verification. Do not access or mutate inventory.",
-                    evidence_conversation_id=None,
-                    attachment_ids=[],
-                ),
-                Response(),
-                owner=owner,
+            client = TestClient(app, raise_server_exceptions=True)
+            history = client.get("/dashboard/api/ai-workspace/multi-agent/work-items")
+            if history.status_code != 200:
+                raise RuntimeError(f"history endpoint returned HTTP {history.status_code}: {history.text[:500]}")
+            response = client.post(
+                "/dashboard/api/ai-workspace/multi-agent/reviews",
+                json={
+                    "session_id": session["session_id"],
+                    "title": title,
+                    "task": "Deterministic D4.8 runtime persistence verification. Do not access or mutate inventory.",
+                    "evidence_conversation_id": None,
+                    "attachment_ids": [],
+                },
             )
+            if response.status_code != 201:
+                raise RuntimeError(f"review endpoint returned HTTP {response.status_code}: {response.text[:1000]}")
+            result = response.json()
         finally:
             review_module.invoke_native_agent = original
 
@@ -101,7 +114,8 @@ def main() -> None:
         if not result.get("artifacts"):
             raise RuntimeError("review runtime verification produced no artifacts")
         print(
-            "d4_8_review_runtime_verify=pass "
+            "d4_8_review_http_runtime_verify=pass "
+            f"history_degraded={bool(history.json().get('degraded'))} "
             f"status={result['status']} artifacts={len(result.get('artifacts', []))} reviews={len(result.get('reviews', []))}"
         )
     finally:
