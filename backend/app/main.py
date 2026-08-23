@@ -4,13 +4,13 @@ import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response, status
-from fastapi.responses import RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 
 from app.access_request_confirmed import router as access_request_confirmed_router
 from app.account_password_confirmed import router as account_password_confirmed_router
 from app.agent_management import router as agent_management_router
 from app.credential_lifecycle import router as credential_lifecycle_router
-from app.dashboard import router as dashboard_router
+from app.dashboard import ASSET_DIR, DASHBOARD_CSP, router as dashboard_router
 from app.dashboard_auth import SESSION_COOKIE, validate_session_token
 from app.dashboard_login import router as dashboard_login_router
 from app.db import database_readiness
@@ -31,6 +31,7 @@ SERVICE_NAME = "medicine-store-assistant-api"
 SERVICE_VERSION = os.getenv("MSA_SERVICE_VERSION", "0.1.0-dev")
 ENVIRONMENT = os.getenv("MSA_ENVIRONMENT", "development")
 BUILD_SHA = os.getenv("MSA_BUILD_SHA", "unknown")
+SAVED_MODEL_ASSET_VERSION = "f72d31-1"
 
 
 @asynccontextmanager
@@ -68,6 +69,53 @@ async def dashboard_login_gate(request: Request, call_next):
     return await call_next(request)
 
 
+def _dashboard_security_headers(response: Response) -> None:
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Content-Security-Policy"] = DASHBOARD_CSP
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+
+
+@app.get("/dashboard", include_in_schema=False)
+def dashboard_shell_with_saved_model_assets() -> HTMLResponse:
+    html = (ASSET_DIR / "dashboard.html").read_text(encoding="utf-8")
+    html = html.replace(
+        "</head>",
+        f'<link rel="stylesheet" href="/dashboard/assets/dashboard_saved_models.css?v={SAVED_MODEL_ASSET_VERSION}">\n</head>',
+        1,
+    )
+    html = html.replace(
+        "</body>",
+        f'<script src="/dashboard/assets/dashboard_saved_models.js?v={SAVED_MODEL_ASSET_VERSION}" defer></script>\n</body>',
+        1,
+    )
+    response = HTMLResponse(html)
+    _dashboard_security_headers(response)
+    return response
+
+
+@app.get("/dashboard/assets/dashboard_saved_models.css", include_in_schema=False)
+def saved_model_css() -> FileResponse:
+    response = FileResponse(ASSET_DIR / "dashboard_saved_models.css", media_type="text/css")
+    response.headers["Cache-Control"] = "no-store, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
+@app.get("/dashboard/assets/dashboard_saved_models.js", include_in_schema=False)
+def saved_model_js() -> FileResponse:
+    response = FileResponse(ASSET_DIR / "dashboard_saved_models.js", media_type="text/javascript")
+    response.headers["Cache-Control"] = "no-store, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
 app.include_router(dashboard_login_router)
 app.include_router(dashboard_router)
 app.include_router(email_recovery_page_router)
@@ -100,7 +148,7 @@ def health() -> dict[str, object]:
         "mcp_oauth": "enabled",
         "agent_management": "f7.2d2",
         "provider_registry": "f7.2d3",
-        "saved_model_catalog": "enabled",
+        "saved_model_catalog": "f7.2d3.1",
         "nanogpt_detailed_catalog": "enabled",
         "production_inventory_writes": False,
     }
