@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Project Roadmap
 
-Status: **F0/F1/F2/F3/F4/F5/F5.1/F6A/F6C/F7.1/F7.2A/F7.2B/F7.2C/F7.2D0/F7.2D2/F7.2D3/F7.2D4A/F7.2D4B/F7.2D4C/F7.2D4E/F7.2D4F/F7.2D4G verified; D4.7A hybrid native tool calling deployed/manual accepted; F7.3A minimal MCP audit evidence and F7.3B broad typed reads verified; current refinement is D4.7B human-friendly response normalization + attachment-ready AI Workspace; F6B remains test-only; PostgreSQL remains non-canonical**
+Status: **F0/F1/F2/F3/F4/F5/F5.1/F6A/F6C/F7.1/F7.2A/F7.2B/F7.2C/F7.2D0/F7.2D2/F7.2D3/F7.2D4A/F7.2D4B/F7.2D4C/F7.2D4E/F7.2D4F/F7.2D4G verified; D4.7A hybrid native tool calling deployed/manual accepted; D4.7B response/attachment UX manually accepted; current design work is D4.8 Multi-Agent Review + federated work exchange; F6B remains test-only; PostgreSQL remains non-canonical**
 
 The live Google workbook/source documents remain operationally authoritative. F6B is test-only and not an accepted migration baseline.
 
@@ -37,6 +37,7 @@ No AI/client receives arbitrary SQL, DB credentials, VPS shell/filesystem, Sheet
 - F7.2D4G Chat UX/lifecycle: long output, deterministic USER -> ASSISTANT sequence, clean display, Copy/select, conversation preview/time, owner-scoped delete
 - D4.7 Owner UI exposes PRIMARY + ordered FALLBACK assignment chain; live failover proof remains pending
 - D4.7A hybrid deterministic + model-driven native read-tool calling; contextual follow-up manual acceptance passed with MiniMax M3
+- D4.7B human-facing response normalization + bounded attachments + image preview + dynamic latest-message conversation cards manually accepted
 - F7.3A minimal external-MCP actor audit evidence
 - F7.3B broad typed row/detail reads
 
@@ -85,28 +86,40 @@ Accepted behavior:
 
 The external MCP 106-action manifest is not copied into the internal model runtime. Only implemented native typed adapters that pass backend authority checks are exposed.
 
-## F7.2D4 current refinement — D4.7B response + attachments
+## D4.7B response + attachments — ACCEPTED
 
 Canonical checkpoint: `docs/checkpoints/F7_2D47B_RESPONSE_AND_ATTACHMENTS_PLAN_2026-08-24.md`.
 
-Current work:
+Accepted behavior includes human-facing response normalization, bounded photo/file attachment persistence, authenticated ownership checks, JPEG/PNG/WebP previews before/after send, dynamic latest-message conversation-card previews, and explicit no-vision/OCR claims while provider byte delivery remains unwired.
 
-- normalize native tool output into human-facing presentation plus preserved raw provenance;
-- deterministic spreadsheet serial-date conversion may be supplied by backend while retaining the raw serial value;
-- instruct agents to answer the user's question first and omit internal IDs/raw JSON/debug fields unless requested or necessary;
-- distinguish retrieved fact, deterministic derived value, and inference;
-- prohibit unsupported promises that fixing one blocker automatically changes classification/state;
-- add photo and generic file attachment controls to each AI Workspace chat composer contract;
-- single-agent Chat persists bounded attachment evidence with conversation/message ownership;
-- current Multi-Agent surface shows the same attachment contract but remains disabled until D4.8 execution lands;
-- attachment bytes are not yet sent to provider models, OCR, or vision pipelines;
-- upload evidence never grants authority.
-
-Attachment foundation is specifically intended for later typed workflows such as issue-paper photo batch intake, Daily Usage extraction, and stock-transfer evidence processing.
+Attachment evidence is groundwork for later issue-paper photo batch intake, Daily Usage extraction, stock-transfer evidence processing, and other typed workflows.
 
 ## D4.7 fallback management / failover
 
 Owner fallback configuration UI is implemented. Live PRIMARY failure -> ordered FALLBACK success acceptance remains pending. Provider/model assignment never changes agent identity or authority.
+
+## D4.8 Multi-Agent Review + federation — APPROVED DESIGN / NEXT
+
+Canonical architecture: `docs/architecture/F7_2D48_MULTI_AGENT_REVIEW_AND_FEDERATION.md`.
+
+Key decisions:
+
+- **native-only Multi-Agent workflows are first-class and require no external agent**;
+- `REVIEW` is the first implementation priority;
+- `GROUP` is a bounded shared-context native agentic loop with Owner observation/steering;
+- `COMPARE` keeps participant answers independent until comparison;
+- `DEBATE` uses bounded rounds and may start native-only;
+- external ChatGPT/MCP participation is optional and asynchronous/federated, not a fake live native participant;
+- Review presets may optionally enter `WAITING_EXTERNAL`; they may also skip external review entirely;
+- persisted Work Items, versioned Artifacts, Reviews, Events, and an Attention Queue form the shared coordination substrate;
+- Review lifecycle is `DRAFT -> REVIEWING -> WAITING_EXTERNAL? -> WAITING_OWNER -> APPROVED -> COMMITTABLE -> COMMITTED`;
+- `APPROVED` never means store mutation occurred;
+- federated MCP review is version-bound and does not grant write authority;
+- Telegram is planned as a notification/attention layer over the same persisted workflow state, never as the source of truth or orchestrator;
+- Web, MCP, and Telegram should surface one backend attention queue;
+- existing photo/file evidence contract is reused by Multi-Agent workflows.
+
+Initial orchestration roles are `ANALYST`, `REVIEWER`, and `SYNTHESIZER`, with optional Owner-defined display labels. Roles do not grant authority.
 
 ## Access-control invariants
 
@@ -118,17 +131,20 @@ Non-owner Chat:
 
 Owner always bypasses the global user Chat gate. Global OFF blocks all non-owner Chat before provider calls. Tool authority is an intersection, never a union. Non-owner Chat remains reasoning-only for native store tools until explicit human/location authority intersection is wired.
 
-Attachment access follows the same authenticated workspace and conversation-ownership boundary. Multi-Agent attachment processing remains Owner-only with Multi-Agent execution.
+Multi-Agent execution remains Owner-only in this phase. Each native participant's authority is evaluated independently; session membership never unions privileges. Federated submissions are evidence/review inputs and do not inherit internal-agent authority.
 
 ## Immediate implementation order
 
-1. D4.7B response normalization + attachment persistence/UI deployment and manual acceptance.
-2. D4.7 live failover proof with two healthy saved models when a stable secondary provider/model is available.
-3. D4.8 Owner-only Multi-Agent GROUP/COMPARE/REVIEW/DEBATE execution using the same attachment contract.
-4. Per-user Chat entitlement/allowed-agent UI and human/location tool-authority intersection before staff tool rollout.
-5. Expand native typed tools and attachment-processing pipelines over shared MSA service contracts as product workflows require.
-6. D4.9 optional MCP -> native-agent delegation.
-7. Continue full actor-aware audit and later controlled writes only after prerequisites.
+1. Persist D4.8 Work Item / Artifact / Review / Event / Attention Queue substrate.
+2. Wire Owner-only native-only REVIEW mode first using existing session presets and attachment contract.
+3. Add optional federated `WAITING_EXTERNAL` checkpoint and bounded MCP work/review exchange actions.
+4. Add Telegram notification delivery over persisted attention events; notification failure must never advance/lose workflow state.
+5. Add GROUP bounded native loops + Owner steer/pause/resume/stop + optional external checkpoints.
+6. Add COMPARE and DEBATE execution semantics.
+7. Return to D4.7 live failover proof when a stable secondary model/provider is available.
+8. Per-user Chat entitlement/allowed-agent UI and human/location tool-authority intersection before staff tool rollout.
+9. Expand native typed tools and attachment-processing pipelines as real workflows require.
+10. D4.9 optional explicit MCP -> native-agent delegation after the shared substrate is stable.
 
 ## Later sequence
 
@@ -138,7 +154,7 @@ Attachment access follows the same authenticated workspace and conversation-owne
 4. F7.5 — Smart Calculator / receipts
 5. F7.6 — deterministic Smart Analysis
 6. F7.7 — richer internal AI workflows, including vision/OCR evidence intake
-7. F7.8 — Alerts & Notifications
+7. F7.8 — Alerts & Notifications, including Telegram delivery
 8. F9 — controlled typed writes after authority/audit/location/idempotency prerequisites
 9. F10 — real workflow + fresh migration + Sheet sync validation
 10. F11 — explicit canonical DB promotion
@@ -146,6 +162,4 @@ Attachment access follows the same authenticated workspace and conversation-owne
 
 ## Immediate boundary
 
-Proceed with **D4.7B human-friendly response + attachment-ready AI Workspace**, then return to live failover proof when a stable secondary model is available.
-
-Do not enable production inventory writes, AI inventory writes, transfers, Smart Calculator deductions, Telegram/Flutter stock mutations, Sheet mirror conversion, automatic OCR/vision commits, or PostgreSQL canonical promotion.
+Proceed with **D4.8 shared work/review substrate and native-only REVIEW mode first**. External/federated participation remains optional. Do not enable production inventory writes, AI inventory writes, transfers, Smart Calculator deductions, Telegram/Flutter stock mutations, Sheet mirror conversion, automatic OCR/vision commits, or PostgreSQL canonical promotion.
