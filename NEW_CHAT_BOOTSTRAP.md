@@ -20,11 +20,13 @@ Before changing code/config/schema/runtime in a fresh chat, read in this order:
 8. `docs/architecture/F7_2D_AI_AGENT_MANAGEMENT.md`
 9. `docs/architecture/F7_2D0_MCP_FULL_CAPABILITY_SCHEMA.md`
 10. `docs/architecture/F7_2D2_AGENT_MANAGEMENT_AND_MULTI_AGENT_SESSIONS.md`
-11. `docs/checkpoints/F7_2D0_MCP_CONNECTIVITY_VERIFIED_2026-08-23.md`
-12. `docs/checkpoints/F7_2D2_AGENT_MANAGEMENT_2026-08-23.md`
-13. `docs/checkpoints/F7_2D3_PROVIDER_REGISTRY_VERIFIED_2026-08-23.md`
-14. task-relevant F7 architecture/design docs
-15. current repository/runtime/deployment evidence
+11. `docs/architecture/F7_2D4A_EXTERNAL_MCP_AGENT_BINDING.md`
+12. `docs/checkpoints/F7_2D0_MCP_CONNECTIVITY_VERIFIED_2026-08-23.md`
+13. `docs/checkpoints/F7_2D2_AGENT_MANAGEMENT_2026-08-23.md`
+14. `docs/checkpoints/F7_2D3_PROVIDER_REGISTRY_VERIFIED_2026-08-23.md`
+15. `docs/checkpoints/F7_2D4A_MCP_AGENT_BINDING_VERIFIED_2026-08-23.md`
+16. task-relevant F7 architecture/design docs
+17. current repository/runtime/deployment evidence
 
 Treat newer verified repository/runtime evidence as authoritative over remembered chat context.
 
@@ -68,6 +70,7 @@ Verified complete:
 - F7.2D0 custom MCP/OAuth full-schema connectivity proof
 - F7.2D2 named AI Agent Management + multi-agent session topology
 - F7.2D3 Provider Registry + dynamic model catalog
+- F7.2D4A external MCP OAuth grant -> named-agent binding
 
 ## F6B test-only snapshot
 
@@ -106,106 +109,70 @@ Agent Management is Owner-only. Each agent has immutable `agent_id`, editable `d
 
 Persistent sessions support `GROUP`, `COMPARE`, `REVIEW`, `DEBATE`, ordered participants, role labels, and open/closed lifecycle.
 
-## F7.2D3 — verified Provider Registry truth
+## F7.2D3 — Provider Registry + saved model catalog truth
+
+Provider Registry is Owner-only and supports OpenAI, Google Gemini, OpenRouter, NanoGPT, and generic `OPENAI_COMPATIBLE`.
+
+Provider credentials are write-only. A dedicated server-side provider-secret volume stores secret material; PostgreSQL stores only opaque `credential_ref`. The Web/API never reads a saved provider key back to the Owner.
+
+Current provider flow:
+
+`Add provider -> provision credential -> Test connection -> Fetch models -> inspect detailed catalog -> Test model -> Save to approved provider catalog -> Enable`
+
+Fetched/discovered models are not automatically usable models. Internal agents may bind only to Owner-saved, healthy models from the provider's approved catalog.
+
+NanoGPT detailed discovery includes normalized capabilities, pricing, subscription/paid membership where provided by official endpoints, search/filter, and explicit unknown metadata rather than guessing.
+
+## F7.2D4A — external MCP named-agent binding truth
 
 Runtime anchor:
 
-- PR #60
-- merge SHA `882c67b0134edb59156c17e948128de0ca8c3365`
-- deploy run `32621925138`
-- deploy job `97151213410`
+- PR #70
+- merge SHA `5f00458b55e85cfe4e3a78f5fb7b2f8517e159e2`
+- deploy run `32631778542`
 - issue #26 `status=success`
-- migration `0011_ai_agents -> 0012_providers`
+- migration head `0014_mcp_agent_bindings`
 
-Provider Registry is Owner-only and supports:
+Verified behavior:
 
-- OpenAI
-- Google Gemini
-- OpenRouter
-- NanoGPT
-- generic `OPENAI_COMPATIBLE`
+- Owner can bind/rebind/unbind an active MCP OAuth grant to a named `EXTERNAL_MCP_CLIENT` agent from Agent Management.
+- Binding does not require reconnecting ChatGPT.
+- `msa_identity_whoami` resolves bound `agent_id`, display/call name, runtime/client context, and effective scopes.
+- Named-agent effective MCP authority is live OAuth grant capability intersected with live agent capability scope and authority ceiling.
+- Disabled/revoked/non-external agents contribute no named-agent capability authority.
+- Unbound OAuth remains connected but reports `UNBOUND`; identity is never guessed.
+- MSA cannot call back into ChatGPT through this binding. Outbound/internal AI is a separate provider-backed runtime path.
+- Production inventory write and control-plane gates remain closed.
 
-Provider credentials are write-only. A dedicated server-side `msa_provider_secrets` Docker volume stores the secret material; PostgreSQL stores only opaque `credential_ref`. The Web/API never reads a saved provider key back to the Owner.
+### Agent Management UI rules currently locked
 
-Provider flow now exists:
+- UI/UX Pro Max + MSA design system direct-code workflow; Figma optional only when explicitly requested.
+- Primary constructive CTA uses green `.primary`.
+- Neutral/lifecycle actions use `.secondary`.
+- Destructive actions such as Revoke use `.danger-action`; browser-default action styling is not acceptable.
+- Changed UI assets use versioned/no-store delivery and must avoid self-trigger MutationObserver loops.
 
-`Add provider -> provision credential -> Test connection -> Fetch models -> inspect normalized catalog -> Enable`
+## Audit direction already approved
 
-Deployment/runtime verification confirmed provider CRUD foundation, write-only secret persistence, no plaintext provider key in DB, enable gate, model normalization, Owner-only/public auth boundaries, and migration health. Deployment itself did not invoke a real provider API.
+The eventual Audit section is the user-facing surface for durable operational logs. It will distinguish human, named AI agent, transport/client, provider/model when relevant, operation, location/target, result, and correlation/read-back provenance.
 
-Custom provider base URLs require public HTTPS and reject private/loopback/link-local/reserved destinations and redirects. Provider responses are bounded and sanitized. Unknown model capability remains unknown rather than guessed.
+Audit UI must support at least date/time and month filtering, human filter, agent filter, runtime/client filter, provider/model filter when relevant, operation/result/location filters, and historical month/archive navigation. Archive/history must preserve records rather than silently delete or rewrite them.
 
-### Current Agent Management presentation
-
-- `Create agent` and `New session` use the same secondary-button design family as `Refresh`.
-- Agent list is split into `External / MCP agents` and `Internal / provider-backed agents`.
-- Agent cards show `Agent name`, `Origin`, and `Model`.
-- Internal agents show `Not assigned` until F7.2D4.
-- External runtime models show `Client-managed` rather than being guessed.
-- Provider Registry appears in the same Owner-only AI control-plane page.
-
-## Web implementation rule
-
-Normal MSA Web work uses:
-
-`UI/UX Pro Max -> repo design system -> authenticated API contract -> direct code implementation -> responsive/accessibility/runtime verification`
-
-Pinned UI/UX Pro Max upstream commit:
-
-`bc826e2267a36d98a2dcf5231e16c30ff546770f`
-
-Canonical design files:
-
-- `design-system/medicine-store-assistant/MASTER.md`
-- `design-system/medicine-store-assistant/pages/dashboard.md`
-
-**Figma is optional, not mandatory.**
-
-For every changed Dashboard CSS/JS asset, update/verify the HTML entrypoint version marker and browser delivery chain under `docs/design/WEB_ASSET_RELEASE_INTEGRITY.md` before calling the UI verified.
+The full actor-aware Audit/operation ledger remains F7.3; F7.2D4A only established named external actor resolution.
 
 ## Next authorized slice
 
-**F7.2D4 — internal model assignment/fallback/runtime identity**.
+Continue **F7.2D4 — internal model assignment/fallback/runtime identity**.
 
 Required direction:
 
-- assign primary provider/model to a named internal agent;
+- assign a primary enabled provider + Owner-saved healthy model to a named internal agent;
 - optional ordered fallback chain;
 - compatibility checks against known model capabilities;
-- timeout/output policy and optional cost/usage metadata;
+- timeout/output policy and optional usage/cost metadata;
 - inject current canonical agent identity on every model invocation;
 - provider/model changes never alter stable `agent_id` or authority;
-- prepare actual single-agent inference and future multi-agent comparison/review/debate execution.
+- prove a narrow real provider-backed inference using Owner-configured credentials;
+- prepare actual multi-agent comparison/review/debate execution.
 
-Do not automatically bind or invent an existing external MCP agent identity/name. If the current ChatGPT MCP client is to become a named `AI_AGENT`, bind it through an explicit Owner-controlled relationship rather than guessing identity.
-
-## Then
-
-1. F7.3 — actor-aware Audit / operation ledger
-2. F7.4 — Inventory Locations / Store Policy / Preferences
-3. F7.5 — Smart Calculator / receipts, calculation-only first
-4. F7.6 — Smart Analysis
-5. F7.7 — internal read-only AI Assistant
-6. F7.8 — Alerts & Notifications
-7. F9 — controlled writes only after required foundations
-8. F10 — real workflow + fresh migration + Sheet sync validation
-9. F11 — explicit canonical promotion
-
-## Required invariants
-
-- AI agents are not human accounts.
-- Agent identity is separate from provider/model/client transport.
-- Provider/model selection is not authority.
-- AI Agent Management, Provider Registry, and global Settings are Owner-only.
-- Agents cannot self-escalate or edit grants/control-plane policy.
-- Multi-agent sessions cannot union participant privileges.
-- `$msa` SAFE/REVIEW/CONFLICT/NEW_UNMAPPED + read-back/audit workflow parity remains required.
-- Significant writes are never reported successful before committed-state read-back.
-
-## Immediate implementation instruction
-
-A fresh implementation chat may proceed directly with **F7.2D4 model assignment/fallback/runtime identity**. Do not repeat MCP proof, F7.2D2 Agent Management, or F7.2D3 Provider Registry unless live repository/runtime evidence contradicts these verified checkpoints.
-
-## Continuity rule
-
-After significant architecture, implementation, deployment, migration, design-system, or next-work changes, update `ROADMAP.md`, this file, `IMPLEMENTATION_PLAN.md`, and relevant canonical docs.
+Do not enable production inventory writes, AI inventory writes, transfers, Smart Calculator deductions, Telegram/Flutter stock mutation, Sheet mirror conversion, or PostgreSQL canonical promotion during this continuation.
