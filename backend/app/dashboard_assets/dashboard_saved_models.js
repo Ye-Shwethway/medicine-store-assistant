@@ -194,6 +194,7 @@
   async function hydrateAgentAssignment(agentId){
     ensureAgentBindingFields();
     try{
+      await loadProvidersAndSaved();
       const data=await api('/dashboard/api/agents/'+encodeURIComponent(agentId)+'/model-assignments');
       const primary=data.primary;
       if(!primary){syncAgentProviderOptions();renderFallbackRows([]);return}
@@ -242,7 +243,7 @@
       const fallbackRemove=event.target.closest('[data-fallback-remove]');if(fallbackRemove){event.preventDefault();fallbackRemove.closest('.agent-fallback-row')?.remove();renumberFallbackRows();return}
       const move=event.target.closest('[data-fallback-move]');if(move){event.preventDefault();const row=move.closest('.agent-fallback-row');if(!row)return;if(move.dataset.fallbackMove==='up'&&row.previousElementSibling)row.parentNode.insertBefore(row,row.previousElementSibling);if(move.dataset.fallbackMove==='down'&&row.nextElementSibling)row.parentNode.insertBefore(row.nextElementSibling,row);renumberFallbackRows();return}
       const edit=event.target.closest('[data-agent-action="edit"]');if(edit){setTimeout(()=>hydrateAgentAssignment(edit.dataset.agentId),0);return}
-      if(event.target.closest('#agentCreateOpen')){setTimeout(()=>{syncAgentBindingVisibility();syncAgentProviderOptions();renderFallbackRows([])},0)}
+      if(event.target.closest('#agentCreateOpen')){setTimeout(()=>{loadProvidersAndSaved().then(()=>{syncAgentBindingVisibility();syncAgentProviderOptions();renderFallbackRows([])}).catch(err=>announce(err.message))},0)}
     },true);
     const providerObserver=new MutationObserver(()=>renderProviderSavedCatalogs());if($('#providerList'))providerObserver.observe($('#providerList'),{childList:true,subtree:true});
     const agentObserver=new MutationObserver(()=>hydrateAgentCards());if($('#agentList'))agentObserver.observe($('#agentList'),{childList:true,subtree:true});
