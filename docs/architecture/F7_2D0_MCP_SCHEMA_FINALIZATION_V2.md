@@ -1,4 +1,4 @@
-# F7.2D0 — MCP Schema Finalization v2
+# F7.2D0 — MCP Schema Finalization v2.1
 
 Status: **LOCKED IMPLEMENTATION CONTRACT — one long-lived ChatGPT MCP schema; capability activation remains policy-gated**
 
@@ -18,18 +18,28 @@ The final MCP schema does **not** expose:
 
 - provider API-key / credential provisioning or credential read-back;
 - passwords, password reset secrets, session/token digests, OAuth secret material, or secret-manager contents;
-- arbitrary SQL, table names, unrestricted database query/patch operations, DB credentials, shell, or filesystem access.
+- the legacy `msa_agents_rotate_credential` action;
+- arbitrary SQL, table names, unrestricted database query/patch operations, DB credentials, shell, or filesystem access;
+- a generic unrestricted HTTP proxy.
 
 All other planned MSA product/control surfaces should have a stable typed MCP action now so later implementation normally changes availability/policy rather than the ChatGPT connector schema.
 
 ## Schema identity
 
 - Schema family: `msa-mcp`
-- Finalization version: `2026-08-23.v2`
-- Expected published actions: **94**
+- Finalization version: `2026-08-23.v2.1`
+- Expected published actions: **106**
 - The server exposes `msa_system_schema_manifest` so clients can compare schema version, expected tool count, stable tool-name hash, build SHA, excluded capability classes, and domain coverage.
-- CI compares the declared manifest against all `@mcp.tool` registrations in `mcp_server.py`, `mcp_shadow_reads.py`, and `mcp_schema_v2.py`.
+- CI imports production `app.main`, inspects the actual MCP runtime tool manager, and requires an exact match with the declared manifest.
 - Extension tools must be registered before `mcp_http_app` is constructed.
+
+## Long-lived input-schema rule
+
+For domain-level `query` / `manage` actions, do not freeze future action vocabulary into a closed client-side enum when that would force a ChatGPT app rescan merely to add a safe backend action.
+
+Use stable string action selectors plus deterministic backend allowlists. Visibility of an action string never grants authority, and unknown/unapproved action values must fail closed.
+
+Stable closed fields may still use enums where the concept itself is genuinely fixed.
 
 ## Authority classes
 
@@ -46,33 +56,23 @@ Production inventory writes and control-plane system gates remain closed until t
 
 ### Identity and system
 
-Existing:
 - `msa_identity_whoami`
 - `msa_system_status`
 - `msa_system_capabilities`
-
-Added:
 - `msa_system_schema_manifest`
 
 ### Inventory and stock
 
-Existing:
-- `msa_inventory_read_summary`
-- `msa_inventory_read_search`
-- `msa_inventory_read_item`
-- `msa_inventory_read_lots`
-- `msa_inventory_read_location_balance`
-- `msa_inventory_write_price`
-- `msa_inventory_write_metadata`
-- `msa_inventory_write_receive`
-- `msa_inventory_write_adjustment`
+Existing typed reads/writes remain, including summary/search/item/lots/location balance, receive/price/metadata/adjustment.
 
-Added:
-- `msa_inventory_read_movements` — bounded stock-movement/history query by product/location/date/type.
+Additional permanent slots:
+
+- `msa_inventory_read_movements`
+- `msa_inventory_read_usage`
+- `msa_inventory_write_operation` — future backend-allowlisted operational movement such as issue/return/dispose/stocktake with idempotency and policy gates.
 
 ### Shadow migration / source diagnostics
 
-Permanent schema actions:
 - `msa_shadow_read_rows`
 - `msa_shadow_read_batch`
 - `msa_shadow_read_review_reasons`
@@ -81,36 +81,32 @@ These cover row-level `SAFE`, `REVIEW`, `CONFLICT`, and `NEW_UNMAPPED` evidence 
 
 ### CMS catalogue
 
-Existing:
 - `msa_catalogue_read_current`
 - `msa_catalogue_read_history`
+- `msa_catalogue_query`
+- `msa_catalogue_manage`
 
-Added:
-- `msa_catalogue_query` — typed search/detail query without arbitrary DB access.
+Catalogue management is schema-visible but Owner/policy-gated and must validate allowlisted fields/actions.
 
 ### Reconciliation
 
-Existing:
 - `msa_reconciliation_classify`
 - `msa_reconciliation_prepare_batch`
 - `msa_reconciliation_review_status`
+- `msa_reconciliation_query`
+- `msa_reconciliation_review`
+- `msa_reconciliation_commit`
 
-Added:
-- `msa_reconciliation_query` — list/get proposal/evidence/history through one typed read surface;
-- `msa_reconciliation_review` — future Owner review/approve/reject/reopen action.
+`msa_reconciliation_commit` remains disabled until write/canonicality/review/idempotency/read-back requirements are satisfied.
 
 ### Transfers
 
-Existing:
 - `msa_transfer_create`
 - `msa_transfer_reverse`
-
-Added:
-- `msa_transfer_query` — list/get/history/status query.
+- `msa_transfer_query`
 
 ### Locations, store policy, preferences
 
-Added:
 - `msa_locations_query`
 - `msa_locations_manage`
 - `msa_store_policy_get`
@@ -122,93 +118,103 @@ These reserve F7.4 without requiring future connector changes.
 
 ### Calculator and receipts
 
-Existing:
 - `msa_calculator_calculate`
 - `msa_calculator_save_receipt`
 - `msa_calculator_dispense`
+- `msa_receipts_query`
+- `msa_receipts_manage`
 
-Added:
-- `msa_receipts_query` — list/get/history/reversal-status query.
+Receipt management reserves reverse/correct/archive-style typed lifecycle operations; execution remains policy-gated.
 
-### Analysis
+### Analysis and reports
 
-Existing:
 - `msa_analysis_stock_health`
 - `msa_analysis_expiry_risk`
 - `msa_analysis_reorder_outlook`
 - `msa_analysis_data_quality`
+- `msa_analysis_query`
+- `msa_reports_query`
+- `msa_reports_manage`
 
-Added:
-- `msa_analysis_query` — typed analysis selector plus bounded product/location/date filters for future analysis growth.
+`msa_analysis_query` uses a backend-allowlisted string analysis type so later FIFO/usage/price/movement analyses can be enabled without changing the connector schema. Report tools reserve mismatch/change-log/export workflows.
 
 ### Human users
 
-Existing User Management actions remain.
+Existing User Management actions remain, plus:
 
-Added:
-- `msa_users_access_requests` — list/get pending/history without credentials;
-- `msa_users_update_profile` — typed non-credential profile/admin metadata update.
+- `msa_users_access_requests`
+- `msa_users_update_profile`
 
 No password or recovery-secret operations are published through MCP.
 
-### AI agents and multi-agent sessions
+### AI agents, external clients, and multi-agent sessions
 
-Existing Agent Management actions remain.
+Existing Agent Management actions remain except credential rotation, which is explicitly removed from discovery.
 
-Added:
-- `msa_agent_invoke` — future named internal-agent inference through its saved provider/model assignment;
-- `msa_agent_sessions_query` — list/get participants/runs/results;
-- `msa_agent_sessions_manage` — create/update/close session topology and invoke configured session runs through policy-gated actions.
+Added/reserved:
 
-Agent identity remains stable and independent of provider/model choice.
+- `msa_agents_update_identity`
+- `msa_agent_invoke`
+- `msa_agent_sessions_query`
+- `msa_agent_sessions_manage`
+- `msa_external_clients_query`
+- `msa_external_clients_manage`
+
+External-client management is metadata/binding/lifecycle only; no token or credential issuance/read-back. Agent identity remains stable and independent of provider/model choice.
 
 ### Providers and saved model catalog
 
 Existing provider metadata/test/fetch/assignment actions remain. Provider credential provisioning remains Web/VPS-only and is explicitly absent from MCP.
 
-Added:
-- `msa_providers_catalog_query` — discovered models, saved models, assignments, health/capability metadata;
-- `msa_providers_catalog_manage` — save/remove model, enable/disable saved model, unassign assignment, and related non-secret catalog control.
+Added/reserved:
+
+- `msa_providers_catalog_query`
+- `msa_providers_catalog_manage`
+- `msa_providers_lifecycle`
+
+These cover discovered/saved model metadata, assignments, provider enable/disable/retest lifecycle, and non-secret catalog control.
 
 ### Audit
 
-Existing audit placeholders remain.
+Existing audit placeholders remain, plus:
 
-Added:
 - `msa_audit_search` — future bounded query with date/month, human, agent, runtime/client, provider/model, operation, outcome, location/target, and correlation/operation filters.
 
 Monthly archive/history is a view over preserved records rather than silent deletion.
 
 ### Alerts and notifications
 
-Added:
 - `msa_alerts_query`
 - `msa_alerts_manage`
 - `msa_notifications_query`
 - `msa_notifications_manage`
 
-Query tools cover alerts/rules/notification history. Manage tools reserve acknowledge/snooze/rule/preference operations under appropriate policy.
+Backend allowlists action names/settings; notification or integration credentials are never returned or provisioned through these tools.
+
+### Scheduled system automations
+
+- `msa_automations_query`
+- `msa_automations_manage`
+
+These reserve the `SYSTEM_AUTOMATION` runtime for scheduled agent/operation jobs without exposing secret material. Backend policy controls permitted operations, schedules, agents and parameters.
 
 ### Sync and migration lifecycle
 
-Added:
-- `msa_sync_query` — status/history/job diagnostics;
-- `msa_sync_manage` — future preview/run/retry/cancel typed sync operations;
-- `msa_migration_control` — future baseline accept/reject and explicit canonical promotion/demotion workflow.
+- `msa_sync_query`
+- `msa_sync_manage`
+- `msa_migration_control`
 
-Canonical promotion is visible at schema level but must remain destructive Owner control and policy-disabled until F11.
+`msa_migration_control` reserves baseline accept/reject and explicit canonical promotion/demotion workflow. Canonical promotion is schema-visible but remains destructive Owner control and policy-disabled until F11.
 
 ### Source evidence / ingestion
 
-Added:
-- `msa_sources_query` — list/get/status/preview diagnostics for typed source evidence;
-- `msa_sources_manage` — future bounded ingest/reprocess/archive operations for approved source kinds.
+- `msa_sources_query`
+- `msa_sources_manage`
 
-No arbitrary filesystem path, shell, URL proxy, or credential forwarding is permitted.
+These reserve scan/OCR/source-evidence ingest/reprocess/archive workflows. No arbitrary filesystem path, shell, URL proxy, credential forwarding, or SQL is permitted.
 
 ### Integrations
 
-Added:
 - `msa_integrations_query`
 - `msa_integrations_manage`
 
@@ -216,20 +222,19 @@ These reserve non-secret metadata/status/test/enable/disable management for futu
 
 ### Settings
 
-Existing:
 - `msa_settings_get`
 - `msa_settings_update`
 
 Only allowlisted typed settings are valid; no generic environment-variable or secret editor.
 
-## Schema-change policy after v2
+## Schema-change policy after v2.1
 
 After the Owner creates the replacement ChatGPT MCP app from this contract:
 
 1. Prefer implementing an existing `NOT_ENABLED` tool rather than adding a new action.
-2. Prefer adding optional backward-compatible input fields rather than replacing actions.
+2. Prefer backend-allowlisted new action-string values or optional backward-compatible input fields rather than new tool names.
 3. Breaking semantic changes require an explicit versioned replacement and Owner approval.
-4. New MCP actions are exceptional and require demonstrating that the v2 typed domain tools cannot express the requirement safely.
+4. New MCP actions are exceptional and require demonstrating that the v2.1 typed domain tools cannot express the requirement safely.
 5. CI must reject manifest drift.
 6. Runtime verification must compare `msa_system_schema_manifest` with the ChatGPT Actions list before the old MCP app is deleted.
 
@@ -237,11 +242,13 @@ After the Owner creates the replacement ChatGPT MCP app from this contract:
 
 Pass only when:
 
-1. all 94 declared tools register before HTTP transport construction;
-2. manifest names/count/hash match source registrations exactly;
-3. credentials/raw SQL are absent from the catalog;
+1. all 106 declared tools register before HTTP transport construction;
+2. manifest names/count/hash match runtime registrations exactly;
+3. credential/password/token secret actions and raw SQL are absent from the catalog;
 4. row-level shadow reads remain present;
-5. current read-only OAuth authority still denies propose/write/control;
-6. existing `whoami`, system status, inventory summary, and audit evidence regressions pass;
-7. production deploy reports exact success SHA;
-8. the Owner can then recreate/scan the ChatGPT MCP app once and verify the manifest/action count.
+5. operational issue/return-style write slot, catalogue/reconciliation/receipt management, external-client control, provider lifecycle, reports, and scheduled automation slots are present;
+6. extensible query/manage actions expose open string selectors while backend allowlists remain mandatory;
+7. current read-only OAuth authority still denies propose/write/control;
+8. existing `whoami`, system status, inventory summary, audit, binding and broad-read regressions pass;
+9. production deploy reports exact success SHA;
+10. the Owner can then recreate/scan the ChatGPT MCP app once and verify the manifest/action count.

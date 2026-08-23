@@ -88,8 +88,9 @@ def msa_shadow_read_review_reasons(migration_batch_id: str | None = None) -> dic
     return {"ok": True, "status": "AVAILABLE", **result}
 
 
-# mcp_server imports this module before constructing mcp_http_app. Register both the
-# final v2 extension and its explicit exclusions/replacements here so ChatGPT scans the
-# finalized catalog rather than a construction-time partial snapshot.
+# mcp_server imports this module before constructing mcp_http_app. Register the base
+# v2 schema, explicit exclusions/replacements, then the final v2.1 hardening layer so
+# ChatGPT scans the complete long-lived catalog from initial transport construction.
 import app.mcp_schema_v2 as _mcp_schema_v2  # noqa: E402,F401
 import app.mcp_schema_v2_finalize as _mcp_schema_v2_finalize  # noqa: E402,F401
+import app.mcp_schema_v21 as _mcp_schema_v21  # noqa: E402,F401
