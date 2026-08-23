@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Response
 from sqlalchemy import text
 
 from app.dashboard_auth import _engine, require_owner_session
+import app.multi_agent_review_registration as _multi_agent_review_registration  # noqa: F401
 
 router = APIRouter(tags=["saved-model-catalog"])
 
