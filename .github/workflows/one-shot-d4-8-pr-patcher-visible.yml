@@ -19,10 +19,10 @@ jobs:
           ref: fix/d4-8-review-root-cause
           fetch-depth: 0
           persist-credentials: true
-      - name: Apply asserted patch
+      - name: Apply asserted code patch
         run: |
           set -euo pipefail
-          python scripts/d4_8_root_fix_patch.py
+          python scripts/d4_8_root_fix_code_patch.py
           python -m compileall -q backend/app
           node --check backend/app/dashboard_assets/dashboard_multi_agent_review.js
           git diff --check
