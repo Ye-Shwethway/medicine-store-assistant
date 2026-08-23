@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from sqlalchemy import text
 
 from app.dashboard_auth import _engine, require_dashboard_session, require_owner_session
+from app.native_agent_runtime import NativeAgentInvokeInput, invoke_native_agent
 
 router = APIRouter(prefix="/dashboard/api/ai-workspace", tags=["ai-workspace-access"])
 
@@ -113,6 +114,21 @@ def get_effective_access(
         **decision,
         "multi_agent_allowed": principal["role"] == "OWNER",
     }
+
+
+@router.post("/agents/{agent_id}/invoke", summary="Invoke one internal agent from AI Workspace Chat")
+def invoke_workspace_agent(
+    agent_id: str,
+    payload: NativeAgentInvokeInput,
+    response: Response,
+    principal: dict[str, str] = Depends(require_ai_chat_access),
+) -> dict[str, Any]:
+    # Authorization has already completed before this function reaches the provider-backed runtime.
+    result = invoke_native_agent(agent_id, payload, response, owner=principal)
+    result["workspace_user_id"] = principal["user_id"]
+    result["workspace_user_role"] = principal["role"]
+    result["workspace_access_checked"] = True
+    return result
 
 
 @router.get("/settings", summary="Read Owner AI Workspace settings")
