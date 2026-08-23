@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.dashboard_auth import make_password_hash, password_hash_shape_valid, require_roles, verify_password_hash
+from app.multi_agent_review_runtime_verify import main as verify_multi_agent_review_runtime
 
 
 def main() -> None:
@@ -22,6 +23,7 @@ def main() -> None:
 
     print("F7.2A auth primitive verification PASS")
     print("password_hash=pass role_policy_factory=pass canonical_roles=pass")
+    verify_multi_agent_review_runtime()
 
 
 if __name__ == "__main__":
