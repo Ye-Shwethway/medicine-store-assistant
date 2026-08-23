@@ -1,59 +1,26 @@
 # F7.2D — AI Agent Management, MCP Access, Provider Registry & Delegated Authority
 
-Status: **F7.2D0 and F7.2D2 verified complete; F7.2D3 Provider Registry + model catalog next; broad AI/production writes remain unauthorized**
+Status: **F7.2D0, F7.2D2, and F7.2D3 verified complete; F7.2D4 model assignment/fallback/runtime identity next; broad AI/production writes remain unauthorized**
 
 ## Purpose
 
-MSA supports multiple AI execution paths without tying identity or authority to one vendor/model/client. The same backend authority engine governs:
-
-- ChatGPT through custom MCP;
-- internal provider-backed agents;
-- optional Custom GPT Actions;
-- future Telegram/Flutter AI features;
-- scheduled/system jobs;
-- other typed integrations.
+MSA supports multiple AI execution paths without tying identity or authority to one vendor/model/client. The same backend authority engine governs custom MCP, internal provider-backed agents, optional Custom GPT Actions, future Telegram/Flutter AI features, scheduled/system jobs, and other typed integrations.
 
 AI Agent Management is an **Owner-only** control plane. Human users, AI agents, external clients, provider connections, models, assignments, and multi-agent sessions remain separate concepts.
 
-Canonical rule:
-
-`full transport/schema != full current authority`
+Canonical rule: `full transport/schema != full current authority`.
 
 ## Canonical separation
 
-### Human user
+- **Human user** — canonical person/account with stable `user_id`, credentials, human role, state, sessions.
+- **AI agent** — named durable principal with stable `agent_id`, canonical name, capability/location/authority/execution policy.
+- **External client/runtime** — transport/runtime such as ChatGPT custom MCP or optional Action client.
+- **Provider connection** — outbound model API configuration plus protected credential reference.
+- **Model** — provider-local model resource with discovered/configured capability metadata.
+- **Assignment** — provider/model/fallback configuration currently used by an internal agent.
+- **Multi-agent session** — reusable topology of selected named agents.
 
-Canonical person/account with stable `user_id`, credentials, human role, state, and sessions.
-
-### AI agent
-
-Named `AI_AGENT` principal with stable `agent_id`, canonical name, capabilities, location scope, authority ceiling, execution/confirmation policy, and lifecycle state.
-
-The agent is the durable identity/policy boundary. It is not the provider/model.
-
-### External client/runtime
-
-Transport/runtime such as ChatGPT custom MCP, optional Action client, Web AI Chat, future Telegram/Flutter client, or system integration.
-
-External client identity answers **who/what connected**, not **which model is the agent**.
-
-### Provider connection
-
-Outbound model API configuration: vendor/endpoint/compatibility settings plus protected credential reference.
-
-### Model
-
-Provider-local model resource with discovered/configured capability metadata.
-
-### Assignment
-
-Which provider/model an internal agent currently uses, including future primary/fallback ordering.
-
-Changing assignment never changes `agent_id` or authority.
-
-### Multi-agent session
-
-Reusable topology of selected named agents for future group/compare/review/debate orchestration. Session topology never unions participant privileges.
+Changing provider/model never changes `agent_id` or authority. Multi-agent sessions never union participant privileges.
 
 ## Runtime modes
 
@@ -72,102 +39,21 @@ Live architecture:
 
 `ChatGPT Developer Mode -> HTTPS/OAuth -> custom MSA MCP -> authenticated client context -> capability/location/operation/system gates -> typed MSA backend`
 
-Verified runtime:
+Verified current scopes: `mcp:connect`, `mcp:read`, `offline_access`; propose/write/control disabled. Anonymous `/mcp` returns 401. Custom GPT Actions are optional/fallback only.
 
-- remote MCP live at the MSA public HTTPS origin;
-- OAuth authorization code + PKCE S256;
-- protected-resource/authorization-server metadata;
-- dynamic client registration;
-- rotating refresh tokens + `offline_access`;
-- ChatGPT Developer Mode connection successful;
-- fresh ChatGPT chat successfully called MSA identity/system reads;
-- current scopes `mcp:connect`, `mcp:read`, `offline_access`;
-- propose/write/control disabled;
-- anonymous `/mcp` = 401;
-- source SHA `611918572717058882849ede7a4cc2a39dd2e3ac`;
-- deploy run `32618376291`.
-
-The MCP service remains a protocol adapter, not a second business-logic implementation or raw database gateway.
-
-### Full-schema policy
-
-The MCP catalog is designed once for durable typed MSA capabilities across read/propose/future-write/User Management/Agent Management/Provider Registry/Audit/Settings domains.
-
-A discoverable tool is not authorized merely because it exists. Execution always depends on live backend policy and project-level gates.
-
-Never expose:
-
-- arbitrary SQL;
-- raw table/column editing;
-- PostgreSQL credentials;
-- VPS shell/SSH/filesystem;
-- Google Sheet credentials;
-- plaintext provider API keys;
-- unrestricted environment editing;
-- generic arbitrary HTTP proxying.
+The MCP catalog is full-schema/policy-gated. Never expose arbitrary SQL/table edits, database credentials, VPS shell/filesystem, Sheet credentials, plaintext provider keys, unrestricted environment editing, or generic arbitrary HTTP proxying.
 
 ## F7.2D2 — Agent Management & multi-agent sessions — VERIFIED COMPLETE
 
-Canonical design:
+Runtime anchor: PR #58; merge `3b385a37b95c1ff79f76883381d8268fa6c49db2`; deploy run `32620386876`, job `97147568336`; migration `0010_mcp_oauth -> 0011_ai_agents`.
 
-`F7_2D2_AGENT_MANAGEMENT_AND_MULTI_AGENT_SESSIONS.md`
+Each agent has immutable `agent_id`, editable `display_name`, unique `call_name`, purpose, runtime mode, lifecycle, capability/location/authority/execution/confirmation metadata, and provenance.
 
-Verified checkpoint:
+MSA owns canonical self-identity. Internal model invocations must inject server-generated identity from current agent configuration, including at least display name and stable agent ID, rather than relying on chat history.
 
-`../checkpoints/F7_2D2_AGENT_MANAGEMENT_2026-08-23.md`
+Persistent sessions support stable session ID, name/objective, `GROUP` / `COMPARE` / `REVIEW` / `DEBATE`, ordered participants, role labels, and open/closed lifecycle.
 
-Runtime anchor:
-
-- PR #58;
-- merge `3b385a37b95c1ff79f76883381d8268fa6c49db2`;
-- deploy run `32620386876`, job `97147568336`;
-- migration `0010_mcp_oauth -> 0011_ai_agents`.
-
-### Agent identity model
-
-Each agent has:
-
-- immutable stable UUID `agent_id`;
-- Owner-editable `display_name`;
-- case-insensitive unique `call_name` for human-friendly addressing/selection;
-- optional purpose/description;
-- runtime mode;
-- `ACTIVE` / `DISABLED` / `REVOKED` state;
-- capability scopes;
-- location scope;
-- authority ceiling;
-- delegated/autonomous execution policy;
-- confirmation policy;
-- provenance/timestamps.
-
-Renaming preserves `agent_id`.
-
-### Self-identity rule
-
-The model must not be expected to remember its own name from chat history.
-
-MSA owns canonical identity. Future internal-agent runtime invocation must inject a server-generated identity context derived from current canonical agent configuration, including at least the agent display name and stable `agent_id`.
-
-Representative context:
-
-`You are <display_name>. Your stable MSA agent identity is <agent_id>. Respond as this configured agent and do not claim another agent identity.`
-
-F7.2D2 already exposes deterministic identity-context preview; F7.2D4 will use it in real model invocation assembly.
-
-### Multi-agent session model
-
-Persistent session topology supports:
-
-- stable `session_id`;
-- session name/objective;
-- modes `GROUP`, `COMPARE`, `REVIEW`, `DEBATE`;
-- ordered participant list;
-- optional participant role labels;
-- open/closed lifecycle.
-
-One agent may participate in many sessions. One session may contain many agents. Same agent cannot occur twice in one session.
-
-Provider/model inference is intentionally disabled in F7.2D2.
+Canonical design: `F7_2D2_AGENT_MANAGEMENT_AND_MULTI_AGENT_SESSIONS.md`.
 
 ## Effective authority
 
@@ -185,9 +71,15 @@ Autonomous/system:
 
 Provider/model choice never multiplies authority.
 
-Multi-agent sessions evaluate each participant independently and never union permissions.
+## F7.2D3 — Provider Registry + model catalog — VERIFIED COMPLETE
 
-## F7.2D3 — Provider Registry + model catalog — NEXT
+Runtime anchor:
+
+- PR #60;
+- merge `882c67b0134edb59156c17e948128de0ca8c3365`;
+- deploy run `32621925138`, job `97151213410`;
+- migration `0011_ai_agents -> 0012_providers`;
+- issue #26 `status=success`.
 
 Provider Registry is Owner-only.
 
@@ -202,135 +94,103 @@ Generic adapter:
 
 - `OPENAI_COMPATIBLE`
 
-### Canonical Owner workflow
+### Verified Owner workflow surface
 
-`Add provider -> provision credential -> Test connection -> Fetch models -> inspect normalized capabilities -> Save/enable`
+`Add provider -> provision credential -> Test connection -> Fetch models -> inspect normalized capabilities -> Enable`
+
+A real provider API was intentionally not invoked by deployment verification because no Owner credential is supplied through CI. The first real provider test occurs from the Owner Web UI.
 
 ### Provider connection data
 
-Persist only non-secret configuration and a protected secret/credential reference:
+Persistent provider records include stable provider ID, display name, kind, base URL/compatibility mode, opaque credential reference/status, enabled/disabled state, connection/model-fetch state/timestamps/errors, and provenance.
 
-- stable `provider_id`;
-- display name;
-- provider kind;
-- base URL where applicable;
-- `credential_ref`/secret status metadata, never plaintext API key;
-- non-secret compatibility settings;
-- enabled/disabled state;
-- connection/model-fetch status and timestamps;
-- created/updated provenance.
+### Provider secret policy — VERIFIED
 
-### Provider secret policy
+- Provider API keys are write-only from Owner UI.
+- Browser never receives saved-key read-back.
+- PostgreSQL does not store plaintext provider keys.
+- Secret material lives in dedicated server-side `msa_provider_secrets` volume; DB stores opaque `credential_ref` only.
+- Provider credentials are distinct from inbound MCP OAuth/client credentials.
+- Deploy verifier proved dummy secret plaintext was absent from the DB and deleted with credential removal.
 
-- API keys are write-only from Owner UI.
-- Browser never receives plaintext key read-back.
-- DB does not store plaintext provider keys.
-- Logs/errors redact Authorization headers/tokens/secrets.
-- Provider credentials are distinct from inbound MCP OAuth/client credentials and must never be reused.
+### Generic provider security — VERIFIED FOUNDATION
 
-### Generic provider SSRF protections
+Custom base URLs require public HTTPS. Backend rejects credentials embedded in URL, query/fragment, private/loopback/link-local/multicast/reserved/unspecified destinations, and redirects. Destination resolution is rechecked before provider call. Responses are bounded in size/model count and normalized provider metadata is sanitized.
 
-For custom base URLs:
+### Model catalog — VERIFIED FOUNDATION
 
-- HTTPS by default in production;
-- reject loopback/link-local/cloud-metadata/private destinations unless explicitly authorized by architecture;
-- validate redirects against forbidden destinations;
-- re-resolve/check targets where practical for DNS rebinding mitigation;
-- bound response size/count/field lengths;
-- treat provider responses/model metadata as untrusted input.
+Dynamic discovery persists provider-local model ID, display name, availability, nullable/unknown text/vision/tool/structured-output capability, context/output limits when supplied, bounded sanitized provider metadata, and fetch timestamps.
 
-### Model catalog
+Unknown capability remains unknown. Provider health, model-fetch health, and agent health remain separate concepts.
 
-Dynamic model discovery should retain, where actually known:
+### Provider enable gate
 
-- provider-local model ID;
-- display name;
-- fetched/refreshed timestamps;
-- availability;
-- text capability;
-- vision capability;
-- tool/function calling;
-- structured output/JSON;
-- context/output limits;
-- verified provider metadata.
+Provider enablement requires:
 
-Unknown capability remains unknown. Never grant an agent capability merely because fetched provider metadata claims or implies support.
+1. configured credential;
+2. successful connection test;
+3. successful model fetch.
 
-Provider health, model health, and agent health are separate concepts.
+Provider setup never grants AI authority.
 
-## F7.2D4 — model assignment/fallbacks
+### Web presentation refinements delivered with F7.2D3
 
-After Provider Registry:
+- Create agent/New session use the dashboard secondary-control style.
+- Agents are grouped as `External / MCP agents` and `Internal / provider-backed agents`.
+- Agent cards expose `Agent name`, `Origin`, and `Model` primary fields.
+- Unassigned internal agents show `Not assigned`.
+- External runtime model identity remains `Client-managed` unless explicitly known; no model is guessed.
+- Provider Registry is colocated in the same Owner-only AI control-plane page.
 
-- assign primary provider/model to named internal agent;
-- optional ordered fallback models;
+Verified checkpoint: `../checkpoints/F7_2D3_PROVIDER_REGISTRY_VERIFIED_2026-08-23.md`.
+
+## F7.2D4 — model assignment/fallback/runtime identity — NEXT
+
+F7.2D4 connects durable internal-agent identity to provider/model implementation.
+
+Required capabilities:
+
+- primary provider/model assignment for `INTERNAL_MODEL` agents;
+- optional ordered fallback chain;
+- enabled-provider/current-model validation;
 - required-capability compatibility checks;
-- timeout/output policy;
-- optional usage/cost ceilings/metadata;
-- canonical agent identity injection every invocation;
-- future execution of multi-agent sessions across same-provider or cross-provider agents.
+- unknown capability represented explicitly and requiring Owner acknowledgement where appropriate;
+- timeout/output policy and optional cost/usage metadata;
+- canonical identity injection on every internal invocation;
+- agent cards show actual assigned provider/model;
+- provider/model/fallback changes never alter agent authority or `agent_id`;
+- prepare narrow real inference and future cross-model multi-agent execution.
 
-Fallback never expands agent authority and must not silently use incompatible semantics.
+Fallback never expands authority and must not silently substitute incompatible semantics.
+
+### Existing MCP client relationship
+
+The existing ChatGPT MCP connection is an external runtime/client, not automatically a named AI agent. Do not invent a name or silently bind it to an `AI_AGENT`. If the Owner wants the connected ChatGPT/MCP runtime represented as a named external agent, implement an explicit Owner-controlled binding between registered external client/grant and named external agent principal.
 
 ## Owner-only control plane
 
-Only `OWNER` may manage:
-
-- AI agents/principals;
-- external MCP clients/grants;
-- provider connections/credentials;
-- model discovery/testing/assignment;
-- agent capability/location/authority/execution policy;
-- multi-agent session configuration;
-- optional Action clients;
-- shared AI-feature policy;
-- global Settings.
+Only `OWNER` may manage AI agents/principals, external MCP clients/grants, provider connections/credentials, model discovery/testing/assignment, agent capability/location/authority/execution policy, multi-agent session configuration, optional Action clients, shared AI-feature policy, and global Settings.
 
 An agent/client can never self-escalate or edit its own security/control-plane policy.
 
-## MSA workflow parity
-
-Preserve:
-
-1. inspect source evidence;
-2. reconcile against authoritative/current truth;
-3. classify `SAFE`, `REVIEW`, `CONFLICT`, `NEW_UNMAPPED`;
-4. execute only within Owner-authorized typed scope;
-5. surface ambiguity;
-6. commit through deterministic backend operations;
-7. read committed state back;
-8. record actor/operation provenance;
-9. report success only after verification.
-
 ## Canonicality/write boundary
 
-Google Sheets remains operationally authoritative and PostgreSQL remains non-canonical.
-
-Agent/provider/model/MCP capability work does **not** authorize:
-
-- production stock mutation;
-- AI inventory writes;
-- transfers;
-- Smart Calculator deductions;
-- Sheet mirror conversion;
-- DB canonical promotion.
-
-System production-write gates remain closed.
+Google Sheets remains operationally authoritative and PostgreSQL remains non-canonical. Agent/provider/model/MCP capability work does **not** authorize production stock mutation, AI inventory writes, transfers, Smart Calculator deductions, Sheet mirror conversion, or DB canonical promotion. System production-write gates remain closed.
 
 ## Web implementation workflow
 
-For MSA Web UI, canonical default is:
+Canonical default:
 
 `UI/UX Pro Max -> repo design system -> authenticated API contract -> direct code implementation -> responsive/accessibility/runtime verification`
 
-Figma is optional and only used when the Owner explicitly requests it or a specific task genuinely requires it.
+Figma is optional only when explicitly requested.
 
 ## Implementation order
 
 1. F7.2D0 — custom MCP connectivity — **VERIFIED COMPLETE**
 2. F7.2D2 — named Agent Management + multi-agent sessions — **VERIFIED COMPLETE**
-3. F7.2D3 — Provider Registry + model catalog — **NEXT**
-4. F7.2D4 — model assignment/fallbacks + runtime identity
+3. F7.2D3 — Provider Registry + model catalog — **VERIFIED COMPLETE**
+4. F7.2D4 — model assignment/fallback/runtime identity — **NEXT**
 5. optional F7.2D1 — Custom GPT Action proof only for concrete standalone-GPT need
 6. F7.3 — actor-aware Audit / operation ledger
 7. later AI Assistant/richer integrations
@@ -338,15 +198,4 @@ Figma is optional and only used when the Owner explicitly requests it or a speci
 
 ## F7.2D exit criteria
 
-F7.2D is complete only when:
-
-- custom MCP authorized reads and revocation are proven;
-- named agents are managed separately from humans;
-- canonical self-identity survives provider/model changes;
-- multi-agent session topology exists;
-- Owner can configure built-in/custom OpenAI-compatible providers without hard-coded model IDs;
-- model fetch/test/save/assign works;
-- provider/model changes do not alter authority;
-- non-Owner cannot use Agent Management/Provider Registry;
-- no AI principal self-escalates;
-- no production inventory write is enabled merely by F7.2D completion.
+F7.2D is complete only when custom MCP authorized reads/revocation are proven; agents are distinct from humans/providers/models; canonical self-identity survives assignment changes; multi-agent topology exists; Owner can configure providers and dynamic models; model test/fetch/assignment works; provider/model choice does not alter authority; non-Owner is denied Agent/Provider control planes; no AI principal self-escalates; and production inventory writes remain independently gated.
