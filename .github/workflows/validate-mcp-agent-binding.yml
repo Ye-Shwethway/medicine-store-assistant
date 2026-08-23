@@ -1,0 +1,77 @@
+name: Validate MCP agent binding
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'backend/app/mcp_agent_binding.py'
+      - 'backend/app/mcp_server.py'
+      - 'backend/app/main.py'
+      - 'backend/app/db.py'
+      - 'backend/app/dashboard_assets/dashboard_mcp_binding.js'
+      - 'backend/app/dashboard_assets/dashboard_mcp_binding.css'
+      - 'backend/alembic/versions/0014_mcp_agent_bindings.py'
+      - 'docs/architecture/F7_2D4A_EXTERNAL_MCP_AGENT_BINDING.md'
+      - '.github/workflows/validate-mcp-agent-binding.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate-mcp-agent-binding:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install backend requirements
+        run: python -m pip install --disable-pip-version-check -q -r backend/requirements.txt
+      - name: Compile Python
+        run: python -m compileall -q backend/app backend/alembic
+      - name: Validate API and migration contracts
+        run: |
+          PYTHONPATH=backend python - <<'PY'
+          import importlib.util
+          from pathlib import Path
+          from app.db import EXPECTED_MIGRATION
+          from app.main import app, MCP_BINDING_ASSET_VERSION
+          paths=set(app.openapi()['paths'])
+          assert '/dashboard/api/mcp-bindings' in paths
+          assert '/dashboard/api/mcp-bindings/{grant_id}' in paths
+          assert MCP_BINDING_ASSET_VERSION.startswith('f72d4a-mcpbind-')
+          p=Path('backend/alembic/versions/0014_mcp_agent_bindings.py')
+          spec=importlib.util.spec_from_file_location('mcpbindmigration',p)
+          m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+          assert m.revision=='0014_mcp_agent_bindings'
+          assert m.down_revision=='0013_saved_models'
+          assert EXPECTED_MIGRATION==m.revision, (EXPECTED_MIGRATION,m.revision)
+          print('mcp_agent_binding_contract=pass')
+          PY
+      - name: Validate named-agent authority intersection
+        run: |
+          PYTHONPATH=backend python - <<'PY'
+          from mcp.server.auth.provider import AccessToken
+          import app.mcp_server as s
+          access=AccessToken(token='x',client_id='client',subject='00000000-0000-0000-0000-000000000001',scopes=['mcp:connect','offline_access','mcp:read','mcp:write'])
+          original=s._bound_agent_context
+          try:
+            s._bound_agent_context=lambda _: {'state':'ACTIVE','runtime_mode':'EXTERNAL_MCP_CLIENT','capability_scopes':['mcp:read'],'authority_ceiling':'WRITE'}
+            scopes=s._effective_scopes(access)
+            assert 'mcp:read' in scopes
+            assert 'mcp:write' not in scopes
+            assert 'mcp:connect' in scopes and 'offline_access' in scopes
+            s._bound_agent_context=lambda _: {'state':'DISABLED','runtime_mode':'EXTERNAL_MCP_CLIENT','capability_scopes':['mcp:read'],'authority_ceiling':'READ'}
+            scopes=s._effective_scopes(access)
+            assert 'mcp:read' not in scopes and 'mcp:connect' in scopes
+          finally:
+            s._bound_agent_context=original
+          print('mcp_agent_authority_intersection=pass')
+          PY
+      - name: Validate Agent Management UI contract
+        run: |
+          node --check backend/app/dashboard_assets/dashboard_mcp_binding.js
+          grep -Fq 'subtree:false' backend/app/dashboard_assets/dashboard_mcp_binding.js
+          grep -Fq 'MCP connection' backend/app/dashboard_assets/dashboard_mcp_binding.js
+          grep -Fq '.danger-action' backend/app/dashboard_assets/dashboard_mcp_binding.css
+          grep -Fq 'dashboard_mcp_binding.js' backend/app/main.py
+          grep -Fq 'dashboard_mcp_binding.css' backend/app/main.py
+          ! grep -Fq 'subtree:true' backend/app/dashboard_assets/dashboard_mcp_binding.js
+          echo 'mcp_agent_binding_ui_contract=pass'
