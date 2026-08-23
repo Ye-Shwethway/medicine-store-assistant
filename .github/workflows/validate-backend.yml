@@ -37,7 +37,7 @@ jobs:
         run: |
           PYTHONPATH=backend python - <<'PY'
           from app.main import app
-          from app.mcp_oauth import _metadata, _pkce_challenge
+          from app.mcp_oauth import _metadata, _pkce_challenge, router as oauth_router
           metadata = _metadata()
           assert metadata["authorization_endpoint"].endswith("/oauth/authorize")
           assert metadata["token_endpoint"].endswith("/oauth/token")
@@ -47,16 +47,17 @@ jobs:
           assert "offline_access" in metadata["scopes_supported"]
           assert "S256" in metadata["code_challenge_methods_supported"]
           assert _pkce_challenge("A" * 43)
-          paths = {getattr(route, "path", None) for route in app.routes}
+          openapi_paths = set(app.openapi()["paths"])
           for path in {
-              "/.well-known/oauth-authorization-server/oauth",
               "/oauth/authorize",
               "/oauth/authorize/login",
               "/oauth/register",
               "/oauth/token",
               "/oauth/revoke",
           }:
-              assert path in paths, path
+              assert path in openapi_paths, (path, sorted(openapi_paths))
+          router_paths = {getattr(route, "path", None) for route in oauth_router.routes}
+          assert "/.well-known/oauth-authorization-server/oauth" in router_paths
           print("mcp_oauth_contract=pass")
           PY
       - name: Validate dashboard JavaScript syntax
