@@ -86,3 +86,9 @@ def msa_shadow_read_review_reasons(migration_batch_id: str | None = None) -> dic
         metadata={"migration_batch_id": migration_batch_id, "result_count": result.get("count", 0)},
     )
     return {"ok": True, "status": "AVAILABLE", **result}
+
+
+# Import the final schema extension here because mcp_server imports this module before
+# constructing mcp_http_app. This guarantees all v2 actions exist in the transport's
+# discovery state instead of being registered after application construction.
+import app.mcp_schema_v2 as _mcp_schema_v2  # noqa: E402,F401
