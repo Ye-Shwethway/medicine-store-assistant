@@ -19,6 +19,7 @@ from app.email_recovery_page import router as email_recovery_page_router
 from app.mcp_oauth import router as mcp_oauth_router
 from app.mcp_server import mcp, mcp_http_app
 from app.nanogpt_catalog import router as nanogpt_catalog_router
+from app.provider_model_view import router as provider_model_view_router
 from app.provider_registry import router as provider_registry_router
 from app.read_api import router as read_router
 from app.recovery_identifier import router as recovery_identifier_router
@@ -74,6 +75,7 @@ app.include_router(user_management_router)
 app.include_router(agent_management_router)
 app.include_router(provider_registry_router)
 app.include_router(nanogpt_catalog_router)
+app.include_router(provider_model_view_router)
 app.include_router(saved_model_catalog_router)
 app.include_router(access_request_confirmed_router)
 app.include_router(credential_lifecycle_router)
