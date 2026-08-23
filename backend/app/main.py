@@ -22,6 +22,7 @@ from app.nanogpt_catalog import router as nanogpt_catalog_router
 from app.provider_registry import router as provider_registry_router
 from app.read_api import router as read_router
 from app.recovery_identifier import router as recovery_identifier_router
+from app.saved_model_catalog import router as saved_model_catalog_router
 from app.shadow_read_api import router as shadow_read_router
 from app.user_management import router as user_management_router
 
@@ -33,7 +34,6 @@ BUILD_SHA = os.getenv("MSA_BUILD_SHA", "unknown")
 
 @asynccontextmanager
 async def app_lifespan(_: FastAPI):
-    # Mounted ASGI sub-app lifespans do not run automatically. The host owns the MCP session manager.
     async with mcp.session_manager.run():
         yield
 
@@ -45,7 +45,8 @@ app = FastAPI(
         "Typed API boundary for the Medicine Store Assistant backend. "
         "Authenticated inventory, canonical human identity/User Management/credential and email-recovery lifecycle, catalogue, "
         "test-only shadow reads, the F7 dashboard, F7.2D named Agent Management/multi-agent session foundation, "
-        "Owner-only Provider Registry/model discovery including NanoGPT detailed catalog enrichment, and the MCP/OAuth protocol surface are available; "
+        "Owner-only Provider Registry/model discovery, tested saved-model catalog and agent model-assignment foundation, "
+        "NanoGPT detailed catalog enrichment, and the MCP/OAuth protocol surface are available; "
         "canonical inventory writes remain disabled."
     ),
     lifespan=app_lifespan,
@@ -73,6 +74,7 @@ app.include_router(user_management_router)
 app.include_router(agent_management_router)
 app.include_router(provider_registry_router)
 app.include_router(nanogpt_catalog_router)
+app.include_router(saved_model_catalog_router)
 app.include_router(access_request_confirmed_router)
 app.include_router(credential_lifecycle_router)
 app.include_router(account_password_confirmed_router)
@@ -96,6 +98,7 @@ def health() -> dict[str, object]:
         "mcp_oauth": "enabled",
         "agent_management": "f7.2d2",
         "provider_registry": "f7.2d3",
+        "saved_model_catalog": "enabled",
         "nanogpt_detailed_catalog": "enabled",
         "production_inventory_writes": False,
     }
@@ -114,5 +117,4 @@ def ready(response: Response) -> dict[str, object]:
     }
 
 
-# Keep this last: Mount('/') is the fallback ASGI surface and exposes the inner MCP endpoint at /mcp.
 app.mount("/", mcp_http_app)
