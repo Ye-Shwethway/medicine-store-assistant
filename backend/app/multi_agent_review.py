@@ -159,15 +159,22 @@ def _event(connection: Any, work_item_id: str, event_type: str, actor_type: str,
 
 
 def _set_status(connection: Any, work_item_id: str, target: str) -> None:
+    terminal = target in {"COMMITTED", "CANCELLED"}
+    statement = (
+        """
+        UPDATE workflow_work_items
+        SET status=CAST(:target AS varchar), updated_at=now(), completed_at=now()
+        WHERE work_item_id=CAST(:work_item_id AS uuid)
+        """
+        if terminal
+        else """
+        UPDATE workflow_work_items
+        SET status=CAST(:target AS varchar), updated_at=now()
+        WHERE work_item_id=CAST(:work_item_id AS uuid)
+        """
+    )
     connection.execute(
-        text(
-            """
-            UPDATE workflow_work_items
-            SET status=:target, updated_at=now(),
-                completed_at=CASE WHEN :target IN ('COMMITTED','CANCELLED') THEN now() ELSE completed_at END
-            WHERE work_item_id=CAST(:work_item_id AS uuid)
-            """
-        ),
+        text(statement),
         {"work_item_id": work_item_id, "target": target},
     )
 

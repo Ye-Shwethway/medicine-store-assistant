@@ -13,6 +13,7 @@
   let conversations=[];
   let evidenceAttachments=[];
   let busy=false;
+  let rolesSaved=false;
 
   const esc=value=>String(value??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
   const compact=value=>String(value??'').replace(/\s+/g,' ').trim();
@@ -27,10 +28,17 @@
   function setStatus(text,kind='info'){
     const el=host.querySelector('#reviewUiStatus');if(!el)return;el.textContent=text||'';el.dataset.kind=kind;el.hidden=!text;
   }
+  function syncRoleSaveState(){
+    const save=host.querySelector('#reviewSaveRoles');if(!save)return;
+    const hasRows=host.querySelectorAll('[data-role-agent]').length>0;
+    save.textContent=rolesSaved?'Saved':'Save roles';
+    save.disabled=busy||!hasRows||rolesSaved;
+  }
   function setBusy(value){
     busy=value;
     host.querySelectorAll('button,input,select,textarea').forEach(el=>{if(!el.dataset.alwaysEnabled)el.disabled=value});
     const run=host.querySelector('#reviewRun');if(run)run.textContent=value?'Review running…':'Run native review';
+    syncRoleSaveState();
   }
   function statusPill(status){return '<span class="review-status review-status-'+esc(String(status||'').toLowerCase())+'">'+esc(status||'UNKNOWN')+'</span>'}
 
@@ -88,7 +96,7 @@
     const meta=host.querySelector('#reviewPresetMeta');
     const rows=host.querySelector('#reviewRoleRows');
     const save=host.querySelector('#reviewSaveRoles');
-    if(!selectedSession){meta.innerHTML='';rows.innerHTML='<div class="empty-copy">Choose a REVIEW preset.</div>';save.disabled=true;return}
+    if(!selectedSession){rolesSaved=false;meta.innerHTML='';rows.innerHTML='<div class="empty-copy">Choose a REVIEW preset.</div>';syncRoleSaveState();return}
     const participants=(selectedSession.participants||[]).filter(p=>p.is_active!==false);
     meta.innerHTML='<strong>'+esc(selectedSession.session_name)+'</strong><span>'+esc(selectedSession.objective||'No preset objective')+'</span>';
     rows.innerHTML=participants.map((p,index)=>{
@@ -101,12 +109,18 @@
         +'<label><span>Display label</span><input data-role-label maxlength="80" value="'+esc(label)+'" placeholder="Optional label"></label>'
         +'</div>';
     }).join('');
-    save.disabled=!participants.length;
+    syncRoleSaveState();
   }
 
   async function selectSession(id){
-    selectedSession=sessions.find(s=>s.session_id===id)||null;roleState=[];renderRoles();if(!selectedSession)return;
-    try{const data=await api('/dashboard/api/ai-workspace/multi-agent/sessions/'+encodeURIComponent(id)+'/roles');roleState=data.roles||[];renderRoles()}catch(err){if(err.status!==404)setStatus(err.message,'error')}
+    selectedSession=sessions.find(s=>s.session_id===id)||null;roleState=[];rolesSaved=false;renderRoles();if(!selectedSession)return;
+    try{
+      const data=await api('/dashboard/api/ai-workspace/multi-agent/sessions/'+encodeURIComponent(id)+'/roles');
+      roleState=data.roles||[];
+      const participantCount=(selectedSession.participants||[]).filter(p=>p.is_active!==false).length;
+      rolesSaved=participantCount>0&&roleState.length===participantCount;
+      renderRoles();
+    }catch(err){if(err.status!==404)setStatus(err.message,'error')}
   }
 
   async function saveRoles(){
@@ -114,7 +128,7 @@
     const assignments=[...host.querySelectorAll('[data-role-agent]')].map(row=>({agent_id:row.dataset.roleAgent,orchestration_role:row.querySelector('[data-role-select]').value,display_label:compact(row.querySelector('[data-role-label]').value)||null}));
     if(!assignments.length)return;
     setBusy(true);setStatus('Saving stable orchestration roles…');
-    try{await api('/dashboard/api/ai-workspace/multi-agent/sessions/'+encodeURIComponent(selectedSession.session_id)+'/roles',{method:'PUT',body:JSON.stringify({assignments})});const data=await api('/dashboard/api/ai-workspace/multi-agent/sessions/'+encodeURIComponent(selectedSession.session_id)+'/roles');roleState=data.roles||[];renderRoles();setStatus('Roles saved. These labels do not grant authority.','success')}catch(err){setStatus(err.message,'error')}finally{setBusy(false)}
+    try{await api('/dashboard/api/ai-workspace/multi-agent/sessions/'+encodeURIComponent(selectedSession.session_id)+'/roles',{method:'PUT',body:JSON.stringify({assignments})});const data=await api('/dashboard/api/ai-workspace/multi-agent/sessions/'+encodeURIComponent(selectedSession.session_id)+'/roles');roleState=data.roles||[];rolesSaved=true;renderRoles();setStatus('Roles saved. These labels do not grant authority.','success')}catch(err){setStatus(err.message,'error')}finally{setBusy(false)}
   }
 
   async function loadEvidenceConversations(){
@@ -207,7 +221,8 @@
     }catch(err){setStatus(err.message,'error')}
   }
 
-  host.addEventListener('change',event=>{if(event.target.id==='reviewSessionSelect')selectSession(event.target.value);if(event.target.id==='reviewEvidenceConversation')loadEvidenceFiles(event.target.value)});
+  host.addEventListener('change',event=>{if(event.target.id==='reviewSessionSelect')selectSession(event.target.value);if(event.target.id==='reviewEvidenceConversation')loadEvidenceFiles(event.target.value);if(event.target.matches('[data-role-select],[data-role-label]')){rolesSaved=false;syncRoleSaveState()}});
+  host.addEventListener('input',event=>{if(event.target.matches('[data-role-label]')){rolesSaved=false;syncRoleSaveState()}});
   host.addEventListener('click',event=>{const work=event.target.closest('[data-work-id]');if(work){openWork(work.dataset.workId);return}if(event.target.id==='reviewRefresh'){load();return}if(event.target.id==='reviewSaveRoles'){saveRoles();return}if(event.target.id==='reviewRun'){runReview();return}});
   tab.addEventListener('click',()=>{if(!host.dataset.reviewLoaded){host.dataset.reviewLoaded='1';load()}});
 })();
