@@ -22,7 +22,14 @@ from app.shadow_read_api import _query
 
 router = APIRouter(tags=["dashboard"])
 ASSET_DIR = Path(__file__).resolve().parent / "dashboard_assets"
-ALLOWED_ASSETS = {"dashboard.css", "dashboard.js", "dashboard_users.css", "dashboard_recovery.js"}
+ALLOWED_ASSETS = {
+    "dashboard.css",
+    "dashboard.js",
+    "dashboard_users.css",
+    "dashboard_recovery.js",
+    "dashboard_agents.css",
+    "dashboard_agents.js",
+}
 DASHBOARD_CSP = (
     "default-src 'self'; "
     "script-src 'self'; "
