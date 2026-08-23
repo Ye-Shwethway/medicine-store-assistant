@@ -118,6 +118,9 @@ def dashboard_asset(asset_name: str) -> FileResponse:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found")
     media_type = "text/css" if asset_name.endswith(".css") else "text/javascript"
     response = FileResponse(ASSET_DIR / asset_name, media_type=media_type)
+    response.headers["Cache-Control"] = "no-store, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
     response.headers["X-Content-Type-Options"] = "nosniff"
     return response
 
