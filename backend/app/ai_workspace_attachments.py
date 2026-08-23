@@ -67,6 +67,57 @@ def _metadata(row: Any) -> dict[str, Any]:
     }
 
 
+@router.get("/conversation-cards", summary="List owned AI Workspace conversation cards with latest-message preview")
+def list_conversation_cards(
+    response: Response,
+    principal: dict[str, str] = Depends(require_ai_chat_access),
+) -> dict[str, Any]:
+    _no_store(response)
+    engine = _engine()
+    try:
+        with engine.connect() as connection:
+            rows = connection.execute(
+                text(
+                    """
+                    SELECT c.conversation_id::text AS conversation_id,
+                           c.agent_id::text AS agent_id, c.title, c.state,
+                           c.created_at, c.updated_at,
+                           a.display_name AS agent_display_name,
+                           a.call_name AS agent_call_name,
+                           (SELECT count(*) FROM ai_workspace_messages m WHERE m.conversation_id=c.conversation_id) AS message_count,
+                           LEFT(COALESCE(NULLIF((
+                               SELECT m.content
+                               FROM ai_workspace_messages m
+                               WHERE m.conversation_id=c.conversation_id
+                               ORDER BY m.created_at DESC,
+                                        CASE m.role WHEN 'ASSISTANT' THEN 0 ELSE 1 END,
+                                        m.message_id DESC
+                               LIMIT 1
+                           ), ''), 'Attachment evidence'), 96) AS last_message_preview,
+                           COALESCE((
+                               SELECT m.role
+                               FROM ai_workspace_messages m
+                               WHERE m.conversation_id=c.conversation_id
+                               ORDER BY m.created_at DESC,
+                                        CASE m.role WHEN 'ASSISTANT' THEN 0 ELSE 1 END,
+                                        m.message_id DESC
+                               LIMIT 1
+                           ), '') AS last_message_role
+                    FROM ai_workspace_conversations c
+                    JOIN ai_agents a ON a.agent_id=c.agent_id
+                    WHERE c.owner_user_id=CAST(:owner_user_id AS uuid)
+                      AND c.state='ACTIVE'
+                    ORDER BY c.updated_at DESC, c.created_at DESC
+                    LIMIT 100
+                    """
+                ),
+                {"owner_user_id": principal["user_id"]},
+            ).mappings().all()
+            return {"items": [dict(row) for row in rows], "count": len(rows)}
+    finally:
+        engine.dispose()
+
+
 @router.post("/conversations/{conversation_id}/attachments", status_code=status.HTTP_201_CREATED, summary="Upload one bounded AI Workspace attachment")
 async def upload_attachment(
     conversation_id: str,
@@ -168,6 +219,49 @@ def list_attachments(
                 {"conversation_id": conversation_id, "owner_user_id": principal["user_id"]},
             ).mappings().all()
             return {"items": [_metadata(row) for row in rows], "count": len(rows)}
+    finally:
+        engine.dispose()
+
+
+@router.get("/conversations/{conversation_id}/attachments/{attachment_id}/content", summary="Read owned AI Workspace attachment bytes")
+def read_attachment_content(
+    conversation_id: str,
+    attachment_id: str,
+    principal: dict[str, str] = Depends(require_ai_chat_access),
+) -> Response:
+    engine = _engine()
+    try:
+        with engine.connect() as connection:
+            _owned_conversation(connection, conversation_id, principal)
+            row = connection.execute(
+                text(
+                    """
+                    SELECT original_filename, content_type, content_bytes
+                    FROM ai_workspace_attachments
+                    WHERE attachment_id=CAST(:attachment_id AS uuid)
+                      AND conversation_id=CAST(:conversation_id AS uuid)
+                      AND owner_user_id=CAST(:owner_user_id AS uuid)
+                    """
+                ),
+                {
+                    "attachment_id": attachment_id,
+                    "conversation_id": conversation_id,
+                    "owner_user_id": principal["user_id"],
+                },
+            ).mappings().first()
+            if row is None:
+                raise HTTPException(status_code=404, detail="Attachment not found")
+            filename = str(row["original_filename"] or "attachment").replace('"', "")
+            return Response(
+                content=bytes(row["content_bytes"]),
+                media_type=str(row["content_type"] or "application/octet-stream"),
+                headers={
+                    "Cache-Control": "private, no-store, max-age=0",
+                    "Pragma": "no-cache",
+                    "X-Content-Type-Options": "nosniff",
+                    "Content-Disposition": f'inline; filename="{filename}"',
+                },
+            )
     finally:
         engine.dispose()
 

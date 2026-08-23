@@ -55,15 +55,18 @@ jobs:
               '/dashboard/api/ai-workspace/access',
               '/dashboard/api/ai-workspace/chat/agents',
               '/dashboard/api/ai-workspace/conversations',
+              '/dashboard/api/ai-workspace/conversation-cards',
               '/dashboard/api/ai-workspace/conversations/{conversation_id}',
               '/dashboard/api/ai-workspace/conversations/{conversation_id}/messages',
               '/dashboard/api/ai-workspace/conversations/{conversation_id}/attachments',
               '/dashboard/api/ai-workspace/conversations/{conversation_id}/attachments/{attachment_id}',
+              '/dashboard/api/ai-workspace/conversations/{conversation_id}/attachments/{attachment_id}/content',
           }
           assert required <= paths, sorted(required-paths)
           delete_op=app.openapi()['paths']['/dashboard/api/ai-workspace/conversations/{conversation_id}'].get('delete')
           attachment_delete=app.openapi()['paths']['/dashboard/api/ai-workspace/conversations/{conversation_id}/attachments/{attachment_id}'].get('delete')
-          assert delete_op is not None and attachment_delete is not None
+          attachment_content=app.openapi()['paths']['/dashboard/api/ai-workspace/conversations/{conversation_id}/attachments/{attachment_id}/content'].get('get')
+          assert delete_op is not None and attachment_delete is not None and attachment_content is not None
           print('ai_workspace_chat_api=pass')
           PY
       - name: Validate backend security and sequence contract
@@ -77,14 +80,15 @@ jobs:
           grep -Fq 'principal.get("role") == "OWNER"' backend/app/ai_workspace_chat.py
           grep -Fq "CASE role WHEN 'USER' THEN 0 ELSE 1 END" backend/app/ai_workspace_chat.py
           grep -Fq 'DELETE FROM ai_workspace_conversations' backend/app/ai_workspace_chat.py
-          grep -Fq 'first_user_preview' backend/app/ai_workspace_chat.py
           grep -Fq 'WORKSPACE_TOOL_OUTPUT_TOKENS = 4096' backend/app/ai_workspace_chat.py
           grep -Fq 'Do not use Markdown heading markers' backend/app/ai_workspace_chat.py
           grep -Fq 'attachment_processing' backend/app/ai_workspace_chat.py
           grep -Fq 'Attachment metadata is persisted' backend/app/ai_workspace_chat.py
           grep -Fq 'MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024' backend/app/ai_workspace_attachments.py
           grep -Fq 'MAX_PENDING_ATTACHMENTS = 4' backend/app/ai_workspace_attachments.py
-          grep -Fq 'state!=\x27PENDING\x27' backend/app/ai_workspace_attachments.py || true
+          grep -Fq 'last_message_preview' backend/app/ai_workspace_attachments.py
+          grep -Fq 'content_bytes' backend/app/ai_workspace_attachments.py
+          grep -Fq 'owner_user_id=CAST(:owner_user_id AS uuid)' backend/app/ai_workspace_attachments.py
           grep -Fq 'Uploaded photos/files are persisted as evidence' backend/app/main.py
           echo 'ai_workspace_chat_security_sequence=pass'
       - name: Validate Dashboard Chat assets
@@ -98,9 +102,14 @@ jobs:
           grep -Fq 'aiFileInput' backend/app/main.py
           grep -Fq 'uploadApi' backend/app/dashboard_assets/dashboard_ai_workspace.js
           grep -Fq 'data-ai-remove-attachment' backend/app/dashboard_assets/dashboard_ai_workspace.js
+          grep -Fq 'conversation-cards' backend/app/dashboard_assets/dashboard_ai_workspace.js
+          grep -Fq 'last_message_preview' backend/app/dashboard_assets/dashboard_ai_workspace.js
+          grep -Fq 'ai-message-image' backend/app/dashboard_assets/dashboard_ai_workspace.js
+          grep -Fq 'ai-pending-thumb' backend/app/dashboard_assets/dashboard_ai_workspace.js
           grep -Fq 'user-select:text' backend/app/dashboard_assets/dashboard_ai_workspace.css
           grep -Fq '.ai-conversation-preview' backend/app/dashboard_assets/dashboard_ai_workspace.css
-          grep -Fq '.ai-pending-attachment' backend/app/dashboard_assets/dashboard_ai_workspace.css
+          grep -Fq '.ai-pending-thumb' backend/app/dashboard_assets/dashboard_ai_workspace.css
+          grep -Fq '.ai-message-image' backend/app/dashboard_assets/dashboard_ai_workspace.css
           grep -Fq 'AI Workspace' backend/app/main.py
           grep -Fq 'id="aiWorkspaceNav"' backend/app/main.py
           grep -Fq 'data-panel="ai-workspace"' backend/app/main.py

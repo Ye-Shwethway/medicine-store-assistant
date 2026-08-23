@@ -46,6 +46,23 @@ Future workflows may consume attachments through typed operations, including:
 
 Raw uploaded evidence must remain traceable to any derived draft or later committed operation.
 
+## Attachment UX refinement — 2026-08-24
+
+- JPEG/PNG/WebP photos should show a small thumbnail immediately after upload instead of a filename-only chip.
+- Bound photos should remain visibly rendered inside the user chat bubble after send/reload; selecting the image may open the owned full attachment content.
+- HEIC/HEIF and non-image files may fall back to metadata chips when the browser cannot reliably render them.
+- Attachment-byte reads for previews must pass authenticated AI Workspace access plus conversation ownership and attachment ownership on the backend; an attachment URL is not public evidence access.
+- Preview serving remains display-only. It does not mean the selected provider/model has received the image bytes or that vision/OCR has run.
+
+## Conversation-card UX refinement — 2026-08-24
+
+Conversation cards should represent current activity, not only the opening prompt:
+
+- show a short preview of the latest USER or ASSISTANT message;
+- prefix the preview with `You:` for USER or the agent call/display name for ASSISTANT;
+- keep the human-friendly last-interaction timestamp;
+- preserve owner-scoped conversation access and deletion.
+
 ## Immediate implementation
 
 1. Normalize current native read-tool results for human presentation while keeping raw provenance.
@@ -53,4 +70,6 @@ Raw uploaded evidence must remain traceable to any derived draft or later commit
 3. Add attachment buttons/selected-file UI to single-agent Chat and Multi-Agent composer shell.
 4. Add backend attachment persistence/upload/read/delete contract with ownership/Owner checks, bounded types and sizes.
 5. Do not send attachment bytes to provider models yet; mark processing as pending in UI/API.
-6. Sync ROADMAP, IMPLEMENTATION_PLAN, and NEW_CHAT_BOOTSTRAP.
+6. Render owned image evidence as mobile-friendly thumbnails in pending and bound chat states.
+7. Switch conversation-card preview from first USER message to latest conversation message.
+8. Sync ROADMAP, IMPLEMENTATION_PLAN, and NEW_CHAT_BOOTSTRAP.

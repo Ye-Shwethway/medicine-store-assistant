@@ -70,6 +70,7 @@ Production/manual accepted:
 - bounded grounded native reads over F6B test/shadow evidence;
 - long response handling, deterministic USER -> ASSISTANT ordering, clean display, Copy/select, richer conversation cards, and owner-scoped conversation deletion;
 - D4.7A deterministic fast path + model-driven native tool calling; contextual follow-up manual acceptance passed with MiniMax M3;
+- D4.7B attachment transport/persistence/manual behavior accepted: photo/file upload, remove-before-send, persisted message binding, and explicit no-vision/OCR claim when bytes are not supplied to the model;
 - external MCP direct read/audit remains independent;
 - production inventory writes remain disabled.
 
@@ -95,7 +96,7 @@ Native tool authority intersects system gate, authenticated human authority, sel
 
 Native store-tool execution is currently backend-restricted to Owner sessions plus selected-agent READ authority. Non-owner Chat is reasoning-only for store tools until explicit human/location tool authority is implemented.
 
-Uploaded attachment evidence is also ownership-scoped. An attachment never grants tool/write authority.
+Uploaded attachment evidence is ownership-scoped. Attachment byte/preview endpoints must independently enforce authenticated AI Workspace access plus conversation/attachment ownership. An attachment never grants tool/write authority.
 
 ## D4.7A native tool calling — VERIFIED
 
@@ -117,28 +118,31 @@ Current native tool registry:
 
 The public MCP schema has 106 actions, but those are not automatically internal-agent tools. Only implemented native typed adapters that are backend-authorized are exposed.
 
-## Current work — D4.7B response + attachment readiness
+## Current work — D4.7B UX completion
 
 Canonical checkpoint: `docs/checkpoints/F7_2D47B_RESPONSE_AND_ATTACHMENTS_PLAN_2026-08-24.md`.
 
-Current implementation target:
+Current implementation/acceptance target:
 
 - native read tools expose a human-friendly presentation layer while retaining raw evidence/provenance;
 - deterministic spreadsheet serial-date conversion may be shown as a derived value while preserving the raw serial;
 - agents answer the user's question first and do not lead with UUIDs, raw JSON keys, batch/source IDs, or repeated canonicality boilerplate unless requested/needed;
 - facts, deterministic derived values, and inference must remain distinct;
 - identifying one blocker does not prove a state transition; revalidation/reclassification must run and pass;
-- single-agent Chat gets Photo and File buttons, selected attachment chips, remove-before-send, bounded persistence, and message binding;
+- single-agent Chat has Photo and File buttons, selected attachment remove-before-send, bounded persistence, and message binding;
 - max 4 pending attachments, max 8 MB each, MIME allowlist, authenticated conversation ownership;
 - bound attachment metadata survives conversation reload; conversation deletion cascades attachments;
+- JPEG/PNG/WebP should render as small thumbnails before send and as visible image evidence inside bound USER chat messages; HEIC/HEIF may remain metadata-only when browser preview is unreliable;
+- image preview/content serving is owner/conversation scoped and is display-only: it does not mean provider vision/OCR has received or processed the bytes;
+- conversation cards now target the latest USER/ASSISTANT message preview with `You:` or agent-name prefix plus human-friendly last-interaction time, rather than the first USER message;
 - attachment bytes are NOT yet supplied to provider models, OCR, or vision processing; model receives metadata only and must not claim inspection;
-- Multi-Agent UI visibly reserves the same attachment contract but remains disabled until D4.8 execution is wired.
+- Multi-Agent UI reserves the same attachment contract but remains disabled until D4.8 execution is wired.
 
 Future typed workflows using this attachment evidence include issue-paper photo batch intake, Daily Usage extraction, and stock-transfer evidence/proposals. Extraction must produce a draft/review stage before any controlled write.
 
 ## Next authorized order
 
-1. Deploy D4.7B and manually verify human-facing response + attachment upload/remove/send/reload behavior.
+1. Finish/deploy D4.7B image-preview + latest-message-card refinement and manually verify it.
 2. Run D4.7 live PRIMARY -> FALLBACK proof when a stable secondary model/provider is available.
 3. D4.8 Owner-only Multi-Agent execution using the shared attachment contract.
 4. Per-user Chat entitlement/allowed-agent UI plus human/location tool-authority intersection before staff tool rollout.
@@ -149,11 +153,11 @@ Future typed workflows using this attachment evidence include issue-paper photo 
 
 In Owner AI Workspace Chat:
 
-1. ask for NEW_UNMAPPED or inventory evidence and confirm the reply leads with human-facing facts rather than batch UUIDs/raw field dumps;
-2. confirm calendar dates can be shown as backend-derived values while the source serial remains preserved in provenance;
-3. attach one photo and one supported file, confirm chips show filename/size, remove one, then send the other;
-4. reload the conversation and confirm the bound attachment metadata remains visible;
-5. ask the agent about the file contents and confirm it explicitly says vision/OCR content processing is not wired yet rather than pretending it inspected the file;
+1. attach JPEG/PNG/WebP and confirm a small preview is visible before Send;
+2. send/reload and confirm the image remains visibly rendered inside the USER message;
+3. confirm preview/content access is unavailable outside the owning authenticated conversation;
+4. send another USER/ASSISTANT turn and confirm the conversation card preview updates to the newest message, with `You:` or agent prefix and human-friendly timestamp;
+5. ask the agent about image contents and confirm it still explicitly says vision/OCR content processing is not wired yet rather than pretending it inspected the file;
 6. confirm no inventory write occurs.
 
 ## Survival proof
