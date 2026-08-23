@@ -19,13 +19,14 @@ Before changing code/config/schema/runtime, read:
 7. `docs/architecture/F7_2D_EXECUTION_PATH_SEPARATION.md`
 8. `docs/architecture/F7_2D4_AI_WORKSPACE_AND_ACCESS.md`
 9. `docs/architecture/F7_2D2_AGENT_MANAGEMENT_AND_MULTI_AGENT_SESSIONS.md`
-10. `docs/checkpoints/F7_2D4F_GROUNDED_NATIVE_READS_PLAN_2026-08-23.md`
-11. `docs/checkpoints/F7_2D4G_CHAT_UX_LIFECYCLE_PLAN_2026-08-23.md`
-12. `docs/checkpoints/F7_2D47_FALLBACK_MANAGEMENT_PLAN_2026-08-23.md`
-13. `docs/checkpoints/F7_2D47A_NATIVE_TOOL_CALLING_PLAN_2026-08-23.md`
-14. `docs/checkpoints/F7_2D47B_RESPONSE_AND_ATTACHMENTS_PLAN_2026-08-24.md`
-15. current runtime/deployment evidence, especially issue #26
-16. `docs/design/UI_UX_PRO_MAX_INTEGRATION.md` and `docs/design/WEB_ASSET_RELEASE_INTEGRITY.md` for Web work
+10. `docs/architecture/F7_2D48_MULTI_AGENT_REVIEW_AND_FEDERATION.md`
+11. `docs/checkpoints/F7_2D4F_GROUNDED_NATIVE_READS_PLAN_2026-08-23.md`
+12. `docs/checkpoints/F7_2D4G_CHAT_UX_LIFECYCLE_PLAN_2026-08-23.md`
+13. `docs/checkpoints/F7_2D47_FALLBACK_MANAGEMENT_PLAN_2026-08-23.md`
+14. `docs/checkpoints/F7_2D47A_NATIVE_TOOL_CALLING_PLAN_2026-08-23.md`
+15. `docs/checkpoints/F7_2D47B_RESPONSE_AND_ATTACHMENTS_PLAN_2026-08-24.md`
+16. current runtime/deployment evidence, especially issue #26
+17. `docs/design/UI_UX_PRO_MAX_INTEGRATION.md` and `docs/design/WEB_ASSET_RELEASE_INTEGRITY.md` for Web work
 
 Treat newer verified repository/runtime evidence as authoritative over remembered chat context.
 
@@ -70,7 +71,7 @@ Production/manual accepted:
 - bounded grounded native reads over F6B test/shadow evidence;
 - long response handling, deterministic USER -> ASSISTANT ordering, clean display, Copy/select, richer conversation cards, and owner-scoped conversation deletion;
 - D4.7A deterministic fast path + model-driven native tool calling; contextual follow-up manual acceptance passed with MiniMax M3;
-- D4.7B attachment transport/persistence/manual behavior accepted: photo/file upload, remove-before-send, persisted message binding, and explicit no-vision/OCR claim when bytes are not supplied to the model;
+- D4.7B human-facing response/attachment behavior accepted: photo/file upload, remove-before-send, persisted message binding, JPEG/PNG/WebP previews, latest-message card previews, and explicit no-vision/OCR claim when model bytes are not supplied;
 - external MCP direct read/audit remains independent;
 - production inventory writes remain disabled.
 
@@ -85,8 +86,8 @@ Owner-only requires backend authorization plus UI restriction.
 ### AI Workspace — work plane
 
 - `Chat` — one selected internal agent; Owner + authorized users.
-- `Multi-Agent` — GROUP/COMPARE/REVIEW/DEBATE execution; Owner-only for this phase and not yet wired.
-- Both composer contracts use the same photo/file attachment architecture. Single-agent upload is the first implementation; Multi-Agent reuses it when D4.8 execution lands.
+- `Multi-Agent` — `REVIEW`, `GROUP`, `COMPARE`, `DEBATE`; Owner-only in this phase.
+- Both composer contracts reuse the same photo/file attachment architecture.
 
 ## Access + authority
 
@@ -96,7 +97,7 @@ Native tool authority intersects system gate, authenticated human authority, sel
 
 Native store-tool execution is currently backend-restricted to Owner sessions plus selected-agent READ authority. Non-owner Chat is reasoning-only for store tools until explicit human/location tool authority is implemented.
 
-Uploaded attachment evidence is ownership-scoped. Attachment byte/preview endpoints must independently enforce authenticated AI Workspace access plus conversation/attachment ownership. An attachment never grants tool/write authority.
+Uploaded attachment evidence is ownership-scoped. Attachment byte/preview endpoints independently enforce authenticated AI Workspace access plus conversation/attachment ownership. An attachment never grants tool/write authority.
 
 ## D4.7A native tool calling — VERIFIED
 
@@ -105,7 +106,7 @@ Canonical checkpoint: `docs/checkpoints/F7_2D47A_NATIVE_TOOL_CALLING_PLAN_2026-0
 Accepted hybrid behavior:
 
 1. Explicit supported request -> deterministic backend fast-path prefetch -> grounded model answer.
-2. If no fast-path evidence exists and the assigned tool-capable OpenAI-compatible model supports tools -> expose all currently authorized native read tools -> model may request tools -> backend allowlist/authority validation -> typed result -> final answer.
+2. If no fast-path evidence exists and the assigned tool-capable model supports tools -> expose currently authorized native read tools -> model requests tools -> backend allowlist/authority validation -> typed result -> final answer.
 3. Tool loop is bounded to four rounds.
 4. Unsupported providers/models fall back to grounded reasoning and must not claim tool execution.
 5. Public MCP is not used.
@@ -118,47 +119,138 @@ Current native tool registry:
 
 The public MCP schema has 106 actions, but those are not automatically internal-agent tools. Only implemented native typed adapters that are backend-authorized are exposed.
 
-## Current work — D4.7B UX completion
+## D4.7B response + attachments — VERIFIED / ACCEPTED
 
 Canonical checkpoint: `docs/checkpoints/F7_2D47B_RESPONSE_AND_ATTACHMENTS_PLAN_2026-08-24.md`.
 
-Current implementation/acceptance target:
+Accepted current state:
 
-- native read tools expose a human-friendly presentation layer while retaining raw evidence/provenance;
-- deterministic spreadsheet serial-date conversion may be shown as a derived value while preserving the raw serial;
-- agents answer the user's question first and do not lead with UUIDs, raw JSON keys, batch/source IDs, or repeated canonicality boilerplate unless requested/needed;
-- facts, deterministic derived values, and inference must remain distinct;
-- identifying one blocker does not prove a state transition; revalidation/reclassification must run and pass;
-- single-agent Chat has Photo and File buttons, selected attachment remove-before-send, bounded persistence, and message binding;
-- max 4 pending attachments, max 8 MB each, MIME allowlist, authenticated conversation ownership;
-- bound attachment metadata survives conversation reload; conversation deletion cascades attachments;
-- JPEG/PNG/WebP should render as small thumbnails before send and as visible image evidence inside bound USER chat messages; HEIC/HEIF may remain metadata-only when browser preview is unreliable;
-- image preview/content serving is owner/conversation scoped and is display-only: it does not mean provider vision/OCR has received or processed the bytes;
-- conversation cards now target the latest USER/ASSISTANT message preview with `You:` or agent-name prefix plus human-friendly last-interaction time, rather than the first USER message;
-- attachment bytes are NOT yet supplied to provider models, OCR, or vision processing; model receives metadata only and must not claim inspection;
-- Multi-Agent UI reserves the same attachment contract but remains disabled until D4.8 execution is wired.
+- human-friendly presentation layer with retained provenance;
+- deterministic display derivations may be backend-provided while preserving raw source values;
+- single-agent Chat has Photo/File upload, bounded persistence, message binding, remove-before-send, image preview, reload persistence, copy/delete/chat-history behavior;
+- conversation cards use latest USER/ASSISTANT message preview plus human-friendly interaction time;
+- attachment bytes are still not supplied to provider vision/OCR;
+- Multi-Agent will reuse the same attachment contract.
 
-Future typed workflows using this attachment evidence include issue-paper photo batch intake, Daily Usage extraction, and stock-transfer evidence/proposals. Extraction must produce a draft/review stage before any controlled write.
+## Current architecture/work — D4.8 Multi-Agent Review + federation
+
+Canonical architecture: `docs/architecture/F7_2D48_MULTI_AGENT_REVIEW_AND_FEDERATION.md`.
+
+### Critical invariant
+
+**External/federated participation is OPTIONAL.**
+
+A Multi-Agent preset must be able to run fully native with internal agents only. Do not require ChatGPT/MCP for Review, Group, Compare, or Debate.
+
+### Participant classes
+
+Native participants:
+
+- `INTERNAL_MODEL` agents;
+- directly invoked by MSA orchestrator;
+- can run live/bounded turns;
+- each keeps its own identity, assignment, tools, and authority.
+
+Federated participants:
+
+- initially bound ChatGPT/MCP;
+- asynchronous persisted work/review exchange;
+- optional checkpoint/candidate/reviewer;
+- not presented as a fake live participant that MSA can force to answer.
+
+### REVIEW — first implementation priority
+
+Default native-only example:
+
+`Owner evidence/task -> ANALYST -> REVIEWER -> SYNTHESIZER -> WAITING_OWNER`
+
+Optional federated example:
+
+`Owner evidence/task -> ANALYST -> REVIEWER -> WAITING_EXTERNAL -> SYNTHESIZER -> WAITING_OWNER`
+
+Review lifecycle:
+
+`DRAFT -> REVIEWING -> WAITING_EXTERNAL? -> WAITING_OWNER -> APPROVED -> COMMITTABLE -> COMMITTED`
+
+`WAITING_EXTERNAL` may be skipped. `APPROVED` is not a store mutation. Current production write gate still blocks real inventory mutation.
+
+Stable orchestration roles are `ANALYST`, `REVIEWER`, `SYNTHESIZER`; presets may add custom display labels. Roles never grant authority.
+
+### Shared coordination substrate
+
+D4.8 requires durable:
+
+- Work Items;
+- versioned Artifacts;
+- version-bound Reviews;
+- immutable Events;
+- shared Attention Queue.
+
+Actor types distinguish at least `OWNER`, `USER`, `INTERNAL_AGENT`, `EXTERNAL_MCP_AGENT`, `SYSTEM`.
+
+Artifacts/reviews are proposals/evidence/work products, **not committed store state**.
+
+### Federated MCP workflow
+
+After native Review substrate is proven, add bounded MCP operations to read eligible work items/artifacts/reviews and submit version-bound external reviews/proposals.
+
+Direct MCP typed operations remain valid and independent; not every MCP operation must go through Multi-Agent review.
+
+Internal agents also remain independent; external review is never mandatory unless preset/Owner explicitly requests it.
+
+### Telegram attention layer
+
+Telegram is planned as notification/lightweight attention delivery over the same persisted backend workflow state.
+
+Use cases:
+
+- internal review finished;
+- external review requested;
+- Owner decision required;
+- disagreement/failure;
+- commit completion.
+
+Telegram is not the source of truth and not the orchestrator. Notification failure must not lose or advance workflow state.
+
+Web Dashboard, ChatGPT/MCP, and Telegram should expose/signal the same Attention Queue.
+
+Target convenience flow:
+
+`native review ends -> WAITING_EXTERNAL -> Telegram notifies Owner -> Owner stays in ChatGPT -> MCP opens work item -> ChatGPT submits review -> MSA continues`
+
+### GROUP
+
+After REVIEW/federation substrate is stable, GROUP becomes a bounded shared-context native agentic loop. Owner can watch and later steer/pause/resume/stop. External agents may participate only through explicit asynchronous checkpoints initially.
+
+COMPARE keeps participants independent until comparison. DEBATE uses bounded native rounds before synthesis.
 
 ## Next authorized order
 
-1. Finish/deploy D4.7B image-preview + latest-message-card refinement and manually verify it.
-2. Run D4.7 live PRIMARY -> FALLBACK proof when a stable secondary model/provider is available.
-3. D4.8 Owner-only Multi-Agent execution using the shared attachment contract.
-4. Per-user Chat entitlement/allowed-agent UI plus human/location tool-authority intersection before staff tool rollout.
-5. Expand native typed tools and vision/OCR attachment processors only through bounded typed workflows.
-6. D4.9 optional MCP -> native-agent delegation.
+1. Implement D4.8 DB/typed substrate: Work Items, Artifacts, Reviews, Events, Attention Queue.
+2. Implement backend Owner-only native-only REVIEW execution using existing presets and attachment contract.
+3. Add AI Workspace REVIEW UI + persisted progress/provenance + Owner re-review/steering.
+4. Add optional federated `WAITING_EXTERNAL` + bounded MCP work/review actions.
+5. Add Telegram notification adapter over Attention Queue/events; delivery failure must remain non-fatal to workflow correctness.
+6. Add GROUP native bounded loops + Owner pause/resume/stop/steer + optional external checkpoint.
+7. Add COMPARE and DEBATE execution.
+8. Return to D4.7 live PRIMARY -> FALLBACK proof when a stable secondary model/provider is available.
+9. Add per-user Chat entitlement/allowed-agent UI plus human/location tool-authority intersection before staff tool rollout.
+10. Expand native typed tools and vision/OCR processors only through bounded typed workflows.
 
-## D4.7B manual acceptance
+## Immediate D4.8 acceptance target
 
-In Owner AI Workspace Chat:
+First Review slice passes when:
 
-1. attach JPEG/PNG/WebP and confirm a small preview is visible before Send;
-2. send/reload and confirm the image remains visibly rendered inside the USER message;
-3. confirm preview/content access is unavailable outside the owning authenticated conversation;
-4. send another USER/ASSISTANT turn and confirm the conversation card preview updates to the newest message, with `You:` or agent prefix and human-friendly timestamp;
-5. ask the agent about image contents and confirm it still explicitly says vision/OCR content processing is not wired yet rather than pretending it inspected the file;
-6. confirm no inventory write occurs.
+1. Owner can use a REVIEW preset containing native agents only;
+2. backend enforces Owner-only execution;
+3. task/evidence creates durable Work Item + versioned Artifact;
+4. native participants execute in configured role/order with separate provenance;
+5. no authority union occurs;
+6. workflow reaches WAITING_OWNER without production mutation;
+7. Owner can inspect versions/reviews and return work for re-review;
+8. existing secured photo/file attachment contract is reused;
+9. state survives reload/restart;
+10. external ChatGPT/MCP is not required.
 
 ## Survival proof
 
