@@ -34,6 +34,24 @@ For ordinary new screens and refinements, implement directly from:
 
 Interactive behavior may be validated in the running Web product itself. A separate design prototype is optional, not required.
 
+### Browser-delivery integrity rule
+
+A Web feature is not verified merely because backend routes, CSS/JS source, or CI checks are green. The deployed browser entrypoint must load the intended current asset version.
+
+For every changed Dashboard CSS/JS asset:
+
+- inspect/update its `dashboard.html` reference;
+- bump the asset query/version key unless immutable content-hashed filenames are in use;
+- never leave a newer asset behind an older release marker;
+- keep dashboard HTML and manually versioned CSS/JS responses no-store/no-cache;
+- make CI validate the intended current asset reference and reject stale markers for changed assets;
+- wait for the automatic deploy checkpoint in issue #26;
+- verify the browser delivery chain, especially for dynamically injected UI.
+
+Canonical detailed checklist: `docs/design/WEB_ASSET_RELEASE_INTEGRITY.md`.
+
+The F7.2D3 incident on 2026-08-23 is the reference failure mode: Provider Registry backend/API/CSS/JS deployed, but `dashboard.html` still referenced the F7.2D2 Agent asset key, producing a silent partial UI release. Do not infer “browser cache” until entrypoint/version/deployed-asset consistency has been checked.
+
 ## MSA Web Dashboard target
 
 Product type: internal inventory operations dashboard / productivity tool.
@@ -75,7 +93,8 @@ The dashboard must not imply that PostgreSQL is canonical until explicit promoti
 5. Implement the dashboard against authenticated API contracts; never query PostgreSQL directly from the browser.
 6. Validate navigation, filters, selection, drawers/modals, loading/empty/error/disabled states and responsive behavior in the running product.
 7. Test accessibility, keyboard behavior, narrow screens, touch targets, visible labels/focus, reduced motion and failure states before calling a UI slice complete.
-8. Never expose a fake action. A disabled future operation must explain why it is unavailable.
+8. Validate entrypoint/asset-version/browser delivery integrity under `WEB_ASSET_RELEASE_INTEGRITY.md` before calling a UI release live.
+9. Never expose a fake action. A disabled future operation must explain why it is unavailable.
 
 ## Upstream update policy
 
