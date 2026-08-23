@@ -5,7 +5,7 @@ import os
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 
-EXPECTED_MIGRATION = "0012_providers"
+EXPECTED_MIGRATION = "0013_saved_models"
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 
