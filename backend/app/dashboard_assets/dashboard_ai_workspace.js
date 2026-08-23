@@ -15,6 +15,40 @@
   let busy=false;
 
   const escapeHtml=value=>String(value??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+  const truncate=(value,max=82)=>{const text=String(value??'').replace(/\s+/g,' ').trim();return text.length>max?text.slice(0,max-1)+'…':text};
+  function cleanDisplayText(value){
+    return String(value??'')
+      .replace(/^\s*#{1,6}\s+/gm,'')
+      .replace(/\*\*([^*]+)\*\*/g,'$1')
+      .replace(/__([^_]+)__/g,'$1')
+      .replace(/`([^`\n]+)`/g,'$1')
+      .replace(/^\s*\|?\s*:?-{3,}.*\|?\s*$/gm,'')
+      .replace(/^\s*\|\s?/gm,'')
+      .replace(/\s?\|\s*$/gm,'')
+      .replace(/\s+\|\s+/g,' · ')
+      .replace(/\n{3,}/g,'\n\n')
+      .trim();
+  }
+  function humanTime(value){
+    const date=new Date(value);
+    if(Number.isNaN(date.getTime()))return '';
+    const diff=Math.max(0,Date.now()-date.getTime());
+    if(diff<60_000)return 'Just now';
+    if(diff<3_600_000){const n=Math.max(1,Math.round(diff/60_000));return n+' min ago'}
+    if(diff<86_400_000){const n=Math.max(1,Math.round(diff/3_600_000));return n+' hr'+(n===1?'':'s')+' ago'}
+    if(diff<604_800_000){const n=Math.max(1,Math.round(diff/86_400_000));return n+' day'+(n===1?'':'s')+' ago'}
+    return date.toLocaleString([],{month:'short',day:'numeric',year:date.getFullYear()===new Date().getFullYear()?undefined:'numeric',hour:'numeric',minute:'2-digit'});
+  }
+  async function copyText(text,button){
+    const value=String(text??'');
+    try{
+      if(navigator.clipboard&&window.isSecureContext)await navigator.clipboard.writeText(value);
+      else{
+        const area=document.createElement('textarea');area.value=value;area.style.position='fixed';area.style.opacity='0';document.body.appendChild(area);area.select();document.execCommand('copy');area.remove();
+      }
+      if(button){const old=button.textContent;button.textContent='Copied';setTimeout(()=>button.textContent=old,1200)}
+    }catch{window.alert('Could not copy this message.')}
+  }
   async function api(path,opts={}){
     const response=await fetch(path,{credentials:'same-origin',headers:{'Content-Type':'application/json',...(opts.headers||{})},...opts});
     let data=null;try{data=await response.json()}catch{}
@@ -52,7 +86,33 @@
     const list=$('#aiConversationList');
     if(!list)return;
     if(!conversations.length){list.innerHTML='<div class="empty-copy">No conversations yet.</div>';return}
-    list.innerHTML=conversations.map(c=>'<button type="button" class="ai-conversation-item'+(c.conversation_id===currentConversationId?' active':'')+'" data-ai-conversation="'+escapeHtml(c.conversation_id)+'"><strong>'+escapeHtml(c.title)+'</strong><span>'+escapeHtml(c.agent_display_name)+' · '+Number(c.message_count||0)+' messages</span></button>').join('');
+    list.innerHTML=conversations.map(c=>{
+      const active=c.conversation_id===currentConversationId?' active':'';
+      const preview=truncate(c.first_user_preview||'No messages yet',78);
+      const time=humanTime(c.updated_at);
+      return '<div class="ai-conversation-item'+active+'" data-ai-conversation-row="'+escapeHtml(c.conversation_id)+'">'
+        +'<button type="button" class="ai-conversation-open" data-ai-conversation="'+escapeHtml(c.conversation_id)+'">'
+        +'<strong>'+escapeHtml(c.title)+'</strong>'
+        +'<span class="ai-conversation-preview">'+escapeHtml(preview)+'</span>'
+        +'<span class="ai-conversation-meta">'+escapeHtml(c.agent_display_name)+' · '+Number(c.message_count||0)+' messages · '+escapeHtml(time)+'</span>'
+        +'</button>'
+        +'<button type="button" class="ai-conversation-delete" data-ai-delete="'+escapeHtml(c.conversation_id)+'" aria-label="Delete conversation" title="Delete conversation">×</button>'
+        +'</div>';
+    }).join('');
+  }
+
+  function messageMarkup(message){
+    const cls=message.role==='USER'?'user':'assistant';
+    const visible=cleanDisplayText(message.content);
+    let meta='';
+    if(message.role==='ASSISTANT'&&message.runtime_provenance){
+      const p=message.runtime_provenance;
+      meta='<div class="ai-message-meta">'+escapeHtml((p.provider_name||'Provider')+' · '+(p.model_name||p.model_id||'Model')+(p.fallback_used?' · fallback':'')+(p.latency_ms!=null?' · '+p.latency_ms+' ms':''))+'</div>';
+    }
+    return '<div class="ai-message-wrap '+cls+'">'
+      +'<div class="ai-message '+cls+'" data-copy-text="'+escapeHtml(visible)+'">'+escapeHtml(visible)+meta+'</div>'
+      +'<button type="button" class="ai-message-copy" data-copy-message="'+escapeHtml(message.message_id||'')+'">Copy</button>'
+      +'</div>';
   }
 
   function renderMessages(data){
@@ -63,12 +123,7 @@
     $('#aiChatAgent').textContent=conversation.agent_display_name+' · '+conversation.agent_call_name;
     const thread=$('#aiChatThread');
     if(!messages.length){thread.innerHTML='<div class="ai-workspace-empty">Start the conversation with '+escapeHtml(conversation.agent_display_name)+'.</div>'}
-    else thread.innerHTML=messages.map(m=>{
-      const cls=m.role==='USER'?'user':'assistant';
-      let meta='';
-      if(m.role==='ASSISTANT'&&m.runtime_provenance){const p=m.runtime_provenance;meta='<div class="ai-message-meta">'+escapeHtml((p.provider_name||'Provider')+' · '+(p.model_name||p.model_id||'Model')+(p.fallback_used?' · fallback':'')+(p.latency_ms!=null?' · '+p.latency_ms+' ms':''))+'</div>'}
-      return '<div class="ai-message '+cls+'">'+escapeHtml(m.content)+meta+'</div>';
-    }).join('');
+    else thread.innerHTML=messages.map(messageMarkup).join('');
     thread.scrollTop=thread.scrollHeight;
     $('#aiChatForm').hidden=false;
     renderConversations();
@@ -98,6 +153,25 @@
     }catch(err){window.alert(err.message)}finally{busy=false;$('#aiNewConversation').disabled=false}
   }
 
+  async function deleteConversation(id){
+    if(busy)return;
+    const item=conversations.find(c=>c.conversation_id===id);
+    if(!window.confirm('Delete '+(item?.title||'this conversation')+'? This removes its saved messages.'))return;
+    busy=true;
+    try{
+      await api('/dashboard/api/ai-workspace/conversations/'+encodeURIComponent(id),{method:'DELETE'});
+      if(currentConversationId===id)currentConversationId=null;
+      await refreshConversations();
+      if(conversations.length)await loadConversation(conversations[0].conversation_id);
+      else{
+        $('#aiChatTitle').textContent='New conversation';
+        $('#aiChatAgent').textContent='Select an agent and start a chat.';
+        $('#aiChatThread').innerHTML='<div class="ai-workspace-empty">Choose an agent, then create a conversation.</div>';
+        $('#aiChatForm').hidden=true;
+      }
+    }catch(err){window.alert(err.message)}finally{busy=false}
+  }
+
   async function sendMessage(event){
     event.preventDefault();
     if(busy||!currentConversationId)return;
@@ -106,14 +180,14 @@
     if(!message)return;
     busy=true;$('#aiSend').disabled=true;input.disabled=true;
     const thread=$('#aiChatThread');
-    const pending=document.createElement('div');pending.className='ai-message user';pending.textContent=message;thread.appendChild(pending);
-    const thinking=document.createElement('div');thinking.className='ai-message assistant';thinking.textContent='Thinking…';thread.appendChild(thinking);thread.scrollTop=thread.scrollHeight;
+    const pending=document.createElement('div');pending.className='ai-message-wrap user';pending.innerHTML='<div class="ai-message user"></div>';pending.querySelector('.ai-message').textContent=message;thread.appendChild(pending);
+    const thinking=document.createElement('div');thinking.className='ai-message-wrap assistant';thinking.innerHTML='<div class="ai-message assistant">Thinking…</div>';thread.appendChild(thinking);thread.scrollTop=thread.scrollHeight;
     input.value='';
     try{
       await api('/dashboard/api/ai-workspace/conversations/'+encodeURIComponent(currentConversationId)+'/messages',{method:'POST',body:JSON.stringify({message})});
       await refreshConversations();
       await loadConversation(currentConversationId);
-    }catch(err){thinking.textContent='Unable to respond: '+err.message;input.value=message}finally{busy=false;$('#aiSend').disabled=false;input.disabled=false;input.focus()}
+    }catch(err){thinking.querySelector('.ai-message').textContent='Unable to respond: '+err.message;input.value=message}finally{busy=false;$('#aiSend').disabled=false;input.disabled=false;input.focus()}
   }
 
   function showTab(tab){
@@ -145,7 +219,10 @@
 
   nav.addEventListener('click',openWorkspace);
   panel.addEventListener('click',event=>{
-    const item=event.target.closest('[data-ai-conversation]');if(item)loadConversation(item.dataset.aiConversation);
+    const copy=event.target.closest('[data-copy-message]');
+    if(copy){const wrap=copy.closest('.ai-message-wrap');const bubble=wrap?.querySelector('.ai-message');copyText(bubble?.dataset.copyText||bubble?.textContent||'',copy);return}
+    const del=event.target.closest('[data-ai-delete]');if(del){deleteConversation(del.dataset.aiDelete);return}
+    const item=event.target.closest('[data-ai-conversation]');if(item){loadConversation(item.dataset.aiConversation);return}
     const tab=event.target.closest('[data-ai-tab]');if(tab)showTab(tab.dataset.aiTab);
   });
   $('#aiNewConversation')?.addEventListener('click',createConversation);
