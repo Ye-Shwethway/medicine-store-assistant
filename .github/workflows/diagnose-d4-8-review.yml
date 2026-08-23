@@ -2,7 +2,7 @@ name: Diagnose D4.8 Review runtime
 
 on:
   push:
-    branches: [diag/d4-8-review-runtime]
+    branches: [main]
     paths:
       - 'backend/app/multi_agent_review_runtime_verify.py'
       - '.github/workflows/diagnose-d4-8-review.yml'
@@ -16,7 +16,7 @@ jobs:
     runs-on: [self-hosted, linux, msa-vps]
     timeout-minutes: 10
     steps:
-      - name: Check out diagnostic branch
+      - name: Check out repository
         uses: actions/checkout@v5
         with:
           persist-credentials: false
