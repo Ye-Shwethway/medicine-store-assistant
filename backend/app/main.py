@@ -15,6 +15,7 @@ from app.dashboard_login import router as dashboard_login_router
 from app.db import database_readiness
 from app.email_recovery import router as email_recovery_router
 from app.email_recovery_page import router as email_recovery_page_router
+from app.mcp_oauth import router as mcp_oauth_router
 from app.mcp_server import mcp, mcp_http_app
 from app.read_api import router as read_router
 from app.recovery_identifier import router as recovery_identifier_router
@@ -40,7 +41,7 @@ app = FastAPI(
     description=(
         "Typed API boundary for the Medicine Store Assistant backend. "
         "Authenticated inventory, canonical human identity/User Management/credential and email-recovery lifecycle, catalogue, "
-        "test-only shadow reads, the F7 read-only dashboard, and the F7.2D MCP protocol surface are available; "
+        "test-only shadow reads, the F7 read-only dashboard, and the F7.2D MCP/OAuth protocol surface are available; "
         "canonical inventory writes remain disabled."
     ),
     lifespan=app_lifespan,
@@ -72,6 +73,7 @@ app.include_router(email_recovery_router)
 app.include_router(recovery_identifier_router)
 app.include_router(read_router)
 app.include_router(shadow_read_router)
+app.include_router(mcp_oauth_router)
 
 
 @app.get("/health", tags=["system"], summary="Service health")
@@ -84,6 +86,7 @@ def health() -> dict[str, object]:
         "build_sha": BUILD_SHA,
         "database_canonical": False,
         "mcp_surface": "full-schema-policy-gated",
+        "mcp_oauth": "enabled",
     }
 
 
