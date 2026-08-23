@@ -114,6 +114,31 @@ def _catalog_ids(payload: dict[str, Any]) -> set[str]:
     return result
 
 
+def _merge_catalog_payloads(*payloads: dict[str, Any]) -> dict[str, Any]:
+    """Union detailed catalogs by model id, preferring fields from earlier payloads."""
+    merged: dict[str, dict[str, Any]] = {}
+    order: list[str] = []
+    for payload in payloads:
+        data = payload.get("data")
+        if not isinstance(data, list):
+            continue
+        for raw in data[:MAX_MODELS]:
+            if not isinstance(raw, dict):
+                continue
+            model_id = str(raw.get("id") or "").strip()
+            if not model_id or len(model_id) > 240:
+                continue
+            if model_id not in merged:
+                merged[model_id] = dict(raw)
+                order.append(model_id)
+                continue
+            current = merged[model_id]
+            for key, value in raw.items():
+                if key not in current or current[key] in (None, "", {}, []):
+                    current[key] = value
+    return {"object": "list", "data": [merged[model_id] for model_id in order[:MAX_MODELS]]}
+
+
 def _nullable_int(value: Any) -> int | None:
     if isinstance(value, bool):
         return None
@@ -175,7 +200,7 @@ def _normalize_model(raw: dict[str, Any], subscription_ids: set[str], paid_ids: 
         "max_output_tokens": _nullable_int(raw.get("max_output_tokens")),
         "provider_metadata": _sanitize(
             {
-                "catalog_source": "nanogpt_detailed_v1",
+                "catalog_source": "nanogpt_detailed_v1_union",
                 "owned_by": raw.get("owned_by"),
                 "description": raw.get("description"),
                 "category": raw.get("category"),
@@ -225,7 +250,10 @@ def fetch_nanogpt_detailed_models(
         paid_payload = _request_json("/paid/v1/models?detailed=true", secret)
         subscription_ids = _catalog_ids(subscription_payload)
         paid_ids = _catalog_ids(paid_payload)
-        models = _normalize_catalog(canonical, subscription_ids, paid_ids)
+        # The canonical list may be account-preference filtered. Union all official
+        # detailed catalogs so Provider Registry can always show included and paid-only models.
+        merged_payload = _merge_catalog_payloads(canonical, subscription_payload, paid_payload)
+        models = _normalize_catalog(merged_payload, subscription_ids, paid_ids)
     except RuntimeError as exc:
         error_code = _safe_error_code(exc)
         engine = _engine()
