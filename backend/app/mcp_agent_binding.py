@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
@@ -11,15 +11,44 @@ from app.dashboard_auth import _engine, require_owner_session
 
 router = APIRouter(prefix="/dashboard/api/mcp-bindings", tags=["mcp-agent-binding"])
 
+CAPABILITY_ALLOWLIST = frozenset({"mcp:read", "mcp:propose", "mcp:write", "mcp:control"})
+AUTHORITY_INDEX = {"mcp:read": 0, "mcp:propose": 1, "mcp:write": 2, "mcp:control": 3}
+CEILING_SCOPE = {"READ": "mcp:read", "PROPOSE": "mcp:propose", "WRITE": "mcp:write", "CONTROL": "mcp:control"}
+
 
 class MCPAgentBindRequest(BaseModel):
     grant_id: str
     agent_id: str
 
 
+class MCPGrantScopesUpdate(BaseModel):
+    capability_scopes: list[str] = Field(min_length=1, max_length=4)
+
+
 def _no_store(response: Response) -> None:
     response.headers["Cache-Control"] = "no-store"
     response.headers["Pragma"] = "no-cache"
+
+
+def _validated_scopes(values: list[str]) -> list[str]:
+    scopes = sorted(set(str(value).strip() for value in values if str(value).strip()))
+    if not scopes or set(scopes) - CAPABILITY_ALLOWLIST:
+        raise HTTPException(status_code=400, detail="Select only supported MCP capability scopes")
+    return scopes
+
+
+def _with_effective_scopes(item: dict[str, Any]) -> dict[str, Any]:
+    grant_scopes = {str(scope) for scope in (item.get("grant_capability_scopes") or [])}
+    agent_scopes = {str(scope) for scope in (item.get("agent_capability_scopes") or [])}
+    ceiling = str(item.get("agent_authority_ceiling") or "READ")
+    ceiling_scope = CEILING_SCOPE.get(ceiling, "mcp:read")
+    ceiling_allowed = {scope for scope, index in AUTHORITY_INDEX.items() if index <= AUTHORITY_INDEX[ceiling_scope]}
+    if item.get("agent_state") == "ACTIVE" and item.get("agent_runtime_mode") == "EXTERNAL_MCP_CLIENT":
+        effective = grant_scopes & agent_scopes & ceiling_allowed
+    else:
+        effective = set()
+    item["effective_capability_scopes"] = sorted(effective)
+    return item
 
 
 def _binding_rows(connection) -> list[dict[str, Any]]:
@@ -39,6 +68,8 @@ def _binding_rows(connection) -> list[dict[str, Any]]:
                    a.runtime_mode AS agent_runtime_mode,
                    a.state AS agent_state,
                    a.capability_scopes AS agent_capability_scopes,
+                   a.authority_ceiling AS agent_authority_ceiling,
+                   a.confirmation_policy AS agent_confirmation_policy,
                    b.created_at AS bound_at,
                    b.updated_at AS binding_updated_at
             FROM mcp_oauth_grants g
@@ -53,7 +84,15 @@ def _binding_rows(connection) -> list[dict[str, Any]]:
             """
         )
     ).mappings().all()
-    return [dict(row) for row in rows]
+    return [_with_effective_scopes(dict(row)) for row in rows]
+
+
+def _read_back_grant(connection, grant_id: str) -> dict[str, Any]:
+    items = _binding_rows(connection)
+    result = next((item for item in items if item["grant_id"] == grant_id), None)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Active MCP OAuth grant not found")
+    return result
 
 
 @router.get("", summary="List active MCP grants and named-agent bindings", dependencies=[Depends(require_owner_session)])
@@ -64,6 +103,43 @@ def list_mcp_bindings(response: Response) -> dict[str, Any]:
         with engine.connect() as connection:
             items = _binding_rows(connection)
         return {"items": items, "count": len(items)}
+    finally:
+        engine.dispose()
+
+
+@router.put("/{grant_id}/scopes", summary="Update live MCP OAuth grant capability scopes")
+def update_mcp_grant_scopes(
+    grant_id: str,
+    payload: MCPGrantScopesUpdate,
+    response: Response,
+    _: dict[str, str] = Depends(require_owner_session),
+) -> dict[str, Any]:
+    _no_store(response)
+    scopes = _validated_scopes(payload.capability_scopes)
+    engine = _engine()
+    try:
+        with engine.begin() as connection:
+            updated = connection.execute(
+                text(
+                    """
+                    UPDATE mcp_oauth_grants g
+                    SET capability_scopes=:scopes, updated_at=now()
+                    FROM mcp_oauth_clients c, users u
+                    WHERE g.grant_id=CAST(:grant_id AS uuid)
+                      AND c.client_id=g.client_id
+                      AND u.user_id=g.user_id
+                      AND g.state='ACTIVE'
+                      AND c.revoked_at IS NULL
+                      AND u.state='ACTIVE'
+                    RETURNING g.grant_id::text
+                    """
+                ),
+                {"grant_id": grant_id, "scopes": scopes},
+            ).scalar_one_or_none()
+            if updated is None:
+                raise HTTPException(status_code=404, detail="Active MCP OAuth grant not found")
+        with engine.connect() as connection:
+            return _read_back_grant(connection, grant_id)
     finally:
         engine.dispose()
 
@@ -133,11 +209,7 @@ def bind_mcp_agent(
             raise HTTPException(status_code=409, detail="MCP grant or agent is already bound") from exc
 
         with engine.connect() as connection:
-            items = _binding_rows(connection)
-            result = next((item for item in items if item["grant_id"] == payload.grant_id), None)
-        if result is None:
-            raise HTTPException(status_code=500, detail="Binding was created but could not be read back")
-        return result
+            return _read_back_grant(connection, payload.grant_id)
     finally:
         engine.dispose()
 
