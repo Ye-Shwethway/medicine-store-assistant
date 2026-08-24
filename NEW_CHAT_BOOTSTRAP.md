@@ -75,7 +75,8 @@ Production/manual accepted foundations include:
 - bounded native read tools;
 - D4.7A model-driven native read tools;
 - D4.7B response/attachment evidence UX;
-- D4.8 native Multi-Agent Review, per-participant native reads, federation and feedback passes.
+- D4.8 native Multi-Agent Review, per-participant native reads, federation and feedback passes;
+- Review/composer UX state hardening from PR #125.
 
 Native read-tool registry:
 
@@ -106,12 +107,13 @@ Native Review participants independently receive read tools only when their own 
 - live participant turns via durable background execution + polling;
 - deterministic native-tool provenance;
 - Copy and response-display normalization;
-- DOCX + JSON point-in-time export;
+- DOCX + JSON point-in-time export at both top and composer regions;
 - audit-preserving Review delete;
 - single-surface Multi-Agent Review chat with `Back to reviews`;
 - chronological Owner/native/external/Owner-feedback history;
-- Owner feedback composer and actual native feedback passes;
-- refresh/reopen persistence for external MCP review bubbles and workflow state.
+- ordinary Owner messages staged independently from Review submission;
+- explicit `Send review` control enabled only for unconsumed Owner/external feedback;
+- refresh/reopen persistence for external MCP review bubbles, messages, and workflow state.
 
 Canonical lifecycle:
 
@@ -144,10 +146,6 @@ External review is evidence-only, exact-artifact-version bound, and does not inh
 
 ## Web Production Reliability — MANDATORY
 
-A series of D4.8 Web regressions exposed systemic integration weaknesses: stale manual asset identity, multiple renderers touching the same interactive subtree, direct event listeners lost after `innerHTML` replacement, backend state that was not consistently rehydrated, live paths behaving differently from refresh/reopen paths, and CI that proved strings/routes existed without proving buttons worked.
-
-Those failure classes are now addressed by mandatory standards and automation.
-
 Read before any Web change:
 
 - `docs/design/WEB_IMPLEMENTATION_STANDARD.md`
@@ -167,73 +165,46 @@ Critical rules:
 9. mobile views require an obvious return/back path;
 10. exact deployed SHA is required before declaring browser UI live.
 
-### Content-derived asset identity
+Dashboard bundle identities are automatically derived from exact served file content while preserving semantic prefixes. Do not reintroduce manually remembered fixed asset versions for migrated bundles.
 
-Dashboard bundle identities are automatically derived from the exact served file content while preserving semantic prefixes, for example:
+## Web hardening deployment anchors
 
-`f72d48-review-ui-<12-char-hash>`
-
-Do not reintroduce manually remembered fixed asset versions for migrated bundles.
-
-### Browser interaction gate
-
-The Web reliability CI includes a real Playwright Chromium mobile-size smoke that proves:
-
-`open Review -> external review visible -> Back -> reopen -> external review still visible -> blank Send feedback -> POST feedback-pass -> persisted default Owner feedback bubble`
-
-`grep`, route existence and JS syntax remain supporting checks only; they are not sufficient Web acceptance by themselves.
-
-## Web hardening deployment anchor
-
-PR #123 merge:
+PR #123 hardening merge:
 
 `12fe8ed4865027a768b277078ca90648a53103e3`
-
-Issue #26 production evidence:
-
-- `status=success`
-- source SHA `12fe8ed4865027a768b277078ca90648a53103e3`
-- workflow run `32727105740`
-
-All 13 relevant regression workflows were green on the accepted PR head before merge, including the new Web production reliability browser smoke.
 
 Continuity sync PR #124 merge:
 
 `b6e7985bebac7ffd2b1631ba24177c63920d807b`
 
-## CURRENT bounded Web UX slice
+## Review/composer UX state hardening — DEPLOYED / PRODUCTION VERIFIED
 
-The next active work is deliberately small and must preserve the hardened renderer/persistence contracts.
+PR #125 merge:
 
-### Review-send state
+`eff5f7a25f715ba2018436005db8a85198fe88e7`
 
-- A Review send/request action is a workflow action, not a generic chat send.
-- It is enabled only while an actionable unsent/pending Review request exists.
-- After successful persisted send/request, it must settle/disable (`Review sent` or equivalent).
-- Refresh/reopen must rehydrate the settled state and must not accidentally enable the old action again.
-- A genuinely new actionable Review request may enable it again.
-- Backend duplicate protection remains required independently of the UI.
+Issue #26 production evidence:
 
-### Normal Owner send
+- `status=success`
+- source SHA `eff5f7a25f715ba2018436005db8a85198fe88e7`
+- workflow run `32732654844`
 
-- Single Chat and Multi-Agent messaging need an ordinary composer Send control, preferably a compact Telegram-style send icon/button.
-- Normal Send must call only the normal conversation/message path.
-- Review workflow state must not disable ordinary messaging.
+Current interaction contract:
 
-### Composer-adjacent exports
+- Multi-Agent ordinary Owner Send persists a durable `OWNER_MESSAGE`; it does **not** start the native Review pass.
+- `Send review` consumes only unconsumed Owner/external feedback.
+- After a Review send is consumed, the button settles as disabled `Review sent` and stays settled after Back/reopen/rehydration.
+- A new Owner message or new external review makes `Send review` actionable again.
+- Backend independently returns 422 for a duplicate empty feedback pass with no new input.
+- Latest-artifact external-review state settles as `Review received`; another request is not offered until a new reviewable artifact exists.
+- Single Chat and Multi-Agent have compact normal send controls.
+- Single Chat and Multi-Agent retain top DOCX/JSON exports and now also expose compact composer-adjacent DOCX/JSON controls using the same export endpoints.
 
-- Existing top-level DOCX/JSON controls remain.
-- Add compact DOCX/JSON controls at the composer/bottom region for long conversations.
-- Apply to Single Chat and Multi-Agent.
-- Bottom controls must invoke the same existing export implementation, not a fork.
+PR-head acceptance was green across all six relevant workflows. The Playwright Chromium 390×844 smoke proves:
 
-### Browser acceptance for this slice
+`external feedback pending -> Send review enabled -> send -> consumed -> Review sent disabled -> Back/reopen still disabled -> ordinary Owner Send without feedback-pass call -> persisted message on reopen -> Send review enabled again`
 
-Prove behavior, not strings:
-
-`pending review -> Review enabled -> send/request -> persisted settled/disabled -> refresh/reopen still settled -> new actionable review -> enabled again`
-
-Also prove normal Send does not hit Review endpoints, and composer-side DOCX/JSON uses the same export paths on Single Chat and Multi-Agent mobile layouts.
+It also verifies composer-side export endpoint reuse for Single Chat and Multi-Agent.
 
 ## Access + authority invariant
 
@@ -245,20 +216,31 @@ Tool authority remains an intersection:
 
 Provider/model assignment never grants authority. Session participant privileges never union.
 
+## CURRENT bounded slice — Telegram attention delivery
+
+Next work is Telegram notification/attention delivery over the already-persisted Attention/Event substrate.
+
+Key constraints:
+
+- persisted Work/Event/Attention state remains authoritative; Telegram is only a delivery channel;
+- Telegram delivery failure must never invalidate or roll back a valid workflow transition;
+- use typed backend operations rather than direct bot database mutation;
+- explicit/auditable Owner routing;
+- retry/idempotency protection against duplicate notification storms;
+- start with bounded Owner attention such as `WAITING_OWNER` / external-review completion;
+- no inventory mutation authority is added in this slice.
+
 ## Next authorized order
 
-1. **CURRENT:** complete Review-send state correctness + normal Send separation + composer-adjacent DOCX/JSON controls.
-2. Keep the Web reliability standard and bounded behavior-level browser acceptance as blocking requirements.
-3. Refresh continuity docs with exact merged/deployed evidence after acceptance.
-4. Add Telegram notification/attention delivery over persisted Attention/Event state; notification failure remains non-fatal.
-5. Add GROUP as a bounded native shared-context loop with Owner pause/resume/stop/steer and optional external checkpoints.
-6. Add COMPARE, preserving independent answers until comparison.
-7. Add DEBATE with bounded rounds before synthesis.
-8. Return to live PRIMARY -> FALLBACK proof when a stable secondary model/provider is available.
-9. Add per-user Chat entitlement/allowed-agent UI plus human/location authority intersection before staff tool rollout.
-10. Expand vision/OCR only through a separate bounded evidence-processing slice.
-11. Controlled store writes remain later and require explicit canonicality/authority/idempotency/audit/read-back authorization.
+1. **CURRENT:** design and implement Telegram notification/attention delivery over persisted Attention/Event state.
+2. Add GROUP as a bounded native shared-context loop with Owner pause/resume/stop/steer and optional external checkpoints.
+3. Add COMPARE, preserving independent answers until comparison.
+4. Add DEBATE with bounded rounds before synthesis.
+5. Return to live PRIMARY -> FALLBACK proof when a stable secondary model/provider is available.
+6. Add per-user Chat entitlement/allowed-agent UI plus human/location tool-authority intersection before staff tool rollout.
+7. Expand vision/OCR only through a separate bounded evidence-processing slice.
+8. Controlled store writes remain later and require explicit canonicality/authority/idempotency/audit/read-back authorization.
 
 ## Immediate boundary
 
-Proceed from the hardened D4.8/Web foundation. Production inventory mutation and PostgreSQL canonical promotion remain unauthorized.
+Proceed from the production-verified D4.8/Web foundation. Production inventory mutation and PostgreSQL canonical promotion remain unauthorized.
