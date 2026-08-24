@@ -1,0 +1,26 @@
+name: Validate external Review UI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'backend/app/dashboard_assets/dashboard_multi_agent_live_export.js'
+      - '.github/workflows/validate-external-review-ui.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate-external-review-ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate external Review persistence and polling
+        run: |
+          node --check backend/app/dashboard_assets/dashboard_multi_agent_live_export.js
+          grep -Fq "artifact_type==='EXTERNAL_REVIEW_SUBMISSION'" backend/app/dashboard_assets/dashboard_multi_agent_live_export.js
+          grep -Fq 'hydrateOpenedReview' backend/app/dashboard_assets/dashboard_multi_agent_live_export.js
+          grep -Fq "needsResume=status==='WAITING_EXTERNAL'" backend/app/dashboard_assets/dashboard_multi_agent_live_export.js
+          grep -Fq "livePollTimer=setTimeout(pollLive,1000)" backend/app/dashboard_assets/dashboard_multi_agent_live_export.js
+          grep -Fq 'hydrateOpenedReview()' backend/app/dashboard_assets/dashboard_multi_agent_live_export.js
+          echo 'external_review_ui_persistence=pass'
