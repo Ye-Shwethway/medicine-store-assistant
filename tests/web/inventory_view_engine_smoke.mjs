@@ -30,7 +30,7 @@ await page.evaluate(()=>{
       let source;
       if(preset==='main-stock')source={display_no:1,product_id:'p-main',local_item_name:'10cc Syringe',current_qty:'120.000',mapping_status:'REVIEW_REQUIRED'};
       else if(preset==='migration-review')source={source_row_no:41,local_item_name:'Bandage- Soft Bandage 6"',source_current_qty:'12.000',current_qty:'0.000',source_classification:'REVIEW',mapping_status:'REVIEW_REQUIRED',review_reason:'duplicate Product+Expiry source key'};
-      else source={product_id:'p-met',local_item_name:'Metformin 500mg',cms_code:'M500',cms_name:'Metformin 500mg Tablet',mapping_status:'REVIEW_REQUIRED',catalogue_price:'12.500',accepted_operational_price:null,review_reason:'price changed in current catalogue'};
+      else source={product_id:'p-met',local_item_name:'Metformin 500mg',cms_code:'M500',cms_name:'Metformin 500mg Tablet',mapping_status:'REVIEW_REQUIRED',catalogue_price:'12.500',accepted_operational_price:null,review_reason:JSON.stringify({category:'CONTINUITY_EXACT_NAME_PRICE_SAME',previous_price:'12.500',catalogue_price:'12.500'})};
       const item={...Object.fromEntries(columns.map(c=>[c.field,source[c.field]??null])),product_id:source.product_id,source_row_no:source.source_row_no,mapping_status:source.mapping_status,source_classification:source.source_classification,review_reason:source.review_reason,source_current_qty:source.source_current_qty,current_qty:source.current_qty,cms_code:source.cms_code,cms_name:source.cms_name,catalogue_price:source.catalogue_price,accepted_operational_price:source.accepted_operational_price,local_item_name:source.local_item_name};
       return response({view,columns,items:[item],count:1,limit:100,offset:0,read_only:true,database_canonical:false,migration_baseline_accepted:false});
     }
@@ -50,6 +50,7 @@ await page.getByText('Bandage- Soft Bandage 6"').waitFor({state:'visible'});
 assert.equal(await page.locator('#inventoryReviewFilters').isVisible(),true);
 assert.equal(await page.locator('#inventoryClassificationLabel').isVisible(),true);
 assert.ok((await page.locator('#inventoryViewTable tbody tr').first().getAttribute('class')).includes('inventory-row-review'));
+assert.ok((await page.locator('#inventoryViewTable tbody tr').first().textContent()).includes('duplicate Product+Expiry source key'),'plain-text Migration Review reasons stay readable');
 
 await page.locator('#inventoryMappingStatus').selectOption('REVIEW_REQUIRED');
 await page.locator('#inventorySourceClassification').selectOption('REVIEW');
@@ -79,9 +80,16 @@ await page.waitForFunction(()=>[...document.querySelectorAll('#inventoryViewTabl
 await page.locator('#inventoryPresetSelect').selectOption('cms-mapping-review');
 await page.getByRole('cell',{name:'Metformin 500mg',exact:true}).waitFor({state:'visible'});
 assert.equal(await page.locator('#inventoryClassificationLabel').isHidden(),true);
+const reasonCell=page.locator('#inventoryViewTable tbody tr').first().locator('td').last();
+assert.equal((await reasonCell.textContent()).trim(),'Continuity: exact name, same price');
+assert.ok(!(await reasonCell.textContent()).includes('{'),'structured review reason must not render as raw JSON');
 await page.locator('#inventoryViewTable tbody tr').first().click();
-assert.ok((await page.locator('#inventoryDrawerBody').textContent()).includes('Current catalogue price'));
-assert.ok((await page.locator('#inventoryDrawerBody').textContent()).includes('Accepted store price'));
+const drawerText=await page.locator('#inventoryDrawerBody').textContent();
+assert.ok(drawerText.includes('Current catalogue price'));
+assert.ok(drawerText.includes('Accepted store price'));
+assert.ok(drawerText.includes('Continuity: exact name, same price'));
+assert.ok(drawerText.includes('Previous Price'));
+assert.ok(!drawerText.includes('CONTINUITY_EXACT_NAME_PRICE_SAME'),'drawer must humanize category token');
 
 assert.equal(await page.locator('#inventoryViewRefresh').isVisible(),true);
 const overflow=await page.locator('.inventory-view-table-wrap').evaluate(el=>getComputedStyle(el).overflow);assert.ok(overflow==='auto'||overflow==='scroll');
@@ -89,4 +97,4 @@ const banner=await page.locator('.inventory-shadow-banner').boundingBox();assert
 const drawerBox=await page.locator('#inventoryReviewDrawer').boundingBox();assert.ok(drawerBox&&drawerBox.width<=390);
 
 await browser.close();
-console.log('inventory_review_workspace_smoke=pass viewport=390x844 filters=pass selection=pass drawer=pass presets=3');
+console.log('inventory_review_workspace_smoke=pass viewport=390x844 filters=pass selection=pass drawer=pass human_review_reason=pass presets=3');
