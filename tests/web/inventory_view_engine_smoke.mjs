@@ -99,6 +99,7 @@ assert.ok(drawerText.includes('Accepted store price'));
 assert.ok(drawerText.includes('Continuity: exact name, same price'));
 assert.ok(drawerText.includes('Previous Price'));
 assert.ok(!drawerText.includes('CONTINUITY_EXACT_NAME_PRICE_SAME'),'drawer must humanize category token');
+const drawerBox=await page.locator('#inventoryReviewDrawer').boundingBox();assert.ok(drawerBox&&drawerBox.width<=390);
 await page.locator('#inventoryDrawerClose').click();
 
 await page.locator('.inventory-row-check').check();
@@ -119,7 +120,6 @@ assert.ok(!handoff.requests.some(url=>url.includes('/messages')),'Ask AI must pr
 assert.equal(await page.locator('#inventoryViewRefresh').isVisible(),true);
 const overflow=await page.locator('.inventory-view-table-wrap').evaluate(el=>getComputedStyle(el).overflow);assert.ok(overflow==='auto'||overflow==='scroll');
 const banner=await page.locator('.inventory-shadow-banner').boundingBox();assert.ok(banner&&banner.width<=390);
-const drawerBox=await page.locator('#inventoryReviewDrawer').boundingBox();assert.ok(drawerBox&&drawerBox.width<=390);
 
 await browser.close();
 console.log('inventory_review_workspace_smoke=pass viewport=390x844 filters=pass selection=pass drawer=pass human_review_reason=pass ask_ai_context=pass auto_send=false presets=3');
