@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Implementation Plan
 
-Status: **F6C architecture is locked. F6D shadow foundation is runtime-verified through normalized inventory materialization, catalogue import, deterministic CMS reconciliation and durable non-accepted mapping review state. F6E configurable read-only Inventory View Engine + first Web renderer are runtime-verified. PostgreSQL remains non-canonical. Slice C is active: CMS Mapping Review preset + provider-aware review-filter API are implemented on the current feature branch; source-vs-shadow detail, contextual Web filter controls and review selection remain pending verification/merge.**
+Status: **F6C architecture is locked. F6D shadow foundation is runtime-verified through normalized inventory materialization, catalogue import, deterministic CMS reconciliation and durable non-accepted mapping review state. F6E configurable read-only Inventory View Engine + first Web renderer are runtime-verified. PostgreSQL remains non-canonical. Slice C implementation is complete on PR #172 and is awaiting CI/merge/production runtime verification.**
 
 ## 1. Global rules
 
@@ -104,16 +104,18 @@ Runtime proof: Main Stock **799** projected Lot rows; Migration Review **823** s
 - [x] Preserve responsive/mobile usability with table-owned horizontal overflow.
 - [x] Behavior-level browser verification at 390x844 mobile; existing Web reliability suite remains green.
 
-### 5.3 Slice C — source compare + review — CURRENT
+### 5.3 Slice C — source compare + review — IMPLEMENTED, VERIFICATION PENDING
 
-- [ ] Source-vs-shadow compare mode/detail drawer.
-- [ ] Highlight unresolved HOLDs and mapping review states in the Web review workspace.
+- [x] Source-vs-shadow compare mode/detail drawer.
+- [x] Highlight unresolved HOLDs and mapping review states in the Web review workspace.
 - [x] Add provider-aware review filter API contract (`mapping_status`, `source_classification`, `review_reason`).
-- [ ] Add contextual Web controls for review status/reason filters.
+- [x] Add contextual Web controls for review status/reason filters.
 - [x] Add `CMS Mapping Review` system preset using the same View Engine and generic selector/renderer contract.
-- [ ] Review selection/bulk-context substrate without automatic acceptance.
+- [x] Review selection/bulk-context substrate without automatic acceptance.
+- [ ] Merge PR #172 after behavior-level CI is green.
+- [ ] Verify production asset delivery and live/runtime behavior before declaring Slice C COMPLETE.
 
-Current feature branch: `feat/f6e-slice-c-review-preset`. The new preset and filters remain read-only; no accepted mapping, price mutation or inventory mutation is introduced.
+Implementation remains read-only. Selection and detail are review context only; they do not accept mappings, prices, inventory changes, or baseline promotion.
 
 ### 5.4 Slice D — AI copilot
 
@@ -148,4 +150,4 @@ Current feature branch: `feat/f6e-slice-c-review-preset`. The new preset and fil
 
 ## 7. Immediate boundary
 
-The immediate target remains **Slice C** over the verified generic View Engine. Complete Web review controls/detail/selection and runtime verification before advancing. Do not create accepted CMS mappings, push prices, mutate inventory, or promote PostgreSQL during source comparison/review UI work.
+The immediate target remains **Slice C verification** over the verified generic View Engine. Do not advance to AI copilot work until PR #172 is green, merged and production-delivery/runtime checked. Do not create accepted CMS mappings, push prices, mutate inventory, or promote PostgreSQL during source comparison/review UI work.
