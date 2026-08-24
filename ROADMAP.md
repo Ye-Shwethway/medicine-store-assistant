@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Project Roadmap
 
-Status: **F6C Canonical Inventory Foundation is locked. F6D schema foundation and fresh-source snapshot staging adapter are implemented and CI-verified on PostgreSQL 16. PostgreSQL remains non-canonical. Current bounded target: stage a fresh authorized live Main Store snapshot, then perform safe shadow materialization/reconciliation.**
+Status: **F6C Canonical Inventory Foundation is locked. F6D schema foundation is deployed, the legacy F6B staging batch has been cleanly removed, and a fresh live Main Store snapshot is staged. Current bounded target: Main Stock-primary canonical materialization planning and source-safe shadow Product/Lot/opening-balance construction. PostgreSQL remains non-canonical.**
 
 The live Google workbook/source documents remain operationally authoritative. `migration_baseline_accepted=false`; `database_canonical=false`.
 
@@ -31,12 +31,13 @@ Canonical architecture:
 - `docs/architecture/CMS_MAPPING_LIFECYCLE.md`
 - `docs/architecture/REORDER_BASELINE_AND_AI_ENHANCEMENT.md`
 - `docs/architecture/CONFIGURABLE_OPERATIONAL_VIEW_ENGINE.md`
+- `docs/architecture/MAIN_STOCK_DAILY_USAGE_MATERIALIZATION.md`
 
 ## Canonicality / authority boundary
 
 - Google Sheet/source documents remain the current operational source of truth.
 - PostgreSQL remains deployed shadow/test only.
-- F6B data is test evidence and is not the F6D migration baseline.
+- The old F6B staging batch was test evidence only and has been removed before the fresh F6D source stage.
 - No production inventory write, internal transfer execution, Calculator deduction, Telegram/Flutter stock mutation, automatic OCR/vision commit, arbitrary agent SQL/DB mutation, or DB canonical promotion is authorized.
 - Provider/model selection never grants authority; participant privileges never union.
 
@@ -62,7 +63,9 @@ Locked semantics include:
 - last accepted CMS mapping/operational price remains usable while a newer catalogue is unresolved;
 - current catalogue price is separate from historical receipt/source price;
 - human and AI operations resolve stable actor identity, operation/idempotency ID, audit and read-back;
-- Main Stock and Daily Usage are operational projections/edit surfaces over canonical data.
+- Main Stock and Daily Usage are operational projections/edit surfaces over canonical data;
+- Main Stock is the primary migration source for Product/Lot/current-balance candidates;
+- Daily Usage is joined usage/reconciliation evidence only and must never independently create duplicate Product/Lot/opening-balance records.
 
 ### Reorder resilience
 
@@ -118,28 +121,50 @@ The F6D staging adapter now:
 - supports both observed Daily Usage Remaining Stock header spellings;
 - stages source rows idempotently with sheet/row provenance.
 
-CI proves source-shaped normalization plus PostgreSQL Main Store staging and exact snapshot replay idempotency. This adapter stages evidence only; it does not yet create canonical Product/Lot/opening movements from live rows.
+CI proves source-shaped normalization plus PostgreSQL Main Store staging and exact snapshot replay idempotency.
 
-### CURRENT — actual fresh live snapshot + safe shadow materialization
+### Fresh live source stage — COMPLETE
+
+The old F6B staging batch was fingerprint-verified and deleted without changing control-plane users/agents/conversations or the Main Store seed. A fresh authorized live workbook snapshot was then staged under `MAIN`.
+
+Current live evidence:
+
+- fresh batch: `7ecf9a2b-0521-400d-8990-caaea20d3a57`;
+- source hash: `c212d7da6192e7e20f340e7b302436f588dfb0fa191459fd572dfdb46f23ba76`;
+- direct live read confirms Main Stock has **823 populated item rows** plus header;
+- Daily Usage mirrors the same **823 item-name rows**;
+- staged source records = **1,646 = 823 Main Stock + 823 Daily Usage**;
+- 1,646 is source-evidence count, not canonical inventory count;
+- snapshot replay is idempotent and returns the same batch/hash rather than creating a duplicate batch.
+
+The source stage still creates no canonical Product/Lot/opening-balance rows by itself.
+
+### CURRENT — Main-primary materialization planning + safe shadow materialization
+
+Main Stock and Daily Usage are now explicitly separated by migration responsibility:
+
+- Main Stock owns Product candidate, structured Expiry/Lot candidate and current Main Store balance evidence;
+- Daily Usage joins to that same candidate as usage/monthly consistency evidence;
+- Daily Usage must never independently create a second Product, Lot, opening balance or store balance;
+- Main Stock/Daily Usage remain future operational views over canonical data, not canonical worksheet-shaped tables;
+- CMS mapping uncertainty does not automatically block otherwise-safe local inventory identity/quantity materialization.
 
 Next bounded work:
 
-1. verify the `0022` schema and snapshot adapter are available in the target shadow runtime;
-2. take and stage a fresh authorized read-only live workbook snapshot bound to Main Store;
-3. record batch hash, row counts, classification counts and mapping-hint counts;
-4. inspect real SAFE/REVIEW/CONFLICT/NEW_UNMAPPED distributions before writing any canonical shadow movements;
-5. define/materialize only identity and opening-balance cases whose semantics are source-safe;
-6. resolve stable Product and expiry-Lot identities independently of CMS Code;
-7. preserve recycled/discontinued/review-required CMS mapping states rather than forcing clean matches;
-8. avoid fabricating receipt/usage history where the workbook provides only aggregate evidence;
-9. derive Main Store balances and compare with live Main Stock current state;
-10. prove materialization replay idempotency;
-11. generate useful shadow Main Stock and Daily Usage projection evidence;
-12. keep PostgreSQL non-canonical until explicit later acceptance.
+1. run the read-only Main-primary planner against the fresh staged batch;
+2. report Main/Daily counts separately and calculate unique Product/Product+Expiry candidates;
+3. surface exact duplicate/ambiguous Product+Expiry keys rather than silently merging them;
+4. inspect inventory-identity/quantity review cases separately from CMS-only mapping review cases;
+5. materialize only source-safe Main-derived Products/Lots;
+6. create at most one migration opening-balance effect per accepted Main Store Lot candidate, with no duplicate effect from Daily Usage;
+7. do not fabricate historical receipt/usage movements from monthly aggregates alone;
+8. derive Main Store balances and compare them to accepted Main Stock current-state evidence;
+9. prove materialization replay idempotency;
+10. keep PostgreSQL non-canonical until explicit later acceptance.
 
 ## Subsequent path
 
-1. Actual fresh F6D source staging + safe shadow materialization/reconciliation.
+1. Safe F6D Main-primary shadow materialization/reconciliation.
 2. Historical bootstrap from strongest available evidence without inventing movements.
 3. Shadow balance/projection parity and transfer tests.
 4. Minimal field/computation registry + saved view definitions.
@@ -156,4 +181,4 @@ Next bounded work:
 
 ## Immediate boundary
 
-Do not let legacy spreadsheet formulas or report formatting dictate the canonical schema. Continue re-reading the live workbook whenever source behavior matters. The immediate next action is real read-only source staging and review of its classification evidence before any new canonical shadow materialization.
+Do not let legacy spreadsheet formulas or report formatting dictate the canonical schema. Continue re-reading the live workbook whenever source behavior matters. The immediate next action is read-only Main-primary materialization planning over the fresh 823+823 source evidence, followed by source-safe shadow materialization only after duplicate/ambiguity evidence is understood.
