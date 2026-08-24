@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Implementation Plan
 
-Status: **F6C architecture is locked. F6D shadow foundation is runtime-verified through normalized inventory materialization, catalogue import, deterministic CMS reconciliation and durable non-accepted mapping review state. PostgreSQL remains non-canonical. Current bounded work: configurable read-only Inventory View Engine + migration-review Web surface.**
+Status: **F6C architecture is locked. F6D shadow foundation is runtime-verified through normalized inventory materialization, catalogue import, deterministic CMS reconciliation and durable non-accepted mapping review state. F6E configurable read-only Inventory View Engine + first Web renderer are runtime-verified. PostgreSQL remains non-canonical. Current bounded work: source-vs-shadow review detail, HOLD/review filtering and CMS Mapping Review preset.**
 
 ## 1. Global rules
 
@@ -34,7 +34,7 @@ Status: **F6C architecture is locked. F6D shadow foundation is runtime-verified 
 - no accepted Product-CMS mapping or operational-price mutation is authorized by catalogue/review staging alone;
 - no arbitrary AI SQL/DB mutation;
 - current live workbook remains operational authority;
-- Inventory View Engine v1 is read-only and explicitly labels shadow/non-canonical state.
+- Inventory View Engine remains read-only and explicitly labels shadow/non-canonical state.
 
 ## 4. F6D verified shadow foundation
 
@@ -78,7 +78,7 @@ Replay created **0** additional rows. Inventory counts remained unchanged.
 
 ## 5. F6E — CURRENT: Inventory View Engine
 
-### 5.1 Slice A — registry + generic read projection
+### 5.1 Slice A — registry + generic read projection — COMPLETE
 
 - [x] Lock `docs/architecture/INVENTORY_VIEW_ENGINE_V1.md`.
 - [x] Add typed field registry contract.
@@ -88,26 +88,29 @@ Replay created **0** additional rows. Inventory counts remained unchanged.
 - [x] Add validated caller-selected field subset/order contract.
 - [x] Reject unknown/unregistered field keys.
 - [x] Keep output read-only/non-canonical.
-- [ ] Wire router into authenticated dashboard API.
-- [ ] Add runtime readback verification against current shadow counts.
+- [x] Wire router into authenticated dashboard API.
+- [x] Add runtime readback verification against current shadow counts.
 
-### 5.2 Slice B — generic Web renderer
+Runtime proof: Main Stock **799** projected Lot rows; Migration Review **823** source rows; Main current quantity sum **72,009.000**; Products/Lots/transactions **670/799/679**; accepted mappings/prices remain **0/0**.
 
-- [ ] Replace product-facing old staged-row Inventory table with one generic table component.
-- [ ] Preset selector: Main Stock / Migration Review first.
-- [ ] Render columns from view-definition metadata, not hard-coded `<th>` cells.
-- [ ] Keep Shadow Inspection as separate diagnostic surface.
-- [ ] Show strong `Shadow inventory — not canonical` banner.
-- [ ] Add search/filter/pagination without changing domain truth.
-- [ ] Preserve responsive/mobile usability and full-table view.
-- [ ] Behavior-level browser verification at desktop and 390x844 mobile.
+### 5.2 Slice B — generic Web renderer — COMPLETE
 
-### 5.3 Slice C — source compare + review
+- [x] Replace product-facing old staged-row Inventory table with one generic table component.
+- [x] Preset selector: Main Stock / Migration Review first.
+- [x] Render columns from view-definition metadata, not hard-coded `<th>` cells.
+- [x] Keep Shadow Inspection as separate diagnostic surface.
+- [x] Show strong `Shadow inventory — not canonical` banner.
+- [x] Add search/pagination and registry-driven visible columns without changing domain truth.
+- [x] Preserve responsive/mobile usability with table-owned horizontal overflow.
+- [x] Behavior-level browser verification at 390x844 mobile; existing Web reliability suite remains green.
+
+### 5.3 Slice C — source compare + review — CURRENT
 
 - [ ] Source-vs-shadow compare mode/detail drawer.
 - [ ] Highlight unresolved HOLDs and mapping review states.
+- [ ] Add review-status/reason filters.
 - [ ] CMS Mapping Review system preset using the same View Engine.
-- [ ] Review filters/bulk selection without automatic acceptance.
+- [ ] Review selection/bulk-context substrate without automatic acceptance.
 
 ### 5.4 Slice D — AI copilot
 
@@ -142,4 +145,4 @@ Replay created **0** additional rows. Inventory counts remained unchanged.
 
 ## 7. Immediate boundary
 
-The immediate implementation target is **Slice A -> Slice B**: wire the generic authenticated read API, prove Main Stock/Migration Review projections, then render them through one configurable table component. Do not create accepted CMS mappings, push prices, mutate inventory, or promote PostgreSQL during this work.
+The immediate target is **Slice C** over the verified generic View Engine. Do not create accepted CMS mappings, push prices, mutate inventory, or promote PostgreSQL during source comparison/review UI work.
