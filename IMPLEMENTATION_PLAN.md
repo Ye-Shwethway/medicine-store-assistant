@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Implementation Plan
 
-Status: **D4.8 native Review, per-participant native reads, external MCP federation, Owner feedback passes, export/delete UX, single-surface Review navigation, Web Production Reliability Hardening, and Review/composer UX state hardening are deployed and production-verified. F6B remains test-only; PostgreSQL remains non-canonical. Current bounded slice: Telegram notification/attention delivery over persisted Attention/Event state.**
+Status: **D4.8 Review/federation and PR #125 Review/composer UX are production-verified. F6B remains test-only; PostgreSQL remains non-canonical. Current bounded slice: D4.9 Multi-Agent conversational continuation + durable Owner Decision semantics.**
 
 This file is the execution contract for current MSA implementation order and boundaries.
 
@@ -37,145 +37,101 @@ These are peer paths. Direct authorized MCP actions do not require an internal-a
 
 ## 4. Verified AI Workspace foundation
 
-Production/manual accepted foundations include:
-
-- named AI Agent Management and capability/authority policy;
-- Provider Registry + Owner-saved models;
-- PRIMARY + ordered FALLBACK assignment configuration;
-- MCP-independent native provider inference;
-- durable AI Workspace Single Chat;
-- bounded native read tools: `inventory_summary`, `new_unmapped_rows`, `review_reasons`;
-- D4.7A model-driven native read-tool loop;
-- D4.7B response + attachment evidence UX;
-- D4.8 shared Work/Review substrate;
-- Owner-only native REVIEW orchestration;
-- per-participant native read-tool authority;
-- external MCP federation with exact-version binding;
-- Owner feedback passes back to native participants;
-- DOCX + JSON point-in-time export;
-- audit-preserving Review delete;
-- single-surface Multi-Agent Review navigation and reload-safe history.
+Accepted foundation includes named agents, Provider Registry/saved models, PRIMARY + ordered FALLBACK configuration, native inference, durable Single Chat, bounded native reads, D4.8 shared Work/Artifact/Review/Event/Attention substrate, Owner-only native Review, per-participant authority, external MCP federation, feedback passes, export/delete UX, single-surface navigation, and PR #125 composer state hardening.
 
 Attachment bytes are still not sent to provider vision/OCR. Production inventory writes remain disabled.
 
-## 5. D4.8 shared Work/Review substrate — DEPLOYED / ACCEPTED
+## 5. Review/federation invariants
 
-Shared durable substrate:
+- Stable orchestration roles: `ANALYST`, `REVIEWER`, `SYNTHESIZER`; all three are not mandatory.
+- Roles never grant authority.
+- Participant privileges never union.
+- External review is exact-artifact-version bound evidence only.
+- `Send review` is a structured full-preset operation, separate from ordinary conversation.
+- Web work keeps one authoritative renderer/state owner, delegated/deterministic event wiring, paired frontend/API/persistence/read-back/rehydration contracts, content-derived asset identity, and bounded browser behavior tests.
 
-- Work Item
-- versioned Artifact
-- exact-version Review
-- immutable Event
-- Attention Queue
+PR #125 production anchor:
 
-Actor types include `OWNER`, `USER`, `INTERNAL_AGENT`, `EXTERNAL_MCP_AGENT`, `SYSTEM`.
-
-Stable orchestration roles are `ANALYST`, `REVIEWER`, `SYNTHESIZER`; valid presets do not require all three. Two-agent `REVIEWER -> SYNTHESIZER` is valid. Roles never grant authority.
-
-Canonical lifecycle:
-
-`DRAFT -> REVIEWING -> WAITING_EXTERNAL? -> WAITING_OWNER -> APPROVED -> COMMITTABLE -> COMMITTED`
-
-`WAITING_EXTERNAL` is optional. `APPROVED` does not mutate store data.
-
-## 6. Per-participant native reads — DEPLOYED / ACCEPTED
-
-Native REVIEW participants independently receive tools only when their own authority permits them.
-
-Effective native tool authority remains:
-
-`system gate ∩ authenticated human/session authority ∩ calling agent capability/ceiling ∩ location scope ∩ operation class ∩ confirmation policy`
-
-Session privileges never union. One participant may not borrow another participant's tool access.
-
-## 7. External MCP federation — DEPLOYED / END-TO-END PROVEN
-
-MCP schema version: `2026-08-24.v2.2`, 108 tools.
-
-Federation tools:
-
-- `msa_federated_review_query`
-- `msa_federated_review_submit`
-
-Proven production flow:
-
-`Native Review -> Request external review -> WAITING_EXTERNAL -> ChatGPT/SOL MCP query exact frozen artifact -> external review submit -> WAITING_OWNER -> external review bubble persisted in Web -> Owner feedback -> new native feedback pass`
-
-Federated evidence is exact-artifact-version bound, evidence-only, and does not inherit internal-agent authority or mutate inventory.
-
-Federated submit requires `mcp:propose`, not `mcp:write`.
-
-## 8. Web Production Reliability Hardening — DEPLOYED / MANDATORY
-
-Hardening PR #123 merge: `12fe8ed4865027a768b277078ca90648a53103e3`.
-
-Mandatory invariants:
-
-1. one authoritative renderer/state owner per interactive DOM subtree;
-2. no second overlay renderer or MutationObserver patch to resolve ownership conflicts;
-3. replaceable DOM uses delegated events or deterministic rebinding;
-4. frontend control + API + persistence + read-back + UI rehydration are one paired contract;
-5. persistent features prove fresh load, same-tab, refresh, and reopen;
-6. async features prove intermediate state, settled state, and polling resume/stop;
-7. MutationObserver is last-resort narrow/idempotent glue;
-8. critical controls use behavior-level browser tests where practical;
-9. content-derived Dashboard asset identities replace manually remembered fixed asset versions;
-10. exact deployed SHA is required before declaring browser UI live.
-
-## 9. Review/composer UX state hardening — DEPLOYED / ACCEPTED
-
-PR #125 merge: `eff5f7a25f715ba2018436005db8a85198fe88e7`.
-
-Production issue #26 evidence:
-
-- `status=success`
-- source SHA `eff5f7a25f715ba2018436005db8a85198fe88e7`
+- merge/source SHA `eff5f7a25f715ba2018436005db8a85198fe88e7`
 - deploy run `32732654844`
+- issue #26 `status=success`
 
-Implemented contract:
+## 6. D4.9 — Review Thread Conversation and Owner Decisions — CURRENT
 
-- ordinary Multi-Agent Owner Send persists `OWNER_MESSAGE` without starting a Review pass;
-- `Send review` consumes only new/unconsumed Owner or external-review feedback;
-- after successful consumption the Review action settles/disabled and remains so after rehydration;
-- a new Owner message or new external review makes Review actionable again;
-- backend returns 422 if a duplicate empty Review pass is attempted with no new feedback;
-- external-review request state is settled for the already-reviewed latest participant artifact;
-- Single Chat and Multi-Agent both expose compact normal send controls;
-- Single Chat and Multi-Agent both expose composer-adjacent DOCX/JSON actions while retaining top exports;
-- bottom and top export actions reuse the same existing export endpoints/contracts;
-- content-derived Dashboard bundle identity remains in force.
+Canonical architecture: `docs/architecture/F7_2D49_REVIEW_THREAD_CONVERSATION_AND_OWNER_DECISIONS.md`.
 
-Browser acceptance at 390×844 proves:
+### 6.1 Normal Send = one-agent conversational continuation
 
-`external feedback pending -> Send review enabled -> review pass sent -> feedback consumed -> Review sent disabled -> Back/reopen still disabled -> normal Owner message sent without feedback-pass call -> reopen shows persisted Owner message -> Send review enabled again`
+`Owner message -> target resolution -> one authorized native participant -> persisted reply`
 
-It also proves composer-side export endpoint reuse for both Single Chat and Multi-Agent. All six relevant PR-head workflows were green before merge, including `Validate Web production reliability`.
+Targeting:
 
-## 10. CURRENT bounded slice — Telegram attention delivery
+- explicit selected/`@call_name` participant wins;
+- otherwise prefer configured `SYNTHESIZER`;
+- otherwise use the last configured active participant;
+- unknown/ambiguous explicit target fails closed.
 
-Build Telegram notification delivery over the already-persisted Attention/Event substrate without making Telegram part of workflow correctness.
+Normal Send must not start `feedback-pass`, consume external feedback, or run the whole preset.
 
-Required constraints:
+### 6.2 Send review = full structured preset
 
-- persisted workflow state remains authoritative; Telegram is delivery only;
-- notification failure must not roll back or invalidate a valid Work/Event/Attention transition;
-- use typed backend integration boundaries rather than direct database mutation from the bot;
-- do not grant inventory mutation authority as part of notification delivery;
-- Owner routing/identity must be explicit and auditable;
-- retries/idempotency must prevent duplicate notification storms;
-- start with bounded Owner attention cases such as `WAITING_OWNER` / external-review completion before broad alert expansion.
+`new external/staged feedback OR direct Owner review instruction -> configured REVIEW participant sequence -> WAITING_OWNER`
 
-## 11. Immediate implementation order
+The current composer text can be sent directly as the structured Review instruction. Ordinary direct-discussion messages use `staged_for_review=false` and must not accidentally enable Review by themselves.
 
-1. **CURRENT:** design and implement Telegram notification/attention delivery over persisted Attention/Event state.
-2. Add GROUP as a bounded native shared-context loop with Owner pause/resume/stop/steer and optional external checkpoints.
-3. Add COMPARE while preserving independent answers until comparison.
-4. Add DEBATE with bounded rounds before synthesis.
-5. Return to live PRIMARY -> FALLBACK proof when a stable secondary provider/model is available.
-6. Add per-user Chat entitlement/allowed-agent UI plus human/location authority intersection before staff tool rollout.
-7. Expand vision/OCR evidence processing only through a separate bounded slice.
-8. Controlled inventory writes remain later and require explicit canonicality/authority/idempotency/audit/read-back authorization.
+### 6.3 Owner Decision
 
-## 12. Immediate boundary
+A distinct `Record decision` action persists:
 
-Proceed only from the production-verified D4.8/Web foundation. Do not enable production inventory mutation or PostgreSQL canonical promotion as part of notification/collaboration work.
+- `OWNER_DECISION` artifact;
+- `OWNER_DECISION_RECORDED` immutable event;
+- explicit `inventory_mutation=false` evidence in this phase.
+
+A decision is durable authority-bearing evidence for later workflows, but it is not itself a store mutation or DB canonical promotion.
+
+### 6.4 Future execution boundary
+
+Later execution path:
+
+`evidence -> agent discussion/review -> Owner decision -> executor agent typed mutation proposal -> required confirmation -> authorized backend operation -> read-back -> audit`
+
+Executor agents never receive arbitrary SQL/direct DB authority. Tool/write authority remains an intersection and provider/model selection never grants it.
+
+### 6.5 UI
+
+In the existing Multi-Agent Review composer:
+
+- participant target selector + normal Send `➤`;
+- `Record decision`;
+- `Send review` as separate full-preset action;
+- rehydrate `OWNER_MESSAGE`, targeted `PARTICIPANT_OUTPUT` discussion replies, and `OWNER_DECISION` chronologically;
+- retain top/composer DOCX/JSON and existing federation controls.
+
+### 6.6 Acceptance
+
+Prove:
+
+1. normal Send invokes exactly one selected/default native participant;
+2. normal Send never calls `feedback-pass`;
+3. valid explicit target routes deterministically; invalid target fails closed;
+4. direct typed Review instruction enables/starts full preset separately;
+5. Owner Decision persists and causes no inventory mutation;
+6. refresh/reopen preserves messages/replies/decisions;
+7. existing external Review, export/delete, Review send-state, and browser reliability flows stay green.
+
+## 7. Immediate implementation order
+
+1. **CURRENT:** complete D4.9 backend endpoints + existing-renderer UI integration + bounded tests.
+2. PR -> green CI -> main -> automatic deploy -> issue #26 exact-SHA verification.
+3. Refresh ROADMAP/IMPLEMENTATION_PLAN/NEW_CHAT_BOOTSTRAP with accepted evidence.
+4. Add Telegram notification/attention delivery over persisted Attention/Event state; Telegram failure remains non-fatal.
+5. Add GROUP shared-context loop with Owner pause/resume/stop/steer and optional external checkpoints.
+6. Add COMPARE, then bounded DEBATE.
+7. Return to live PRIMARY -> FALLBACK proof when a stable secondary provider/model exists.
+8. Add staff entitlement/location authority UI before staff tool rollout.
+9. Expand vision/OCR only as a separate bounded evidence slice.
+10. Controlled inventory writes remain later and require explicit canonicality, authority, idempotency, audit, confirmation and read-back prerequisites.
+
+## 8. Immediate boundary
+
+Do not enable production inventory mutation, arbitrary agent DB access, or PostgreSQL canonical promotion as part of D4.9.
