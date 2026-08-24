@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Implementation Plan
 
-Status: **F6C architecture is locked. F6D shadow foundation is runtime-verified through normalized inventory materialization, catalogue import, deterministic CMS reconciliation and durable non-accepted mapping review state. F6E configurable read-only Inventory View Engine + first Web renderer are runtime-verified. PostgreSQL remains non-canonical. Slice C implementation is complete on PR #172 and is awaiting CI/merge/production runtime verification.**
+Status: **F6C architecture is locked. F6D shadow foundation is runtime-verified. F6E Slice A/B/C are complete and runtime-verified through the configurable read-only Inventory View Engine, generic Web renderer, CMS Mapping Review, source-vs-shadow review workspace, filters, highlighting, selection context and detail drawer. PostgreSQL remains non-canonical. Current bounded target: Slice D embedded Inventory AI copilot context + deep-review handoff.**
 
 ## 1. Global rules
 
@@ -10,7 +10,7 @@ Status: **F6C architecture is locked. F6D shadow foundation is runtime-verified 
 - All humans, AI agents, integrations and jobs use typed backend operations.
 - Never expose arbitrary SQL, DB credentials, VPS shell/filesystem, Sheet credentials, plaintext provider keys, passwords/tokens/recovery secrets, or unrestricted HTTP proxying to AI/client runtimes.
 - Deterministic backend code owns identity, authorization, constraints, idempotency, transactionality, confirmation, read-back and audit semantics.
-- Essential store workflows degrade safely when AI providers are unavailable.
+- AI may explain/rank/propose; it does not own mutation authority.
 - Significant implementation/deploy/next-work changes update `ROADMAP.md`, `NEW_CHAT_BOOTSTRAP.md`, this file, relevant architecture docs and a bounded checkpoint.
 
 ## 2. Locked product architecture
@@ -23,8 +23,8 @@ Status: **F6C architecture is locked. F6D shadow foundation is runtime-verified 
 - Total Stock is aggregate truth, never a second editable balance;
 - Main Stock/Daily Usage are projections, not canonical worksheet-shaped tables;
 - Main Stock, Daily Usage, Migration Review and CMS Mapping Review are system presets over a reusable View Engine;
-- users may later build custom sheet-style tables by binding columns to registered semantic fields/computations/commands;
-- a client never supplies arbitrary SQL/raw DB expressions as a view definition;
+- users may later build custom sheet-style tables by binding columns to registered semantic fields/computations/typed commands;
+- arbitrary SQL/raw DB expressions are not a view-definition feature;
 - AI enhances workflows but is not an availability dependency;
 - CMS code equality alone never proves local Product identity.
 
@@ -52,77 +52,64 @@ Status: **F6C architecture is locked. F6D shadow foundation is runtime-verified 
 
 HOLDs remain unresolved rather than guessed: 14 inventory-semantic review rows, 4 duplicate Product+Expiry rows, 6 Unit-review rows.
 
-### CMS catalogue
+### CMS catalogue + review state
 
-- version `34947c29-6427-4b7c-9fb8-ba8ffe3278b0`;
-- effective date `2026-08-02`;
-- source hash `6f221152024c9a06b73f7f7115097abfb688a37a6ba6bf0be78345f3b70dd116`;
+- catalogue version `34947c29-6427-4b7c-9fb8-ba8ffe3278b0`, effective `2026-08-02`;
 - rows / unique codes **6,891 / 6,891**;
 - duplicate codes **0**;
-- one blank source price preserved as `NULL`.
+- one blank source price preserved as `NULL`;
+- durable non-accepted mapping review rows **670**: `REVIEW_REQUIRED 644`, `CMS_DISCONTINUED 19`, `RECYCLED_CODE 1`, `UNMAPPED 6`, `ACTIVE_MATCH 0`;
+- accepted operational prices **0**;
+- replay created **0** additional mapping rows.
 
-### CMS reconciliation + review state
+## 5. F6E — Inventory View Engine
 
-Deterministic screening categories include 526 exact-name/same-price continuity, 77 exact-name/changed-price continuity, 30 multiple-source-code, 19 discontinued, 9 code/name mismatch, 6 unmapped, 1 missing source CMS name, 1 multiple source CMS names and 1 recycled-code case.
+### 5.1 Slice A — registry + generic read projection — COMPLETE + RUNTIME VERIFIED
 
-Durable non-accepted mapping review rows: **670**:
+- [x] Typed field registry and generic view-definition model.
+- [x] Main Stock system preset at `PRODUCT_LOT` grain.
+- [x] Migration Review system preset at `SOURCE_MAIN_ROW` grain.
+- [x] Validated registered-field subset/order; unknown fields rejected.
+- [x] Authenticated read-only dashboard API.
+- [x] Runtime proof: Main Stock **799**, Migration Review **823**, Main current quantity **72,009.000**, Products/Lots/transactions **670/799/679**, accepted mappings/prices **0/0**.
 
-- `REVIEW_REQUIRED` **644**;
-- `CMS_DISCONTINUED` **19**;
-- `RECYCLED_CODE` **1**;
-- `UNMAPPED` **6**;
-- `ACTIVE_MATCH` **0**;
-- accepted operational prices **0**.
+### 5.2 Slice B — generic Web renderer — COMPLETE + RUNTIME VERIFIED
 
-Replay created **0** additional rows. Inventory counts remained unchanged.
+- [x] One generic table component driven by returned `columns[]` metadata.
+- [x] Main Stock / Migration Review preset switching.
+- [x] Registry-driven visible columns, search and pagination.
+- [x] `Shadow inventory — not canonical` banner.
+- [x] Shadow Inspection remains separate diagnostic surface.
+- [x] Responsive/mobile table-owned overflow.
+- [x] 390x844 Playwright behavior proof.
 
-## 5. F6E — CURRENT: Inventory View Engine
+### 5.3 Slice C — source compare + review — COMPLETE + RUNTIME VERIFIED
 
-### 5.1 Slice A — registry + generic read projection — COMPLETE
+- [x] `CMS Mapping Review` third system preset at `PRODUCT_CMS_MAPPING` grain.
+- [x] Provider-aware review filters: `mapping_status`, `source_classification`, `review_reason`.
+- [x] Contextual Web filter controls.
+- [x] REVIEW/HOLD/mapping-state row highlighting.
+- [x] Checkbox selection + review-context bar with no acceptance semantics.
+- [x] Row-click review detail drawer.
+- [x] Migration Review source-vs-shadow quantity comparison.
+- [x] CMS mapping/current catalogue/accepted-price evidence detail.
+- [x] Mobile full-width drawer and responsive review controls.
+- [x] PR #172 merged at `9d030f357a5c3c89e20c4ebba9a702920a227220`.
+- [x] Deployment issue #26 confirmed `status=success` for that merge via run `32769124095`.
+- [x] Runtime proof recorded in issue #171; mutation false and canonical flags remain false.
+- [x] Post-verification polish PR #173 humanizes structured CMS `review_reason` JSON in table/drawer presentation while preserving raw evidence and read-only semantics; CI green, merge `3d7ad88fbd7634571a317cc9b4b5b4c084d77695`.
 
-- [x] Lock `docs/architecture/INVENTORY_VIEW_ENGINE_V1.md`.
-- [x] Add typed field registry contract.
-- [x] Add generic view-definition model.
-- [x] Add Main Stock system preset at `PRODUCT_LOT` grain.
-- [x] Add Migration Review system preset at `SOURCE_MAIN_ROW` grain.
-- [x] Add validated caller-selected field subset/order contract.
-- [x] Reject unknown/unregistered field keys.
-- [x] Keep output read-only/non-canonical.
-- [x] Wire router into authenticated dashboard API.
-- [x] Add runtime readback verification against current shadow counts.
+Slice C introduced **no** accepted CMS mapping, price mutation, inventory mutation, migration-baseline acceptance or DB canonical promotion.
 
-Runtime proof: Main Stock **799** projected Lot rows; Migration Review **823** source rows; Main current quantity sum **72,009.000**; Products/Lots/transactions **670/799/679**; accepted mappings/prices remain **0/0**.
+### 5.4 Slice D — AI copilot — CURRENT
 
-### 5.2 Slice B — generic Web renderer — COMPLETE
-
-- [x] Replace product-facing old staged-row Inventory table with one generic table component.
-- [x] Preset selector: Main Stock / Migration Review first.
-- [x] Render columns from view-definition metadata, not hard-coded `<th>` cells.
-- [x] Keep Shadow Inspection as separate diagnostic surface.
-- [x] Show strong `Shadow inventory — not canonical` banner.
-- [x] Add search/pagination and registry-driven visible columns without changing domain truth.
-- [x] Preserve responsive/mobile usability with table-owned horizontal overflow.
-- [x] Behavior-level browser verification at 390x844 mobile; existing Web reliability suite remains green.
-
-### 5.3 Slice C — source compare + review — IMPLEMENTED, VERIFICATION PENDING
-
-- [x] Source-vs-shadow compare mode/detail drawer.
-- [x] Highlight unresolved HOLDs and mapping review states in the Web review workspace.
-- [x] Add provider-aware review filter API contract (`mapping_status`, `source_classification`, `review_reason`).
-- [x] Add contextual Web controls for review status/reason filters.
-- [x] Add `CMS Mapping Review` system preset using the same View Engine and generic selector/renderer contract.
-- [x] Review selection/bulk-context substrate without automatic acceptance.
-- [ ] Merge PR #172 after behavior-level CI is green.
-- [ ] Verify production asset delivery and live/runtime behavior before declaring Slice C COMPLETE.
-
-Implementation remains read-only. Selection and detail are review context only; they do not accept mappings, prices, inventory changes, or baseline promotion.
-
-### 5.4 Slice D — AI copilot
-
-- [ ] Embedded assistant receives current view, selected rows, filters and source evidence.
-- [ ] AI may explain/rank/propose; it does not own acceptance.
-- [ ] Deep Review handoff to AI Workspace/multi-agent substrate.
-- [ ] Durable Owner decision/typed acceptance remains the mutation gate.
+- [ ] Define a bounded `Inventory Review Context` payload containing current preset/view metadata, active filters, selected rows and allowed source/review evidence only.
+- [ ] Add an embedded Inventory assistant entry point that can explain/rank/summarize selected review evidence.
+- [ ] Reuse existing native AI Workspace/internal-agent runtime rather than creating a second inference stack.
+- [ ] Add Deep Review handoff that creates/opens durable AI Workspace multi-agent review context from the selected Inventory rows.
+- [ ] Preserve read-only context by default; AI cannot accept mappings, prices or inventory changes.
+- [ ] Durable Owner/authorized typed acceptance remains a later mutation gate.
+- [ ] Add behavior/runtime proof that context handoff contains only the intended selected evidence and canonical flags remain false.
 
 ### 5.5 Slice E — saved custom views
 
@@ -139,15 +126,18 @@ Implementation remains read-only. Selection and detail are review context only; 
 
 ## 6. Later sequence
 
-1. Resolve HOLD inventory rows and reviewed CMS mapping exceptions.
-2. Deterministic reorder baseline engine and reorder presets.
-3. Dual verification of real operational events.
-4. Migration baseline acceptance after source/recovery/reconciliation gates.
-5. Selected DB read-path promotion.
-6. Controlled write promotion per operation class.
-7. Explicit DB canonicality promotion.
-8. Sheet mirror/rebuild, exports, Flutter/Telegram and further automation.
+1. Complete Slice D embedded Inventory AI copilot + deep-review handoff.
+2. Resolve HOLD inventory rows and reviewed CMS mapping exceptions through typed reviewed actions.
+3. Persist saved user-defined views / View Builder.
+4. Daily Usage monthly-pivot preset + typed editing flow.
+5. Deterministic reorder baseline engine and reorder presets.
+6. Dual verification of real operational events.
+7. Migration baseline acceptance after source/recovery/reconciliation gates.
+8. Selected DB read-path promotion.
+9. Controlled write promotion per operation class.
+10. Explicit DB canonicality promotion.
+11. Sheet mirror/rebuild, exports, Flutter/Telegram and further automation.
 
 ## 7. Immediate boundary
 
-The immediate target remains **Slice C verification** over the verified generic View Engine. Do not advance to AI copilot work until PR #172 is green, merged and production-delivery/runtime checked. Do not create accepted CMS mappings, push prices, mutate inventory, or promote PostgreSQL during source comparison/review UI work.
+The immediate target is **Slice D Inventory AI copilot context/handoff**, not inventory mutation. The AI receives bounded review context and may explain, summarize, rank or propose only. Do not create accepted CMS mappings, push prices, mutate inventory, accept the migration baseline, or promote PostgreSQL as part of Slice D.

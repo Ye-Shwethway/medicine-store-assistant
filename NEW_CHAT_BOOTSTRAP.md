@@ -30,10 +30,13 @@ Treat newer verified repository/runtime/source evidence as authoritative over re
 
 - F6C Canonical Inventory Foundation is locked.
 - F6D shadow foundation for the current dataset is runtime-verified through source staging, Product/Lot/opening-balance materialization, live CMS catalogue import, deterministic CMS reconciliation and durable non-accepted mapping review-state staging.
-- F6E configurable read-only Inventory View Engine + first Web renderer are runtime-verified.
-- PR #170 is merged: `CMS Mapping Review` is the third system preset and provider-aware review filters (`mapping_status`, `source_classification`, `review_reason`) exist in the generic API.
-- PR #172 implements the remaining Slice C Web review workspace: review filter controls, HOLD/review highlighting, checkbox selection context, row-click detail drawer, Migration Review source-vs-shadow quantity comparison, CMS mapping/price detail, and mobile behavior proof.
-- PR #172 is not yet considered complete until CI, merge, production asset delivery and runtime verification are all green.
+- F6E Slice A/B/C are **complete and runtime-verified**.
+- Slice C runtime issue: #171.
+- PR #170 merged the `CMS Mapping Review` preset + provider-aware review filter API.
+- PR #172 merged the remaining review workspace at `9d030f357a5c3c89e20c4ebba9a702920a227220`: contextual filters, HOLD/review highlighting, checkbox selection context, row-click detail drawer, Migration Review source-vs-shadow quantity comparison, CMS mapping/price detail and mobile behavior.
+- Deployment issue #26 confirmed `status=success` for PR #172 merge via run `32769124095`.
+- PR #173 merge `3d7ad88fbd7634571a317cc9b4b5b4c084d77695` is a presentation-only polish that converts structured CMS `review_reason` JSON into human-friendly table/drawer output while preserving raw evidence; its CI is green.
+- Current bounded target is **F6E Slice D — embedded Inventory AI copilot context + deep-review handoff**.
 - PostgreSQL remains non-canonical: `database_canonical=false`, `migration_baseline_accepted=false`.
 - Google Sheet/source documents remain operational authority.
 
@@ -68,52 +71,57 @@ CMS state:
 - durable non-accepted mapping rows **670**: `REVIEW_REQUIRED 644`, `CMS_DISCONTINUED 19`, `RECYCLED_CODE 1`, `UNMAPPED 6`, `ACTIVE_MATCH 0`;
 - accepted operational prices **0**.
 
-## F6E baseline — runtime verified
+## F6E Slice A/B/C — runtime verified baseline
+
+Implemented:
 
 - typed field registry and generic View Definition model;
 - `main-stock` preset at `PRODUCT_LOT` grain / MAIN;
 - `migration-review` preset at `SOURCE_MAIN_ROW` grain / MAIN;
+- `cms-mapping-review` preset at `PRODUCT_CMS_MAPPING` grain / ALL;
 - authenticated `/dashboard/api/inventory-view/registry`, `/presets`, `/rows`;
 - caller-selected registered field order/subset; unknown fields rejected;
+- provider-aware review filters: `mapping_status`, `source_classification`, `review_reason`;
 - one generic Web renderer, preset switching, visible-column selection, search and pagination;
+- contextual review filters and unresolved review/HOLD/mapping-state highlighting;
+- checkbox selection + read-only review-context bar;
+- row-click review detail drawer;
+- Migration Review source-vs-shadow quantity comparison;
+- CMS mapping/current catalogue/accepted-price evidence detail;
 - explicit `Shadow inventory — not canonical` banner;
 - content-derived Inventory JS/CSS asset identity with no-store/no-cache delivery;
 - 390x844 behavior proof.
 
-Runtime issue #166 proves Main Stock **799**, Migration Review **823**, quantity **72,009.000**, Products/Lots/transactions **670/799/679**, `ACTIVE_MATCH 0`, accepted prices **0**, mutation false, canonical flags false.
+Runtime evidence:
 
-## F6E Slice C — verification gate
+- issue #166: Main Stock **799**, Migration Review **823**, quantity **72,009.000**, Products/Lots/transactions **670/799/679**, `ACTIVE_MATCH 0`, accepted prices **0**, mutation false, canonical flags false;
+- issue #171: Slice C production-delivery gate complete;
+- deployment issue #26: `status=success` for Slice C merge `9d030f357a5c3c89e20c4ebba9a702920a227220`.
 
-Merged PR #170 provides:
+## F6E Slice D — CURRENT
 
-- `CMS Mapping Review` system preset at `PRODUCT_CMS_MAPPING` grain;
-- local Product/CMS code/name/mapping status/current catalogue price/accepted store price/review reason projection;
-- generic API filters for mapping status, source classification and review reason.
+Goal: make Inventory review AI-assisted without creating a second inference stack and without giving AI acceptance authority.
 
-PR #172 provides:
+Next bounded work:
 
-- contextual Web filter controls wired to those API parameters;
-- unresolved review/HOLD/mapping-state highlighting;
-- checkbox selection and selection-context bar with no automatic acceptance;
-- row-click review detail drawer;
-- Migration Review source-vs-shadow quantity comparison;
-- CMS Mapping Review mapping/price evidence detail;
-- responsive mobile drawer/filter behavior;
-- expanded Playwright proof at 390x844.
-
-Slice C becomes COMPLETE only after PR #172 CI is green, the PR is merged, issue #26 confirms deployment of the merge SHA, and live/runtime proof confirms the delivered UI while canonical flags and mutation boundary remain unchanged.
+1. Define an `Inventory Review Context` payload containing only current preset/view metadata, active filters, selected rows and allowed source/review evidence.
+2. Add an embedded assistant entry point inside Inventory that can summarize, explain, compare and rank selected evidence.
+3. Reuse the existing native AI Workspace/internal-agent runtime instead of adding a parallel inference implementation.
+4. Add `Deep Review` handoff from selected Inventory rows into AI Workspace/multi-agent review using the existing durable conversation/review substrate.
+5. Keep the Inventory AI path read-only by default; AI may propose but cannot accept a mapping/price/inventory change.
+6. Keep durable Owner/authorized typed acceptance as a later mutation gate.
+7. Add browser/runtime proof that only the bounded selected context is handed off and canonical flags remain false.
 
 ## Next sequence
 
-1. finish Slice C verification and final continuity sync;
-2. embedded context-aware AI assistant + deep-review handoff to AI Workspace;
-3. resolve HOLD rows/mapping exceptions through reviewed typed actions;
-4. persist saved user-defined view definitions and build View Builder;
-5. add Daily Usage monthly-pivot preset;
-6. add draft/preview/Confirm & Save editing over typed commands;
-7. deterministic reorder baseline + reorder presets;
-8. only then advance migration baseline/read/write/canonical promotion gates with explicit evidence.
+1. complete Slice D embedded Inventory AI copilot + deep-review handoff;
+2. resolve HOLD rows/mapping exceptions through reviewed typed actions;
+3. persist saved user-defined view definitions and build View Builder;
+4. add Daily Usage monthly-pivot preset;
+5. add draft/preview/Confirm & Save editing over typed commands;
+6. deterministic reorder baseline + reorder presets;
+7. only then advance migration baseline/read/write/canonical promotion gates with explicit evidence.
 
 ## Immediate boundary
 
-Do not present shadow DB as canonical. Do not create accepted CMS mappings, push catalogue prices, mutate inventory or enable production writes as part of Slice C. Do not advance to AI copilot work before Slice C verification is complete.
+Do not present shadow DB as canonical. Slice D is an AI **review/context** feature, not a write feature. Do not create accepted CMS mappings, push catalogue prices, mutate inventory, accept the migration baseline, or promote PostgreSQL while implementing the embedded assistant/handoff.
