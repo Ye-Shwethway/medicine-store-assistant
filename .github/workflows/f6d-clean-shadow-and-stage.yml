@@ -1,0 +1,126 @@
+name: F6D clean shadow and stage fresh source
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/app/f6d_shadow_reset.py'
+      - '.github/workflows/f6d-clean-shadow-and-stage.yml'
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: msa-f6d-shadow-maintenance
+  cancel-in-progress: false
+
+jobs:
+  clean-and-stage:
+    runs-on: [self-hosted, linux, msa-vps]
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          path: source
+          persist-credentials: false
+
+      - name: Reset legacy staging and stage fresh live workbook
+        id: maintenance
+        continue-on-error: true
+        shell: bash
+        working-directory: source
+        run: |
+          set -euo pipefail
+          ENV_FILE=/opt/medicine-store-assistant/secrets/runtime.env
+          COMPOSE_FILE="$PWD/deploy/docker-compose.yml"
+          test -r "$ENV_FILE"
+          export COMPOSE_PROJECT_NAME="${MSA_COMPOSE_PROJECT_NAME:-deploy}"
+          docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" build api
+
+          RESET_FILE="${RUNNER_TEMP}/f6d-reset.txt"
+          STAGE1_FILE="${RUNNER_TEMP}/f6d-stage-1.txt"
+          STAGE2_FILE="${RUNNER_TEMP}/f6d-stage-2.txt"
+          AUDIT_FILE="${RUNNER_TEMP}/f6d-post-stage-audit.txt"
+
+          docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm api \
+            python -m app.f6d_shadow_reset --execute | tee "$RESET_FILE"
+
+          set -a
+          source "$ENV_FILE"
+          set +a
+          : "${MSA_GOOGLE_SPREADSHEET_ID:?MSA_GOOGLE_SPREADSHEET_ID is required}"
+          : "${MSA_GOOGLE_SERVICE_ACCOUNT_FILE:?MSA_GOOGLE_SERVICE_ACCOUNT_FILE is required}"
+          test -r "$MSA_GOOGLE_SERVICE_ACCOUNT_FILE"
+
+          run_stage() {
+            docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm \
+              -e MSA_GOOGLE_SPREADSHEET_ID="$MSA_GOOGLE_SPREADSHEET_ID" \
+              -e MSA_GOOGLE_SERVICE_ACCOUNT_FILE=/run/secrets/google-service-account.json \
+              -e MSA_SHADOW_IMPORT_STORE_CODE=MAIN \
+              -v "$MSA_GOOGLE_SERVICE_ACCOUNT_FILE:/run/secrets/google-service-account.json:ro" \
+              api python -m app.live_shadow_import
+          }
+
+          run_stage | tee "$STAGE1_FILE"
+          run_stage | tee "$STAGE2_FILE"
+          docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm api \
+            python -m app.f6d_shadow_reset_audit | tee "$AUDIT_FILE"
+
+      - name: Publish maintenance evidence
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVIDENCE_ISSUE: '138'
+          MAINTENANCE_OUTCOME: ${{ steps.maintenance.outcome }}
+        run: |
+          set -euo pipefail
+          export RESET_FILE="${RUNNER_TEMP}/f6d-reset.txt"
+          export STAGE1_FILE="${RUNNER_TEMP}/f6d-stage-1.txt"
+          export STAGE2_FILE="${RUNNER_TEMP}/f6d-stage-2.txt"
+          export AUDIT_FILE="${RUNNER_TEMP}/f6d-post-stage-audit.txt"
+          BODY_FILE="${RUNNER_TEMP}/f6d-maintenance-body.json"
+          python3 - <<'PY' > "$BODY_FILE"
+          import json, os
+          from pathlib import Path
+
+          def read(name):
+              path = Path(os.environ[name])
+              return path.read_text(encoding='utf-8').strip() if path.exists() else '<not produced>'
+
+          body = "\n".join([
+              "F6D bounded shadow reset + fresh live-source staging evidence.",
+              "",
+              f"status={os.environ['MAINTENANCE_OUTCOME']}",
+              f"source_sha={os.environ['GITHUB_SHA']}",
+              f"workflow_run_id={os.environ['GITHUB_RUN_ID']}",
+              "database_canonical=false",
+              "migration_baseline_accepted=false",
+              "",
+              "## Reset",
+              "```text", read('RESET_FILE'), "```",
+              "",
+              "## Fresh staging pass 1",
+              "```text", read('STAGE1_FILE'), "```",
+              "",
+              "## Immediate replay",
+              "```text", read('STAGE2_FILE'), "```",
+              "",
+              "## Post-stage read-only audit",
+              "```text", read('AUDIT_FILE'), "```",
+          ])
+          print(json.dumps({"body": body}))
+          PY
+          curl --fail-with-body --silent --show-error \
+            --request PATCH \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/${EVIDENCE_ISSUE}" \
+            --data-binary "@${BODY_FILE}" >/dev/null
+          echo "f6d_maintenance_evidence_issue=${EVIDENCE_ISSUE} outcome=${MAINTENANCE_OUTCOME}"
+          if [[ "$MAINTENANCE_OUTCOME" != "success" ]]; then
+            exit 1
+          fi
