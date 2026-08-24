@@ -8,6 +8,8 @@
   let liveLastSignature='';
   let liveRunning=false;
   let reconcileFrame=null;
+  let hydrateWorkId=null;
+  let hydrateInFlight=false;
 
   const esc=value=>String(value??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
   const compact=value=>String(value??'').replace(/\s+/g,' ').trim();
@@ -82,21 +84,34 @@
     livePollTimer=setTimeout(pollLive,1000);
   }
 
+  async function hydrateOpenedReview(){
+    const detail=document.querySelector('#aiMultiMode #reviewWorkDetail');const id=detail?.querySelector('.review-id')?.textContent?.trim();if(!id||hydrateInFlight)return;
+    const status=detail.querySelector('.review-status')?.textContent?.trim()||'';const needsResume=status==='WAITING_EXTERNAL';const needsHydrate=hydrateWorkId!==id;
+    if(!needsResume&&!needsHydrate)return;
+    hydrateInFlight=true;
+    try{
+      const item=await api('/dashboard/api/ai-workspace/multi-agent/work-items/'+encodeURIComponent(id));hydrateWorkId=id;renderLive(item);
+      if(item.status==='WAITING_EXTERNAL'){
+        liveWorkId=id;liveLastSignature=signature(item);if(livePollTimer)clearTimeout(livePollTimer);livePollTimer=setTimeout(pollLive,1000);
+      }
+    }catch(err){statusNotice(err.message,'error')}finally{hydrateInFlight=false}
+  }
+
   async function startLiveReview(){
     if(liveRunning)return;const host=document.querySelector('#aiMultiMode');if(!host)return;const sessionId=host.querySelector('#reviewSessionSelect')?.value||'';const title=compact(host.querySelector('#reviewTitle')?.value||'');const task=String(host.querySelector('#reviewTask')?.value||'').trim();if(!sessionId){statusNotice('Choose an open REVIEW preset first.','error');return}if(!title||!task){statusNotice('Enter both a Work title and Owner task.','error');return}
     const conversationId=host.querySelector('#reviewEvidenceConversation')?.value||null;const attachmentIds=[...host.querySelectorAll('#reviewEvidenceFiles input[type="checkbox"]:checked')].map(x=>x.value);liveRunning=true;statusNotice('Review started. Completed participant turns will appear here live.');const run=host.querySelector('#reviewRun');if(run){run.disabled=true;run.textContent='Review running…'}
-    try{const item=await api('/dashboard/api/ai-workspace/multi-agent/reviews/live',{method:'POST',body:JSON.stringify({session_id:sessionId,title,task,evidence_conversation_id:conversationId,attachment_ids:attachmentIds})});liveWorkId=item.work_item_id;liveLastSignature='';renderLive(item);pollLive()}catch(err){liveRunning=false;statusNotice(err.message,'error');if(run){run.disabled=false;run.textContent='Run native review'}}
+    try{const item=await api('/dashboard/api/ai-workspace/multi-agent/reviews/live',{method:'POST',body:JSON.stringify({session_id:sessionId,title,task,evidence_conversation_id:conversationId,attachment_ids:attachmentIds})});liveWorkId=item.work_item_id;liveLastSignature='';hydrateWorkId=item.work_item_id;renderLive(item);pollLive()}catch(err){liveRunning=false;statusNotice(err.message,'error');if(run){run.disabled=false;run.textContent='Run native review'}}
   }
 
   async function requestExternalReview(workItemId,button){
     if(!workItemId)return;const confirmed=window.confirm('Request an external MCP review of the latest Review artifact? The exact artifact ID and version will be frozen.');if(!confirmed)return;
     if(button){button.disabled=true;button.textContent='Requesting…'}
-    try{const item=await api('/dashboard/api/ai-workspace/multi-agent/work-items/'+encodeURIComponent(workItemId)+'/request-external-review',{method:'POST',body:JSON.stringify({})});renderLive(item);statusNotice('External review requested. Waiting for an authorized external MCP agent.','success');liveWorkId=workItemId;liveLastSignature=signature(item);if(livePollTimer)clearTimeout(livePollTimer);livePollTimer=setTimeout(pollLive,1000);setTimeout(()=>document.querySelector('#aiMultiMode #reviewRefresh')?.click(),300)}catch(err){statusNotice(err.message,'error');if(button){button.disabled=false;button.textContent='Request external review'}}
+    try{const item=await api('/dashboard/api/ai-workspace/multi-agent/work-items/'+encodeURIComponent(workItemId)+'/request-external-review',{method:'POST',body:JSON.stringify({})});hydrateWorkId=workItemId;renderLive(item);statusNotice('External review requested. Waiting for an authorized external MCP agent.','success');liveWorkId=workItemId;liveLastSignature=signature(item);if(livePollTimer)clearTimeout(livePollTimer);livePollTimer=setTimeout(pollLive,1000);setTimeout(()=>document.querySelector('#aiMultiMode #reviewRefresh')?.click(),300)}catch(err){statusNotice(err.message,'error');if(button){button.disabled=false;button.textContent='Request external review'}}
   }
 
   async function deleteReview(workItemId,button){
     if(!workItemId)return;const confirmed=window.confirm('Delete this Review from workspace history? Audit evidence will be preserved.');if(!confirmed)return;if(button){button.disabled=true;button.dataset.restoreText=button.textContent;button.textContent=button.classList.contains('review-work-delete')?'…':'Deleting…'}
-    try{await api('/dashboard/api/ai-workspace/multi-agent/work-items/'+encodeURIComponent(workItemId),{method:'DELETE'});if(liveWorkId===workItemId)stopLivePolling();const activeCard=document.querySelector('#aiMultiMode .review-work-item.active');const activeId=activeCard?.dataset.workId||'';if(activeId===workItemId){const detail=document.querySelector('#aiMultiMode #reviewWorkDetail');if(detail)detail.innerHTML='<div class="review-empty"><strong>Review deleted</strong><p>Removed from Recent Review work. Audit evidence remains preserved.</p></div>'}statusNotice('Review deleted from workspace history. Audit evidence was preserved.','success');setTimeout(()=>document.querySelector('#aiMultiMode #reviewRefresh')?.click(),250)}catch(err){statusNotice(err.message,'error');if(button){button.disabled=false;button.textContent=button.dataset.restoreText||'×'}}
+    try{await api('/dashboard/api/ai-workspace/multi-agent/work-items/'+encodeURIComponent(workItemId),{method:'DELETE'});if(liveWorkId===workItemId)stopLivePolling();if(hydrateWorkId===workItemId)hydrateWorkId=null;const activeCard=document.querySelector('#aiMultiMode .review-work-item.active');const activeId=activeCard?.dataset.workId||'';if(activeId===workItemId){const detail=document.querySelector('#aiMultiMode #reviewWorkDetail');if(detail)detail.innerHTML='<div class="review-empty"><strong>Review deleted</strong><p>Removed from Recent Review work. Audit evidence remains preserved.</p></div>'}statusNotice('Review deleted from workspace history. Audit evidence was preserved.','success');setTimeout(()=>document.querySelector('#aiMultiMode #reviewRefresh')?.click(),250)}catch(err){statusNotice(err.message,'error');if(button){button.disabled=false;button.textContent=button.dataset.restoreText||'×'}}
   }
 
   function addWorkCardDeleteControls(scope=document){scope.querySelectorAll?.('#aiMultiMode .review-work-item:not([data-delete-shell-ready])').forEach(card=>{const id=card.dataset.workId;if(!id)return;card.dataset.deleteShellReady='1';const parent=card.parentNode;if(!parent)return;const shell=document.createElement('div');shell.className='review-work-card-shell';parent.insertBefore(shell,card);shell.appendChild(card);const button=document.createElement('button');button.type='button';button.className='review-delete-action review-work-delete';button.dataset.reviewDeleteFor=id;button.textContent='×';button.setAttribute('aria-label','Delete '+(card.querySelector('.review-work-title strong')?.textContent||'Review'));button.title='Delete review';shell.appendChild(button)})}
@@ -112,7 +127,7 @@
 
   function currentConversationId(){return document.querySelector('.ai-conversation-item.active [data-ai-conversation]')?.dataset.aiConversation||null}
   function syncSingleChatExport(){const head=document.querySelector('.ai-chat-head');if(!head)return;let actions=head.querySelector('.ai-chat-export-actions');const id=currentConversationId();if(!id){actions?.remove();return}if(actions?.dataset.conversationId===id)return;if(!actions){actions=document.createElement('div');actions.className='ai-chat-export-actions';head.appendChild(actions)}actions.dataset.conversationId=id;actions.replaceChildren();const label=document.createElement('span');label.textContent='Export';const docx=document.createElement('a');docx.textContent='DOCX';docx.href='/dashboard/api/ai-workspace/conversations/'+encodeURIComponent(id)+'/export?format=docx';const json=document.createElement('a');json.textContent='JSON';json.href='/dashboard/api/ai-workspace/conversations/'+encodeURIComponent(id)+'/export?format=json';actions.append(label,docx,json)}
-  function reconcileDom(){reconcileFrame=null;polishReviewDom(document);syncSingleChatExport()}
+  function reconcileDom(){reconcileFrame=null;polishReviewDom(document);syncSingleChatExport();hydrateOpenedReview()}
   function scheduleReconcile(){if(reconcileFrame!==null)return;reconcileFrame=requestAnimationFrame(reconcileDom)}
 
   document.addEventListener('click',event=>{
@@ -120,7 +135,7 @@
     const copy=event.target.closest('.review-message-copy');if(copy){const text=copy.closest('.review-chat-turn')?.querySelector('.review-chat-bubble')?.dataset.reviewCopyText||'';copyText(text,copy);return}
     const external=event.target.closest('[data-request-external-review]');if(external){event.preventDefault();event.stopPropagation();requestExternalReview(external.dataset.requestExternalReview,external);return}
     const deleteButton=event.target.closest('.review-delete-action');if(deleteButton){event.preventDefault();event.stopPropagation();deleteReview(deleteButton.dataset.reviewDeleteFor,deleteButton);return}
-    if(event.target.closest('[data-ai-conversation],#aiNewConversation,#aiWorkspaceNav,[data-ai-tab],#aiMultiMode .review-work-item'))scheduleReconcile();
+    if(event.target.closest('[data-ai-conversation],#aiNewConversation,#aiWorkspaceNav,[data-ai-tab],#aiMultiMode .review-work-item')){const card=event.target.closest('#aiMultiMode .review-work-item');if(card&&card.dataset.workId!==hydrateWorkId)hydrateWorkId=null;scheduleReconcile()}
   },true);
 
   const observer=new MutationObserver(()=>scheduleReconcile());observer.observe(root,{childList:true,subtree:true});scheduleReconcile();
