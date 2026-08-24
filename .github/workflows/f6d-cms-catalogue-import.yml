@@ -1,6 +1,7 @@
 name: F6D live CMS catalogue import
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
