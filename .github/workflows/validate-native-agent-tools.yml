@@ -12,10 +12,14 @@ on:
       - 'backend/app/ai_workspace_attachments.py'
       - 'backend/app/multi_agent_review.py'
       - 'backend/app/multi_agent_review_live.py'
+      - 'backend/app/multi_agent_review_ui_api.py'
       - 'backend/app/multi_agent_review_tools_verify.py'
+      - 'backend/app/multi_agent_review_polish_verify.py'
+      - 'backend/app/conversation_export.py'
       - 'backend/app/main.py'
       - 'backend/app/dashboard_assets/dashboard_ai_workspace.css'
       - 'backend/app/dashboard_assets/dashboard_multi_agent_live_export.js'
+      - 'backend/app/dashboard_assets/dashboard_multi_agent_live_export.css'
       - 'backend/alembic/versions/0019_ai_workspace_attachments.py'
       - '.github/workflows/validate-native-agent-tools.yml'
 
@@ -35,6 +39,8 @@ jobs:
         run: PYTHONPATH=backend python backend/app/native_agent_tools_verify.py
       - name: Validate per-participant REVIEW read authority
         run: PYTHONPATH=backend python backend/app/multi_agent_review_tools_verify.py
+      - name: Validate Review provenance and delete polish
+        run: PYTHONPATH=backend python backend/app/multi_agent_review_polish_verify.py
       - name: Validate bounded model-driven tool loop
         run: |
           grep -Fq 'MAX_TOOL_ROUNDS = 4' backend/app/native_agent_tool_runtime.py
@@ -43,6 +49,7 @@ jobs:
           grep -Fq 'owner.get("role") != "OWNER"' backend/app/native_agent_tool_runtime.py
           grep -Fq 'native_agent_read_allowed(agent)' backend/app/native_agent_tool_runtime.py
           grep -Fq 'invoke_native_agent_with_read_tools' backend/app/multi_agent_review_live.py
+          grep -Fq 'RETRIEVAL_FIRST_RULE' backend/app/multi_agent_review_live.py
           grep -Fq 'native_store_tools_allowed' backend/app/multi_agent_review_live.py
           grep -Fq 'native_model_tools_executed' backend/app/dashboard_assets/dashboard_multi_agent_live_export.js
           grep -Fq 'native_tools_exposed' backend/app/ai_workspace_chat.py
@@ -52,6 +59,8 @@ jobs:
           grep -Fq '.ai-chat-form>button' backend/app/dashboard_assets/dashboard_ai_workspace.css
           grep -Fq '.ai-pending-attachment' backend/app/dashboard_assets/dashboard_ai_workspace.css
           grep -Fq 'background:var(--accent)' backend/app/dashboard_assets/dashboard_ai_workspace.css
+          grep -Fq 'review-delete-action' backend/app/dashboard_assets/dashboard_multi_agent_live_export.js
+          grep -Fq 'Tools used' backend/app/conversation_export.py
           grep -Fq 'f7.2d47b-human-presentation' backend/app/main.py
           grep -Fq 'f72d48-live-export-2' backend/app/main.py
           grep -Fq 'f7.2d48-participant-native-read-tools' backend/app/main.py
