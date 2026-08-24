@@ -22,6 +22,7 @@ from app.dashboard_login import router as dashboard_login_router
 from app.db import database_readiness
 from app.email_recovery import router as email_recovery_router
 from app.email_recovery_page import router as email_recovery_page_router
+from app.inventory_view_engine import router as inventory_view_router
 from app.mcp_agent_binding import router as mcp_agent_binding_router
 from app.mcp_oauth import router as mcp_oauth_router
 from app.mcp_server import mcp, mcp_http_app
@@ -279,6 +280,7 @@ def audit_js() -> FileResponse:
 
 app.include_router(dashboard_login_router)
 app.include_router(dashboard_router)
+app.include_router(inventory_view_router)
 app.include_router(email_recovery_page_router)
 app.include_router(user_management_router)
 app.include_router(agent_management_router)
