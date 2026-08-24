@@ -1,0 +1,174 @@
+name: F6D Main Store materialization
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/app/f6d_materialize_main.py'
+      - '.github/workflows/f6d-materialize-main.yml'
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: msa-f6d-shadow-maintenance
+  cancel-in-progress: false
+
+jobs:
+  materialize-main-shadow:
+    runs-on: [self-hosted, linux, msa-vps]
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          path: source
+          persist-credentials: false
+
+      - name: Build runtime image
+        shell: bash
+        working-directory: source
+        run: |
+          set -euo pipefail
+          ENV_FILE=/opt/medicine-store-assistant/secrets/runtime.env
+          COMPOSE_FILE="$PWD/deploy/docker-compose.yml"
+          test -r "$ENV_FILE"
+          export COMPOSE_PROJECT_NAME="${MSA_COMPOSE_PROJECT_NAME:-deploy}"
+          docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" build api
+
+      - name: Plan materialization
+        id: plan
+        continue-on-error: true
+        shell: bash
+        working-directory: source
+        run: |
+          set -o pipefail
+          ENV_FILE=/opt/medicine-store-assistant/secrets/runtime.env
+          COMPOSE_FILE="$PWD/deploy/docker-compose.yml"
+          export COMPOSE_PROJECT_NAME="${MSA_COMPOSE_PROJECT_NAME:-deploy}"
+          docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm api \
+            python -m app.f6d_materialize_main 2>&1 | tee "${RUNNER_TEMP}/f6d-materialize-plan.txt"
+
+      - name: Execute guarded materialization
+        id: execute
+        if: steps.plan.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        working-directory: source
+        env:
+          MSA_F6D_EXPECTED_SOURCE_HASH: c212d7da6192e7e20f340e7b302436f588dfb0fa191459fd572dfdb46f23ba76
+        run: |
+          set -o pipefail
+          ENV_FILE=/opt/medicine-store-assistant/secrets/runtime.env
+          COMPOSE_FILE="$PWD/deploy/docker-compose.yml"
+          export COMPOSE_PROJECT_NAME="${MSA_COMPOSE_PROJECT_NAME:-deploy}"
+          docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm \
+            -e MSA_F6D_EXPECTED_SOURCE_HASH="$MSA_F6D_EXPECTED_SOURCE_HASH" \
+            api python -m app.f6d_materialize_main --execute 2>&1 | tee "${RUNNER_TEMP}/f6d-materialize-execute.txt"
+
+      - name: Replay idempotency proof
+        id: replay
+        if: steps.execute.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        working-directory: source
+        env:
+          MSA_F6D_EXPECTED_SOURCE_HASH: c212d7da6192e7e20f340e7b302436f588dfb0fa191459fd572dfdb46f23ba76
+        run: |
+          set -o pipefail
+          ENV_FILE=/opt/medicine-store-assistant/secrets/runtime.env
+          COMPOSE_FILE="$PWD/deploy/docker-compose.yml"
+          export COMPOSE_PROJECT_NAME="${MSA_COMPOSE_PROJECT_NAME:-deploy}"
+          docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm \
+            -e MSA_F6D_EXPECTED_SOURCE_HASH="$MSA_F6D_EXPECTED_SOURCE_HASH" \
+            api python -m app.f6d_materialize_main --execute 2>&1 | tee "${RUNNER_TEMP}/f6d-materialize-replay.txt"
+
+      - name: Post-run read-only audit
+        id: audit
+        if: always()
+        continue-on-error: true
+        shell: bash
+        working-directory: source
+        run: |
+          set -o pipefail
+          ENV_FILE=/opt/medicine-store-assistant/secrets/runtime.env
+          COMPOSE_FILE="$PWD/deploy/docker-compose.yml"
+          export COMPOSE_PROJECT_NAME="${MSA_COMPOSE_PROJECT_NAME:-deploy}"
+          docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm api \
+            python -m app.f6d_shadow_reset_audit 2>&1 | tee "${RUNNER_TEMP}/f6d-materialize-audit.txt"
+
+      - name: Publish materialization evidence
+        if: always()
+        shell: bash
+        working-directory: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVIDENCE_ISSUE: '138'
+          PLAN_OUTCOME: ${{ steps.plan.outcome }}
+          EXECUTE_OUTCOME: ${{ steps.execute.outcome }}
+          REPLAY_OUTCOME: ${{ steps.replay.outcome }}
+          AUDIT_OUTCOME: ${{ steps.audit.outcome }}
+        run: |
+          set -euo pipefail
+          export PLAN_FILE="${RUNNER_TEMP}/f6d-materialize-plan.txt"
+          export EXECUTE_FILE="${RUNNER_TEMP}/f6d-materialize-execute.txt"
+          export REPLAY_FILE="${RUNNER_TEMP}/f6d-materialize-replay.txt"
+          export AUDIT_FILE="${RUNNER_TEMP}/f6d-materialize-audit.txt"
+          BODY_FILE="${RUNNER_TEMP}/f6d-materialize-body.json"
+          python3 - <<'PY' > "$BODY_FILE"
+          import json, os
+          from pathlib import Path
+          def read(name):
+              path = Path(os.environ[name])
+              return path.read_text(encoding='utf-8').strip() if path.exists() else '(not run)'
+          outcomes = {
+              'plan': os.environ.get('PLAN_OUTCOME', 'unknown'),
+              'execute': os.environ.get('EXECUTE_OUTCOME', 'unknown'),
+              'replay': os.environ.get('REPLAY_OUTCOME', 'unknown'),
+              'audit': os.environ.get('AUDIT_OUTCOME', 'unknown'),
+          }
+          ok = outcomes['plan'] == outcomes['execute'] == outcomes['replay'] == 'success'
+          body = "\n".join([
+              "F6D Main-primary shadow materialization evidence.",
+              "",
+              f"status={'success' if ok else 'failure'}",
+              f"source_sha={os.environ['GITHUB_SHA']}",
+              f"workflow_run_id={os.environ['GITHUB_RUN_ID']}",
+              f"outcomes={json.dumps(outcomes, sort_keys=True)}",
+              "database_canonical=false",
+              "migration_baseline_accepted=false",
+              "",
+              "## Plan",
+              "```text", read('PLAN_FILE'), "```",
+              "",
+              "## Execute",
+              "```text", read('EXECUTE_FILE'), "```",
+              "",
+              "## Immediate replay",
+              "```text", read('REPLAY_FILE'), "```",
+              "",
+              "## Post-run audit",
+              "```text", read('AUDIT_FILE'), "```",
+          ])
+          print(json.dumps({'body': body}))
+          PY
+          curl --fail-with-body --silent --show-error \
+            --request PATCH \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/${EVIDENCE_ISSUE}" \
+            --data-binary "@${BODY_FILE}" >/dev/null
+
+      - name: Enforce successful materialization proof
+        if: always()
+        shell: bash
+        env:
+          PLAN_OUTCOME: ${{ steps.plan.outcome }}
+          EXECUTE_OUTCOME: ${{ steps.execute.outcome }}
+          REPLAY_OUTCOME: ${{ steps.replay.outcome }}
+        run: |
+          test "$PLAN_OUTCOME" = success
+          test "$EXECUTE_OUTCOME" = success
+          test "$REPLAY_OUTCOME" = success
