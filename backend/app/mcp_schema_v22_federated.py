@@ -6,7 +6,8 @@ from typing import Any
 from mcp.types import ToolAnnotations
 
 import app.mcp_schema_v2 as schema
-from app.federated_review import mcp_federated_review_query, mcp_federated_review_submit
+from app.federated_review import mcp_federated_review_query as _federated_query
+from app.federated_review import mcp_federated_review_submit as _federated_submit
 from app.mcp_server import mcp
 
 READ = ToolAnnotations(read_only_hint=True, open_world_hint=False)
@@ -22,7 +23,7 @@ def msa_federated_review_query(
     offset: int = 0,
 ) -> dict[str, Any]:
     """Read optional external-review requests. Actions: list_pending, get_request. Exact artifact/version binding is returned by get_request."""
-    return mcp_federated_review_query(
+    return _federated_query(
         action=action,
         work_item_id=work_item_id,
         request_artifact_id=request_artifact_id,
@@ -42,7 +43,7 @@ def msa_federated_review_submit(
     findings: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Submit evidence-only external review bound to one exact artifact version. Requires mcp:propose and never mutates inventory."""
-    return mcp_federated_review_submit(
+    return _federated_submit(
         work_item_id=work_item_id,
         request_artifact_id=request_artifact_id,
         artifact_id=artifact_id,
