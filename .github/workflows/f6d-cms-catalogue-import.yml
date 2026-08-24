@@ -1,0 +1,191 @@
+name: F6D live CMS catalogue import
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/f6d-cms-catalogue-import.yml'
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: msa-f6d-shadow-maintenance
+  cancel-in-progress: false
+
+jobs:
+  import-live-catalogue:
+    runs-on: [self-hosted, linux, msa-vps]
+    timeout-minutes: 15
+    env:
+      EXPECTED_CMS_SOURCE_HASH: 6f221152024c9a06b73f7f7115097abfb688a37a6ba6bf0be78345f3b70dd116
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          path: source
+          persist-credentials: false
+
+      - name: Build runtime image
+        shell: bash
+        working-directory: source
+        run: |
+          set -euo pipefail
+          ENV_FILE=/opt/medicine-store-assistant/secrets/runtime.env
+          COMPOSE_FILE="$PWD/deploy/docker-compose.yml"
+          test -r "$ENV_FILE"
+          export COMPOSE_PROJECT_NAME="${MSA_COMPOSE_PROJECT_NAME:-deploy}"
+          docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" build api
+
+      - name: Plan exact live catalogue
+        id: plan
+        continue-on-error: true
+        shell: bash
+        working-directory: source
+        run: |
+          set -o pipefail
+          ENV_FILE=/opt/medicine-store-assistant/secrets/runtime.env
+          COMPOSE_FILE="$PWD/deploy/docker-compose.yml"
+          export COMPOSE_PROJECT_NAME="${MSA_COMPOSE_PROJECT_NAME:-deploy}"
+          set -a
+          source "$ENV_FILE"
+          set +a
+          : "${MSA_GOOGLE_SPREADSHEET_ID:?MSA_GOOGLE_SPREADSHEET_ID is required}"
+          : "${MSA_GOOGLE_SERVICE_ACCOUNT_FILE:?MSA_GOOGLE_SERVICE_ACCOUNT_FILE is required}"
+          test -r "$MSA_GOOGLE_SERVICE_ACCOUNT_FILE"
+          docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm \
+            -e MSA_GOOGLE_SPREADSHEET_ID="$MSA_GOOGLE_SPREADSHEET_ID" \
+            -e MSA_GOOGLE_SERVICE_ACCOUNT_FILE=/run/secrets/google-service-account.json \
+            -e MSA_CMS_CATALOGUE_SHEET=CMS_Price_List_202608 \
+            -v "$MSA_GOOGLE_SERVICE_ACCOUNT_FILE:/run/secrets/google-service-account.json:ro" \
+            api python -m app.live_catalogue_import 2>&1 | tee "${RUNNER_TEMP}/f6d-cms-import-plan.txt"
+          grep -F "\"source_hash\": \"${EXPECTED_CMS_SOURCE_HASH}\"" "${RUNNER_TEMP}/f6d-cms-import-plan.txt" >/dev/null
+
+      - name: Execute hash-bound catalogue import
+        id: execute
+        if: steps.plan.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        working-directory: source
+        run: |
+          set -o pipefail
+          ENV_FILE=/opt/medicine-store-assistant/secrets/runtime.env
+          COMPOSE_FILE="$PWD/deploy/docker-compose.yml"
+          export COMPOSE_PROJECT_NAME="${MSA_COMPOSE_PROJECT_NAME:-deploy}"
+          set -a
+          source "$ENV_FILE"
+          set +a
+          docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm \
+            -e MSA_GOOGLE_SPREADSHEET_ID="$MSA_GOOGLE_SPREADSHEET_ID" \
+            -e MSA_GOOGLE_SERVICE_ACCOUNT_FILE=/run/secrets/google-service-account.json \
+            -e MSA_CMS_CATALOGUE_SHEET=CMS_Price_List_202608 \
+            -e MSA_EXPECTED_CMS_SOURCE_HASH="$EXPECTED_CMS_SOURCE_HASH" \
+            -v "$MSA_GOOGLE_SERVICE_ACCOUNT_FILE:/run/secrets/google-service-account.json:ro" \
+            api python -m app.live_catalogue_import --execute 2>&1 | tee "${RUNNER_TEMP}/f6d-cms-import-execute.txt"
+
+      - name: Replay catalogue import idempotency
+        id: replay
+        if: steps.execute.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        working-directory: source
+        run: |
+          set -o pipefail
+          ENV_FILE=/opt/medicine-store-assistant/secrets/runtime.env
+          COMPOSE_FILE="$PWD/deploy/docker-compose.yml"
+          export COMPOSE_PROJECT_NAME="${MSA_COMPOSE_PROJECT_NAME:-deploy}"
+          set -a
+          source "$ENV_FILE"
+          set +a
+          docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm \
+            -e MSA_GOOGLE_SPREADSHEET_ID="$MSA_GOOGLE_SPREADSHEET_ID" \
+            -e MSA_GOOGLE_SERVICE_ACCOUNT_FILE=/run/secrets/google-service-account.json \
+            -e MSA_CMS_CATALOGUE_SHEET=CMS_Price_List_202608 \
+            -e MSA_EXPECTED_CMS_SOURCE_HASH="$EXPECTED_CMS_SOURCE_HASH" \
+            -v "$MSA_GOOGLE_SERVICE_ACCOUNT_FILE:/run/secrets/google-service-account.json:ro" \
+            api python -m app.live_catalogue_import --execute 2>&1 | tee "${RUNNER_TEMP}/f6d-cms-import-replay.txt"
+
+      - name: Post-import read-only audit
+        id: audit
+        if: always()
+        continue-on-error: true
+        shell: bash
+        working-directory: source
+        run: |
+          set -o pipefail
+          ENV_FILE=/opt/medicine-store-assistant/secrets/runtime.env
+          COMPOSE_FILE="$PWD/deploy/docker-compose.yml"
+          export COMPOSE_PROJECT_NAME="${MSA_COMPOSE_PROJECT_NAME:-deploy}"
+          docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm api \
+            python -m app.f6d_shadow_reset_audit 2>&1 | tee "${RUNNER_TEMP}/f6d-cms-import-audit.txt"
+
+      - name: Publish catalogue import evidence
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVIDENCE_ISSUE: '152'
+          PLAN_OUTCOME: ${{ steps.plan.outcome }}
+          EXECUTE_OUTCOME: ${{ steps.execute.outcome }}
+          REPLAY_OUTCOME: ${{ steps.replay.outcome }}
+          AUDIT_OUTCOME: ${{ steps.audit.outcome }}
+        run: |
+          set -euo pipefail
+          export PLAN_FILE="${RUNNER_TEMP}/f6d-cms-import-plan.txt"
+          export EXECUTE_FILE="${RUNNER_TEMP}/f6d-cms-import-execute.txt"
+          export REPLAY_FILE="${RUNNER_TEMP}/f6d-cms-import-replay.txt"
+          export AUDIT_FILE="${RUNNER_TEMP}/f6d-cms-import-audit.txt"
+          BODY_FILE="${RUNNER_TEMP}/f6d-cms-import-body.json"
+          python3 - <<'PY' > "$BODY_FILE"
+          import json, os
+          from pathlib import Path
+          def read(name):
+              path = Path(os.environ[name])
+              return path.read_text(encoding='utf-8').strip() if path.exists() else '(not run)'
+          outcomes = {
+              'plan': os.environ.get('PLAN_OUTCOME', 'unknown'),
+              'execute': os.environ.get('EXECUTE_OUTCOME', 'unknown'),
+              'replay': os.environ.get('REPLAY_OUTCOME', 'unknown'),
+              'audit': os.environ.get('AUDIT_OUTCOME', 'unknown'),
+          }
+          ok = outcomes['plan'] == outcomes['execute'] == outcomes['replay'] == 'success'
+          body = "\n".join([
+              "F6D live CMS catalogue shadow import evidence.",
+              "",
+              f"status={'success' if ok else 'failure'}",
+              f"source_sha={os.environ['GITHUB_SHA']}",
+              f"workflow_run_id={os.environ['GITHUB_RUN_ID']}",
+              f"expected_source_hash={os.environ['EXPECTED_CMS_SOURCE_HASH']}",
+              f"outcomes={json.dumps(outcomes, sort_keys=True)}",
+              "mapping_mutation=false",
+              "inventory_mutation=false",
+              "database_canonical=false",
+              "migration_baseline_accepted=false",
+              "",
+              "## Plan", "```text", read('PLAN_FILE'), "```",
+              "", "## Execute", "```text", read('EXECUTE_FILE'), "```",
+              "", "## Immediate replay", "```text", read('REPLAY_FILE'), "```",
+              "", "## Post-import audit", "```text", read('AUDIT_FILE'), "```",
+          ])
+          print(json.dumps({'body': body}))
+          PY
+          curl --fail-with-body --silent --show-error \
+            --request PATCH \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/${EVIDENCE_ISSUE}" \
+            --data-binary "@${BODY_FILE}" >/dev/null
+
+      - name: Enforce successful catalogue import proof
+        if: always()
+        shell: bash
+        env:
+          PLAN_OUTCOME: ${{ steps.plan.outcome }}
+          EXECUTE_OUTCOME: ${{ steps.execute.outcome }}
+          REPLAY_OUTCOME: ${{ steps.replay.outcome }}
+        run: |
+          test "$PLAN_OUTCOME" = success
+          test "$EXECUTE_OUTCOME" = success
+          test "$REPLAY_OUTCOME" = success
