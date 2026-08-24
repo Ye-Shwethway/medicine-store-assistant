@@ -4,6 +4,7 @@ import { chromium } from 'playwright';
 
 const root = process.cwd();
 const script = path.join(root, 'backend/app/dashboard_assets/dashboard_inventory_views.js');
+const stylesheet = path.join(root, 'backend/app/dashboard_assets/dashboard_inventory_views.css');
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
 
@@ -17,6 +18,7 @@ await page.setContent(`
     </section>
   </main>
 `);
+await page.addStyleTag({ path: stylesheet });
 
 await page.evaluate(() => {
   window.__inventoryRequests = [];
@@ -55,7 +57,7 @@ await page.evaluate(() => {
     if (url === '/dashboard/api/inventory-view/presets') return response({ items: window.__presets, custom_view_persistence: false, database_canonical: false, migration_baseline_accepted: false });
     if (url === '/dashboard/api/inventory-view/registry') return response({ fields: window.__registry, semantic_classes: ['ENTITY_FIELD','COMPUTED_FIELD','COMMAND_EDITABLE_FIELD','DISPLAY_HELPER'], database_canonical: false, migration_baseline_accepted: false });
     if (url.startsWith('/dashboard/api/inventory-view/rows?')) {
-      const parsed = new URL(url, location.origin);
+      const parsed = new URL(url, 'https://msa.test');
       const preset = parsed.searchParams.get('preset') || 'main-stock';
       const view = window.__presets.find(item => item.view_id === preset);
       const requestedFields = parsed.searchParams.get('fields')?.split(',').filter(Boolean);
@@ -103,7 +105,8 @@ assert.ok(latestRowsRequest.includes('fields=local_item_name%2Creview_reason'));
 assert.equal(await page.getByRole('button', { name: 'Refresh' }).isVisible(), true);
 const wrapOverflow = await page.locator('.inventory-view-table-wrap').evaluate(el => getComputedStyle(el).overflow);
 assert.ok(wrapOverflow === 'auto' || wrapOverflow === 'scroll');
-assert.ok((await page.locator('.inventory-shadow-banner').boundingBox()).width <= 390);
+const bannerBox = await page.locator('.inventory-shadow-banner').boundingBox();
+assert.ok(bannerBox && bannerBox.width <= 390);
 
 // Search stays on the selected preset and updates the generic API request.
 await page.getByLabel('Search').fill('bandage');
