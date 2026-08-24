@@ -248,6 +248,8 @@ def start_feedback_pass(
                     history.append({"kind": "OWNER_REVISION", "name": "Owner", "text": str(payload_data.get("instruction") or "")})
 
             revision_artifact_id = None
+            if not instruction and external:
+                instruction = 'Use the external review as feedback for the next pass.'
             if instruction:
                 revision_version = connection.execute(
                     text(
