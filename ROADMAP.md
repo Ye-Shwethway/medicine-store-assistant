@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Project Roadmap
 
-Status: **F6C Canonical Inventory Foundation is locked. F6D schema foundation, fresh Main Store staging, source-safe Main-primary shadow materialization, live versioned CMS catalogue import, deterministic CMS reconciliation, and durable non-accepted CMS mapping review-state staging are runtime-verified. F6E configurable read-only Inventory View Engine + first Web renderer are runtime-verified. Slice C is active: CMS Mapping Review preset + provider-aware review-filter API are implemented on the current feature branch; source-vs-shadow detail, contextual Web review filters and selection remain pending. PostgreSQL remains non-canonical.**
+Status: **F6C Canonical Inventory Foundation is locked. F6D schema foundation, fresh Main Store staging, source-safe Main-primary shadow materialization, live versioned CMS catalogue import, deterministic CMS reconciliation, and durable non-accepted CMS mapping review-state staging are runtime-verified. F6E configurable read-only Inventory View Engine + first Web renderer are runtime-verified. Slice C implementation is complete on PR #172 and is awaiting CI/merge/production runtime verification. PostgreSQL remains non-canonical.**
 
 The live Google workbook/source documents remain operationally authoritative. `migration_baseline_accepted=false`; `database_canonical=false`.
 
@@ -40,107 +40,43 @@ Canonical architecture:
 - Google Sheet/source documents remain the current operational source of truth.
 - PostgreSQL remains deployed shadow/test only.
 - `database_canonical=false`; `migration_baseline_accepted=false`.
-- The old F6B staging batch was test evidence only and was removed before the fresh F6D source stage.
 - Shadow Product/Lot/opening movements, catalogue versions and mapping review-state rows do not imply production authority.
 - No production inventory write, transfer execution, usage deduction, accepted CMS remap/price mutation, arbitrary agent SQL/DB mutation, or DB canonical promotion is authorized.
 
 ## F6C — COMPLETE ARCHITECTURE LOCK
 
-Locked semantics include:
-
-- stable local Product identity;
-- normal v1 Lot = Product + structured Expiry Date;
-- one configured Main Store + unlimited Sub Stores;
-- location-scoped, movement-derived balances;
-- internal transfer = linked atomic source-out + destination-in effects;
-- global/versioned Universal CMS Catalogue separate from local Product identity;
-- Product-CMS mapping = historical/auditable accepted lifecycle, never blind code sync;
-- last accepted mapping/operational price survives newer unresolved catalogue versions;
-- current catalogue price is separate from historical receipt/source price;
-- human/AI operations require stable actor, operation/idempotency identity, audit and read-back;
-- Main Stock and Daily Usage are operational projections/edit surfaces, not canonical worksheet-shaped tables;
-- Main Stock is the primary migration source for Product/Lot/current-balance candidates;
-- Daily Usage is joined usage/reconciliation evidence and never independently creates duplicate Product/Lot/opening records;
-- operational Web tables are registry-driven view definitions so users can later create custom sheet-style layouts without arbitrary SQL/DB access.
+Locked semantics include stable local Product identity; Product+Expiry Lot identity; one Main Store + unlimited Sub Stores; movement-derived balances; linked transfer effects; versioned Universal CMS Catalogue; auditable Product-CMS mapping lifecycle; retained last accepted mapping/price while newer catalogue evidence remains unresolved; actor/idempotency/audit/read-back requirements; operational projections instead of worksheet-shaped canonical tables; and registry-driven configurable Web views.
 
 Reorder remains **deterministic baseline + optional AI enhancement/review**. AI outage must not force item-by-item manual calculation.
 
 ## F6D — SHADOW FOUNDATION COMPLETE FOR CURRENT DATASET
 
-### Schema foundation — COMPLETE
-
-Migration `0022_inventory_foundation` provides Store-aware ledger semantics, receipt/transfer structures, Product-CMS mapping lifecycle, accepted operational price retention, `inventory_location_balances`, and `inventory_total_stock`. PostgreSQL CI proves Main/Sub balances, transfer conservation/linkage, mapping fallback, and schema migration integrity.
-
-### Fresh Main Store staging — COMPLETE
-
-Fresh batch:
+### Source + inventory materialization
 
 - migration batch `7ecf9a2b-0521-400d-8990-caaea20d3a57`;
-- source hash `c212d7da6192e7e20f340e7b302436f588dfb0fa191459fd572dfdb46f23ba76`;
-- Main Stock source rows **823**;
-- Daily Usage source rows **823**;
-- staged source records **1,646 = 823 + 823**;
-- exact snapshot replay idempotent.
+- Main Stock **823** rows;
+- Daily Usage **823** rows;
+- staged evidence **1,646** rows;
+- Products **670**;
+- Lots **799**;
+- `OPENING_BALANCE` movements **679**;
+- opening quantity **72,009**;
+- zero-balance identity-only Lots **120**;
+- balance mismatches **0**;
+- replay created **0 / 0 / 0** Product/Lot/transaction rows.
 
-The 1,646 count is source evidence, not 1,646 canonical inventory objects.
+Explicit HOLD evidence remains unresolved instead of guessed: 14 inventory-semantic review rows, duplicate Product+Expiry rows `41,42,156,157`, and Unit-review rows `237,245,459,460,461,601`.
 
-### Main-primary shadow materialization — COMPLETE + RUNTIME VERIFIED
+### CMS catalogue + durable review state
 
-- Main Stock input rows: **823**;
-- persisted Products: **670**;
-- persisted Lots: **799**;
-- migration `OPENING_BALANCE` movements: **679**;
-- opening quantity sum: **72,009**;
-- zero-balance identity-only Lots: **120**;
-- balance readback mismatches: **0**;
-- immediate replay created Products/Lots/transactions: **0 / 0 / 0**.
-
-Explicit HOLD evidence remains outside the write set:
-
-- inventory-semantic review rows: 14;
-- duplicate Product+Expiry source rows: 4 (`41,42,156,157`);
-- Unit-review rows: 6 (`237,245,459,460,461,601`).
-
-Unit conflicts/missing Unit values were not guessed or silently corrected.
-
-### Live CMS catalogue version import — COMPLETE + RUNTIME VERIFIED
-
-- source sheet: `CMS_Price_List_202608`;
-- title: `August 2026 Updated Price List (Yuan) - 02.08.2026`;
-- effective date: **2026-08-02**;
-- exact source hash: `6f221152024c9a06b73f7f7115097abfb688a37a6ba6bf0be78345f3b70dd116`;
-- catalogue version: `34947c29-6427-4b7c-9fb8-ba8ffe3278b0`;
-- catalogue rows / unique CMS codes: **6,891 / 6,891**;
-- duplicate codes: **0**;
-- blank codes: **0**;
-- invalid prices: **0**;
-- one source-preserved blank selling price at row **6442** stored as `NULL` rather than guessed;
-- immediate replay idempotent.
-
-### CMS reconciliation + durable review state — COMPLETE + RUNTIME VERIFIED
-
-Deterministic screening over 670 materialized Products produced:
-
-- exact-name + same-price continuity candidates: **526**;
-- exact-name + changed-price continuity candidates: **77**;
-- multiple source codes: **30**;
-- CMS discontinued/local retained: **19**;
-- code/name mismatch: **9**;
-- unmapped: **6**;
-- missing source CMS name: **1**;
-- multiple source CMS names: **1**;
-- recycled code: **1**.
-
-The guarded review-state stage created **670 durable non-accepted mapping rows**:
-
-- `REVIEW_REQUIRED`: **644**;
-- `CMS_DISCONTINUED`: **19**;
-- `RECYCLED_CODE`: **1**;
-- `UNMAPPED`: **6**;
-- `ACTIVE_MATCH`: **0**;
-- accepted operational prices: **0**.
-
-Immediate replay created **0** additional review rows. Products/Lots/inventory transaction counts remained **670 / 799 / 679**. No mapping acceptance or price mutation occurred.
+- catalogue version `34947c29-6427-4b7c-9fb8-ba8ffe3278b0`;
+- effective date `2026-08-02`;
+- catalogue rows / unique codes **6,891 / 6,891**;
+- duplicate codes **0**;
+- one blank source price preserved as `NULL`;
+- durable mapping review rows **670**: `REVIEW_REQUIRED 644`, `CMS_DISCONTINUED 19`, `RECYCLED_CODE 1`, `UNMAPPED 6`, `ACTIVE_MATCH 0`;
+- accepted operational prices **0**;
+- replay created **0** additional rows.
 
 ## F6E — ACTIVE: CONFIGURABLE INVENTORY VIEW + REVIEW WORKSPACE
 
@@ -150,72 +86,62 @@ Architecture:
 
 ### Read-only substrate + Web renderer — COMPLETE + RUNTIME VERIFIED
 
-Implemented:
+Implemented and verified:
 
-- typed registry with `ENTITY_FIELD`, `COMPUTED_FIELD`, `COMMAND_EDITABLE_FIELD`, `DISPLAY_HELPER` semantics;
-- generic validated registered-field projection; arbitrary SQL/raw DB expressions are rejected;
-- `Main Stock` system preset at Product-Lot grain;
-- `Migration Review` system preset at source Main Stock row grain;
-- authenticated dashboard API;
+- typed field registry;
+- Main Stock and Migration Review system presets;
+- authenticated generic rows/presets/registry API;
+- registered-field projection and unknown-field rejection;
 - one generic Web table renderer driven by returned `columns[]` metadata;
-- preset switching, registry-only column selection, search and pagination;
-- strong `Shadow inventory — not canonical` state presentation;
-- old product-facing staged-row grid replaced while Shadow Inspection remains separate;
-- dedicated 390x844 Playwright behavior verification, including a real mobile overflow regression detected and fixed before merge.
+- preset switching, visible-column selection, search and pagination;
+- explicit `Shadow inventory — not canonical` state;
+- mobile 390x844 browser behavior proof;
+- runtime issue #166: Main Stock **799**, Migration Review **823**, quantity **72,009.000**, Products/Lots/transactions **670/799/679**, accepted mappings/prices **0/0**, mutation false, canonical flags false.
 
-Runtime issue #166 proves:
+### Slice C — source compare + review — IMPLEMENTED, VERIFICATION PENDING
 
-- Main Stock projected rows **799**;
-- Migration Review projected rows **823**;
-- Main current quantity sum **72,009.000**;
-- Products/Lots/inventory transactions **670 / 799 / 679**;
-- `ACTIVE_MATCH` **0**;
-- accepted operational prices **0**;
-- mutation **false**;
-- canonical flags remain false.
+PR #170 merged the first Slice C substrate:
 
-### CURRENT bounded slice — source compare + review
+- `CMS Mapping Review` as a third system preset over the same View Engine;
+- current Product↔CMS review evidence projection;
+- provider-aware filters for `mapping_status`, `source_classification`, and `review_reason`;
+- shared-renderer/browser proof for all three presets.
 
-Implemented on feature branch `feat/f6e-slice-c-review-preset`:
+PR #172 implements the remaining Web review workspace:
 
-- `CMS Mapping Review` as a third system preset over the same generic View Engine;
-- read-only mapping evidence projection: local Product, CMS code/name, mapping status, current catalogue price, accepted operational price and review reason;
-- provider-aware query filters for `mapping_status`, `source_classification`, and `review_reason`;
-- verifier/browser-smoke coverage that the same generic renderer can switch to the third preset without creating a second table.
+- contextual mapping-status/source-class/review-reason filter controls;
+- unresolved REVIEW/HOLD/mapping-state row highlighting;
+- checkbox selection + selection-context bar with no mutation semantics;
+- row-click review detail drawer;
+- Migration Review source-vs-shadow quantity comparison;
+- CMS Mapping Review catalogue/current accepted-price evidence detail;
+- responsive/mobile drawer/filter behavior;
+- behavior-level 390x844 verification covering request wiring, selection and drawer behavior.
 
-Still pending before Slice C completion:
+Still required before Slice C is COMPLETE:
 
-1. source-vs-shadow compare detail/drawer for Migration Review;
-2. explicit HOLD/review highlighting and contextual Web status/reason filter controls;
-3. selection/bulk-context substrate without automatic acceptance;
-4. runtime/deployment verification of the complete Slice C Web delivery chain;
-5. prepare current-view/selection/evidence context for embedded AI copilot;
-6. no accepted CMS mapping, price mutation, inventory write or baseline/canonical promotion.
+1. PR #172 CI green and merge;
+2. production asset-delivery verification through the content-derived Inventory JS/CSS asset identity;
+3. live/runtime proof that review behavior is delivered without changing canonical flags or introducing mutation;
+4. sync final checkpoint and advance next authorized work only after that proof.
 
-Web direction remains:
-
-- Inventory is the primary visual operational/review workspace;
-- custom saved views will later let users create their own sheet-style layouts from registered semantic fields/computations/commands;
-- embedded AI will act as context-aware copilot;
-- difficult cases may escalate into AI Workspace/multi-agent review;
-- Owner/authorized typed acceptance remains the mutation authority boundary.
+No accepted CMS mapping, price mutation, inventory write, baseline acceptance or canonical promotion is part of Slice C.
 
 ## Subsequent path
 
-1. Finish source compare/HOLD filters/selection over the current Slice C preset substrate.
-2. Embedded context-aware AI assistant + deep-review handoff to AI Workspace.
-3. Resolve HOLD inventory rows and mapping exceptions with typed reviewed actions.
-4. Persist saved user-defined view definitions and add View Builder.
-5. Add Daily Usage monthly-pivot system preset.
-6. Add spreadsheet-like draft/preview/Confirm & Save editing over typed commands.
-7. Add deterministic reorder baseline engine and reorder presets.
-8. Dual verification of real operational events.
-9. Accept migration baseline only after source/recovery/reconciliation gates pass.
-10. Promote selected DB read paths.
-11. Promote controlled write operation classes one at a time.
-12. Explicit DB canonicality promotion only after migration/recovery/reconciliation/write gates pass.
-13. Sheet mirror/rebuild, exports, Flutter/Telegram expansion and further automation.
+1. Embedded context-aware AI assistant + deep-review handoff to AI Workspace.
+2. Resolve HOLD inventory rows and mapping exceptions with typed reviewed actions.
+3. Persist saved user-defined view definitions and add View Builder.
+4. Add Daily Usage monthly-pivot system preset.
+5. Add spreadsheet-like draft/preview/Confirm & Save editing over typed commands.
+6. Add deterministic reorder baseline engine and reorder presets.
+7. Dual verification of real operational events.
+8. Accept migration baseline only after source/recovery/reconciliation gates pass.
+9. Promote selected DB read paths.
+10. Promote controlled write operation classes one at a time.
+11. Explicit DB canonicality promotion only after migration/recovery/reconciliation/write gates pass.
+12. Sheet mirror/rebuild, exports, Flutter/Telegram expansion and further automation.
 
 ## Immediate boundary
 
-Do not present shadow DB as canonical merely because normalized domain rows, review states and Inventory review presets exist. The immediate target remains **completing Slice C review capability on top of the verified generic View Engine**, with no mapping acceptance or production mutation.
+Do not present shadow DB as canonical. The immediate target is **Slice C verification**, not AI copilot or write promotion. No mapping acceptance or production mutation is authorized.
