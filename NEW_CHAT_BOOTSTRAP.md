@@ -31,7 +31,8 @@ Treat newer verified repository/runtime/source evidence as authoritative over re
 - F6C Canonical Inventory Foundation is locked.
 - F6D shadow foundation for the current dataset is runtime-verified through source staging, Product/Lot/opening-balance materialization, live CMS catalogue import, deterministic CMS reconciliation and durable non-accepted mapping review-state staging.
 - F6E configurable read-only Inventory View Engine + first Web renderer are **runtime-verified**.
-- Current bounded work: **source-vs-shadow compare detail, HOLD/review filtering and CMS Mapping Review system preset**.
+- Slice C feature branch `feat/f6e-slice-c-review-preset` adds a third `CMS Mapping Review` system preset plus provider-aware review-filter API (`mapping_status`, `source_classification`, `review_reason`).
+- The new Slice C branch is not yet the final runtime-verified slice: source-vs-shadow detail drawer, contextual Web review filter controls, HOLD highlighting, selection/bulk context and deployment proof remain pending.
 - PostgreSQL remains non-canonical: `database_canonical=false`, `migration_baseline_accepted=false`.
 - Google Sheet/source documents remain operational authority.
 
@@ -92,9 +93,9 @@ Durable non-accepted mapping state contains **670** rows:
 
 This state is review evidence, not accepted mapping authority.
 
-## F6E Inventory View Engine — runtime verified
+## F6E Inventory View Engine — runtime verified baseline
 
-Implemented and live:
+Implemented and live on `main`:
 
 - `backend/app/inventory_view_engine.py` typed field registry + generic View Definition model;
 - semantic classes `ENTITY_FIELD`, `COMPUTED_FIELD`, `COMMAND_EDITABLE_FIELD`, `DISPLAY_HELPER`;
@@ -106,7 +107,7 @@ Implemented and live:
 - one renderer switches Main Stock / Migration Review;
 - registry-driven visible-column selection, search and pagination;
 - explicit `Shadow inventory — not canonical` banner;
-- old staged-row Inventory grid removed from the product-facing subtree while Shadow Inspection remains separate;
+- old staged-row Inventory grid removed from the product-facing runtime subtree while Shadow Inspection remains separate;
 - content-derived JS/CSS asset versioning;
 - Playwright 390x844 behavior proof; mobile banner overflow was caught and fixed before merge.
 
@@ -123,6 +124,27 @@ Runtime issue #166 proves:
 - mutation **false**;
 - canonical flags remain false.
 
+## F6E Slice C — current feature branch
+
+Branch: `feat/f6e-slice-c-review-preset`
+
+Implemented on the branch:
+
+- `CMS Mapping Review` system preset at `PRODUCT_CMS_MAPPING` grain;
+- same generic `/presets` + `/rows` contract, so the existing Web preset selector/renderer can display it without a second table implementation;
+- fields include local item, unit, CMS code/name, mapping status, current catalogue price, accepted store price and review reason;
+- provider-aware `mapping_status`, `source_classification` and `review_reason` query filters;
+- verifier updated from two to three system presets;
+- browser smoke updated to switch Main Stock -> Migration Review -> CMS Mapping Review using the same generic table.
+
+Still pending for Slice C completion:
+
+- source-vs-shadow detail/drawer;
+- explicit HOLD/review highlighting;
+- contextual Web filter controls wired to the new API filters;
+- selection/bulk-context substrate with no automatic acceptance;
+- full CI/runtime/deployment proof after the complete Web slice is merged.
+
 ## AI / review direction
 
 Inventory is the primary visual review/workspace. Embedded AI later receives current view, selected rows, filters and source evidence as context. Difficult/disputed cases may escalate to AI Workspace/multi-agent review. AI may explain/rank/propose but does not own acceptance authority.
@@ -133,16 +155,17 @@ Migration progression remains:
 
 ## Next sequence
 
-1. add source-vs-shadow compare detail/drawer and HOLD/review filters;
-2. add CMS Mapping Review system preset over the same generic engine;
+1. complete contextual Web HOLD/status/reason controls over the new filter API;
+2. add source-vs-shadow compare detail/drawer;
 3. add selection/bulk-context substrate, still no automatic acceptance;
-4. add embedded AI copilot + deep-review handoff;
-5. resolve HOLD rows/mapping exceptions through reviewed typed actions;
-6. persist saved user-defined view definitions and build View Builder;
-7. add Daily Usage monthly-pivot preset;
-8. add draft/preview/Confirm & Save editing over typed commands;
-9. deterministic reorder baseline + reorder presets;
-10. only then advance migration baseline/read/write/canonical promotion gates with explicit evidence.
+4. run/record full browser + runtime deployment proof and sync docs;
+5. add embedded AI copilot + deep-review handoff;
+6. resolve HOLD rows/mapping exceptions through reviewed typed actions;
+7. persist saved user-defined view definitions and build View Builder;
+8. add Daily Usage monthly-pivot preset;
+9. add draft/preview/Confirm & Save editing over typed commands;
+10. deterministic reorder baseline + reorder presets;
+11. only then advance migration baseline/read/write/canonical promotion gates with explicit evidence.
 
 ## Immediate boundary
 

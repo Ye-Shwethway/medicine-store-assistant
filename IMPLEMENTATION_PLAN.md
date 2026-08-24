@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Implementation Plan
 
-Status: **F6C architecture is locked. F6D shadow foundation is runtime-verified through normalized inventory materialization, catalogue import, deterministic CMS reconciliation and durable non-accepted mapping review state. F6E configurable read-only Inventory View Engine + first Web renderer are runtime-verified. PostgreSQL remains non-canonical. Current bounded work: source-vs-shadow review detail, HOLD/review filtering and CMS Mapping Review preset.**
+Status: **F6C architecture is locked. F6D shadow foundation is runtime-verified through normalized inventory materialization, catalogue import, deterministic CMS reconciliation and durable non-accepted mapping review state. F6E configurable read-only Inventory View Engine + first Web renderer are runtime-verified. PostgreSQL remains non-canonical. Slice C is active: CMS Mapping Review preset + provider-aware review-filter API are implemented on the current feature branch; source-vs-shadow detail, contextual Web filter controls and review selection remain pending verification/merge.**
 
 ## 1. Global rules
 
@@ -107,10 +107,13 @@ Runtime proof: Main Stock **799** projected Lot rows; Migration Review **823** s
 ### 5.3 Slice C — source compare + review — CURRENT
 
 - [ ] Source-vs-shadow compare mode/detail drawer.
-- [ ] Highlight unresolved HOLDs and mapping review states.
-- [ ] Add review-status/reason filters.
-- [ ] CMS Mapping Review system preset using the same View Engine.
+- [ ] Highlight unresolved HOLDs and mapping review states in the Web review workspace.
+- [x] Add provider-aware review filter API contract (`mapping_status`, `source_classification`, `review_reason`).
+- [ ] Add contextual Web controls for review status/reason filters.
+- [x] Add `CMS Mapping Review` system preset using the same View Engine and generic selector/renderer contract.
 - [ ] Review selection/bulk-context substrate without automatic acceptance.
+
+Current feature branch: `feat/f6e-slice-c-review-preset`. The new preset and filters remain read-only; no accepted mapping, price mutation or inventory mutation is introduced.
 
 ### 5.4 Slice D — AI copilot
 
@@ -145,4 +148,4 @@ Runtime proof: Main Stock **799** projected Lot rows; Migration Review **823** s
 
 ## 7. Immediate boundary
 
-The immediate target is **Slice C** over the verified generic View Engine. Do not create accepted CMS mappings, push prices, mutate inventory, or promote PostgreSQL during source comparison/review UI work.
+The immediate target remains **Slice C** over the verified generic View Engine. Complete Web review controls/detail/selection and runtime verification before advancing. Do not create accepted CMS mappings, push prices, mutate inventory, or promote PostgreSQL during source comparison/review UI work.

@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Project Roadmap
 
-Status: **F6C Canonical Inventory Foundation is locked. F6D schema foundation, fresh Main Store staging, source-safe Main-primary shadow materialization, live versioned CMS catalogue import, deterministic CMS reconciliation, and durable non-accepted CMS mapping review-state staging are runtime-verified. F6E configurable read-only Inventory View Engine + first Web renderer are runtime-verified. Current bounded target: source-vs-shadow review detail, HOLD/review filtering and CMS Mapping Review preset. PostgreSQL remains non-canonical.**
+Status: **F6C Canonical Inventory Foundation is locked. F6D schema foundation, fresh Main Store staging, source-safe Main-primary shadow materialization, live versioned CMS catalogue import, deterministic CMS reconciliation, and durable non-accepted CMS mapping review-state staging are runtime-verified. F6E configurable read-only Inventory View Engine + first Web renderer are runtime-verified. Slice C is active: CMS Mapping Review preset + provider-aware review-filter API are implemented on the current feature branch; source-vs-shadow detail, contextual Web review filters and selection remain pending. PostgreSQL remains non-canonical.**
 
 The live Google workbook/source documents remain operationally authoritative. `migration_baseline_accepted=false`; `database_canonical=false`.
 
@@ -176,10 +176,19 @@ Runtime issue #166 proves:
 
 ### CURRENT bounded slice — source compare + review
 
+Implemented on feature branch `feat/f6e-slice-c-review-preset`:
+
+- `CMS Mapping Review` as a third system preset over the same generic View Engine;
+- read-only mapping evidence projection: local Product, CMS code/name, mapping status, current catalogue price, accepted operational price and review reason;
+- provider-aware query filters for `mapping_status`, `source_classification`, and `review_reason`;
+- verifier/browser-smoke coverage that the same generic renderer can switch to the third preset without creating a second table.
+
+Still pending before Slice C completion:
+
 1. source-vs-shadow compare detail/drawer for Migration Review;
-2. explicit HOLD/review state highlighting and reason/status filters;
-3. `CMS Mapping Review` as another system preset over the same View Engine;
-4. selection/bulk-context substrate without automatic acceptance;
+2. explicit HOLD/review highlighting and contextual Web status/reason filter controls;
+3. selection/bulk-context substrate without automatic acceptance;
+4. runtime/deployment verification of the complete Slice C Web delivery chain;
 5. prepare current-view/selection/evidence context for embedded AI copilot;
 6. no accepted CMS mapping, price mutation, inventory write or baseline/canonical promotion.
 
@@ -193,7 +202,7 @@ Web direction remains:
 
 ## Subsequent path
 
-1. Source compare/HOLD filters + CMS Mapping Review preset.
+1. Finish source compare/HOLD filters/selection over the current Slice C preset substrate.
 2. Embedded context-aware AI assistant + deep-review handoff to AI Workspace.
 3. Resolve HOLD inventory rows and mapping exceptions with typed reviewed actions.
 4. Persist saved user-defined view definitions and add View Builder.
@@ -209,4 +218,4 @@ Web direction remains:
 
 ## Immediate boundary
 
-Do not present shadow DB as canonical merely because normalized domain rows, review states and the new Inventory renderer exist. The immediate target is **review capability on top of the verified generic View Engine**, with no mapping acceptance or production mutation.
+Do not present shadow DB as canonical merely because normalized domain rows, review states and Inventory review presets exist. The immediate target remains **completing Slice C review capability on top of the verified generic View Engine**, with no mapping acceptance or production mutation.
