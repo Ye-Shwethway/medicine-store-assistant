@@ -1,6 +1,7 @@
 name: F6D CMS reconciliation plan
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
