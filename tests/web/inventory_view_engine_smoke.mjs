@@ -83,7 +83,7 @@ assert.equal(await page.locator('#inventoryViewTable thead th').first().textCont
 assert.ok((await page.locator('#inventoryViewMeta').textContent()).includes('Read-only shadow projection'));
 
 // One generic component switches presets; no second table is introduced.
-await page.getByLabel('View').selectOption('migration-review');
+await page.locator('#inventoryPresetSelect').selectOption('migration-review');
 await page.getByText('Bandage- Soft Bandage 6"').waitFor({ state: 'visible' });
 assert.equal(await page.locator('#inventoryViewName').textContent(), 'Migration Review');
 assert.equal(await page.locator('#inventoryViewTable').count(), 1);
@@ -102,14 +102,14 @@ const latestRowsRequest = await page.evaluate(() => window.__inventoryRequests.f
 assert.ok(latestRowsRequest.includes('fields=local_item_name%2Creview_reason'));
 
 // Mobile contract: controls remain reachable and overflow is owned by the table wrapper, not the page.
-assert.equal(await page.getByRole('button', { name: 'Refresh' }).isVisible(), true);
+assert.equal(await page.locator('#inventoryViewRefresh').isVisible(), true);
 const wrapOverflow = await page.locator('.inventory-view-table-wrap').evaluate(el => getComputedStyle(el).overflow);
 assert.ok(wrapOverflow === 'auto' || wrapOverflow === 'scroll');
 const bannerBox = await page.locator('.inventory-shadow-banner').boundingBox();
 assert.ok(bannerBox && bannerBox.width <= 390);
 
 // Search stays on the selected preset and updates the generic API request.
-await page.getByLabel('Search').fill('bandage');
+await page.locator('#inventoryViewSearch').fill('bandage');
 await page.waitForTimeout(260);
 const searchRequest = await page.evaluate(() => window.__inventoryRequests.filter(url => url.includes('/rows?')).at(-1));
 assert.ok(searchRequest.includes('preset=migration-review'));
