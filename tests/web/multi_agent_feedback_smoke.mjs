@@ -58,7 +58,7 @@ await page.addScriptTag({ path: baseScript });
 await page.addScriptTag({ path: liveScript });
 await page.getByRole('button', { name: 'Multi-Agent' }).click();
 
-const workCard = page.getByRole('button', { name: /Reliability acceptance/ });
+const workCard = page.getByRole('button', { name: 'Open review Reliability acceptance' });
 await workCard.waitFor({ state: 'visible' });
 await workCard.click();
 await page.waitForFunction(() => document.querySelector('#aiMultiMode')?.classList.contains('review-chat-open'));

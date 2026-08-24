@@ -160,7 +160,7 @@
   function renderWorkItems(){
     const list=host.querySelector('#reviewWorkList');
     if(!workItems.length){list.innerHTML='<div class="review-empty"><strong>No Review work yet</strong><p>Run a native review to create the first durable Work Item.</p></div>';return}
-    list.innerHTML=workItems.map(item=>'<button type="button" class="review-work-item'+(item.work_item_id===currentWorkItemId?' active':'')+'" data-work-id="'+esc(item.work_item_id)+'"><span class="review-work-title"><strong>'+esc(item.title)+'</strong>'+statusPill(item.status)+'</span><small>'+esc(item.session_name||'REVIEW')+'</small><small>'+esc(time(item.updated_at))+'</small></button>').join('');
+    list.innerHTML=workItems.map(item=>'<button type="button" class="review-work-item'+(item.work_item_id===currentWorkItemId?' active':'')+'" data-work-id="'+esc(item.work_item_id)+'" aria-label="Open review '+esc(item.title)+'"><span class="review-work-title"><strong>'+esc(item.title)+'</strong>'+statusPill(item.status)+'</span><small>'+esc(item.session_name||'REVIEW')+'</small><small>'+esc(time(item.updated_at))+'</small></button>').join('');
   }
   function renderHistoryNotice(text){const el=host.querySelector('#reviewHistoryNotice');if(!el)return;el.textContent=text||'';el.hidden=!text}
   async function loadWorkItemsSafe(){
