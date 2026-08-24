@@ -226,6 +226,6 @@
 
   host.addEventListener('change',event=>{if(event.target.id==='reviewSessionSelect')selectSession(event.target.value);if(event.target.id==='reviewEvidenceConversation')loadEvidenceFiles(event.target.value);if(event.target.matches('[data-role-select],[data-role-label]')){rolesSaved=false;syncRoleSaveState()}});
   host.addEventListener('input',event=>{if(event.target.matches('[data-role-label]')){rolesSaved=false;syncRoleSaveState()}});
-  host.addEventListener('click',event=>{const work=event.target.closest('[data-work-id]');if(work){openWork(work.dataset.workId);return}if(event.target.id==='reviewRefresh'){load();return}if(event.target.id==='reviewSaveRoles'){saveRoles();return}if(event.target.id==='reviewRun'){runReview();return}});
+  host.addEventListener('click',event=>{const work=event.target.closest('[data-work-id]');if(work){openWork(work.dataset.workId);return}if(event.target.id==='reviewReturnRevision'){returnForRevision();return}if(event.target.id==='reviewRefresh'){load();return}if(event.target.id==='reviewSaveRoles'){saveRoles();return}if(event.target.id==='reviewRun'){runReview();return}});
   tab.addEventListener('click',()=>{if(!host.dataset.reviewLoaded){host.dataset.reviewLoaded='1';load()}});
 })();
