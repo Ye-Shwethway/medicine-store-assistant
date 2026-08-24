@@ -1,6 +1,6 @@
 # Medicine Store Assistant — New Chat Bootstrap
 
-Use this file for project-development continuity and reconciliation in a fresh chat.
+Use this file for project-development continuity in a fresh chat.
 
 ## Canonical repository
 
@@ -14,151 +14,91 @@ Before changing code/config/schema/runtime, read:
 2. `NEW_CHAT_BOOTSTRAP.md`
 3. `ROADMAP.md`
 4. `IMPLEMENTATION_PLAN.md`
-5. `docs/architecture/README.md`
-6. `docs/architecture/F7_2D_AI_AGENT_MANAGEMENT.md`
-7. `docs/architecture/F7_2D_EXECUTION_PATH_SEPARATION.md`
-8. `docs/architecture/F7_2D4_AI_WORKSPACE_AND_ACCESS.md`
-9. `docs/architecture/F7_2D2_AGENT_MANAGEMENT_AND_MULTI_AGENT_SESSIONS.md`
-10. `docs/architecture/F7_2D48_MULTI_AGENT_REVIEW_AND_FEDERATION.md`
-11. `docs/architecture/F7_2D49_REVIEW_THREAD_CONVERSATION_AND_OWNER_DECISIONS.md`
-12. `docs/checkpoints/F7_2D48_NATIVE_REVIEW_RUNTIME_2026-08-24.md`
-13. `docs/checkpoints/WEB_PRODUCTION_RELIABILITY_2026-08-24.md`
-14. `docs/design/WEB_IMPLEMENTATION_STANDARD.md`
-15. `docs/design/WEB_SURFACE_OWNERSHIP.md`
-16. `docs/design/WEB_ASSET_RELEASE_INTEGRITY.md`
-17. `docs/design/UI_UX_PRO_MAX_INTEGRATION.md`
-18. issue #26 current deployment evidence
+5. `docs/architecture/F6C_WORKBOOK_PARITY_LOCK.md`
+6. `docs/architecture/WORKBOOK_PARITY_MATRIX.md`
+7. `docs/architecture/WORKBOOK_FUNCTION_CONTRACT.md`
+8. `docs/architecture/INVENTORY_DATA_MODEL.md`
+9. `docs/architecture/F2_SCHEMA_DECISION_PROPOSAL.md`
+10. `docs/architecture/MIGRATION_AND_SHADOW_VALIDATION.md`
+11. `docs/architecture/SHEET_MIRROR_AND_COMPATIBILITY.md`
+12. `docs/architecture/MONTHLY_LIFECYCLE.md`
+13. `docs/architecture/CMS_CATALOGUE_VERSIONING.md`
+14. `docs/checkpoints/F6C_START_2026-08-24.md`
+15. issue #26 current deployment evidence when runtime truth matters
 
-Treat newer verified repository/runtime evidence as authoritative over remembered chat context.
+Treat newer verified repository/runtime/source evidence as authoritative over remembered chat context.
+
+## Current project priority
+
+The AI Workspace is now an accepted supporting foundation, not the immediate development center.
+
+**Current bounded slice: F6C Workbook Parity Lock.**
+
+**Next bounded slice: F6D Canonical Inventory Schema Parity + Fresh Shadow Import.**
+
+Telegram Attention delivery, GROUP, COMPARE, DEBATE and broader AI expansion are deferred behind the core inventory/database path unless explicitly reprioritized.
 
 ## Current canonicality boundary
 
 - Google Sheet/source documents remain operationally authoritative.
 - PostgreSQL is deployed but **not canonical**.
-- F6B is test-only and not an accepted migration baseline.
+- Existing F6B data is test-only and not an accepted migration baseline.
 - `database_canonical=false`; `migration_baseline_accepted=false`.
-- F6B snapshot: rows 1,646; SAFE 1,417; REVIEW 222; CONFLICT 0; NEW_UNMAPPED 7.
 - No production inventory write, transfer, Calculator deduction, Telegram/Flutter stock mutation, automatic OCR/vision commit, arbitrary agent SQL/DB mutation, or DB canonical promotion is authorized.
 
-## Delivery policy
+## Accepted AI/Web foundation
 
-`branch -> PR -> main -> automatic VPS deploy for runtime changes -> issue #26 evidence -> continuity-doc refresh`
+Accepted supporting work includes named agents, Provider Registry/saved models, native inference, Single Chat, bounded native reads, D4.8 Work/Artifact/Review/Event/Attention substrate, external MCP federation, feedback passes, Review export/delete/navigation, Web Production Reliability Hardening, D4.9 discussion + durable Owner Decisions, and PR #129 `Talk to -> All agents` ordinary discussion broadcast.
 
-## Durable execution-path invariant
+Latest AI UX runtime anchor:
 
-External MCP:
+- source SHA `75bfb89eb83b5cedfffa9148db454b1245269593`
+- deploy run `32736647711`
+- issue #26 `status=success`
 
-`ChatGPT/SOL -> existing MSA MCP -> MCP authority intersection -> typed MSA backend -> result`
+Small Review UI polish may be folded into later touched Web work; do not start another extended AI-only slice for cosmetic changes.
 
-Native internal agent:
+## F6C mission
 
-`MSA Web / future Telegram / Flutter / automation -> INTERNAL_MODEL runtime -> assigned provider/model -> native typed-tool adapter -> typed MSA backend -> response`
+Lock the real operational workbook contract from authorized current source evidence:
 
-They are peer paths. Direct authorized MCP actions do not require an internal-agent hop. Provider/model assignment never grants authority; participant privileges never union.
+- Main Stock exact columns, formulas, editability and identity/lot behavior;
+- Daily Usage A:D sync, Day 1–31 semantics, totals/remaining, remarks/expiry and rollover;
+- This Month Received exact projection behavior;
+- Reorder exact formula/threshold/rounding behavior;
+- Final Reorder copy/edit/submission/archive behavior;
+- CMS catalogue/price-list structure, versioning and identity rules;
+- transfer/receipt intake structure and mapping/new-lot behavior;
+- monthly close / Excel Master copy-reset-archive behavior and required macros/formulas.
 
-## Production-verified AI Workspace foundation
+Do not fill unknown behavior from memory. Mark it unresolved until source-backed or Owner-confirmed.
 
-- named AI Agent Management and capability/authority policy;
-- Provider Registry + Owner-saved models and PRIMARY/FALLBACK configuration;
-- durable Single Chat + bounded native read tools;
-- D4.8 Work/Artifact/Review/Event/Attention substrate;
-- native Multi-Agent REVIEW with per-participant authority;
-- external MCP federation and feedback passes;
-- Review export/delete/single-surface navigation;
-- Web Production Reliability Hardening;
-- PR #125 Review/composer UX state hardening;
-- D4.9 targeted/default one-agent discussion + durable Owner Decisions.
+## F6D direction after F6C
 
-Native read tools remain `inventory_summary`, `new_unmapped_rows`, `review_reasons`. Attachment bytes are still not sent to provider vision/OCR. Production inventory writes remain disabled.
+Implement only schema/domain changes proven necessary by the parity lock, then perform a fresh non-canonical shadow import from an authorized current source snapshot with provenance and reconciliation.
 
-## Web reliability — mandatory
+Core identity remains:
 
-One authoritative renderer/state owner per interactive subtree; no overlay renderer to repair ownership conflicts; replaceable DOM uses delegated/deterministic rebinding; frontend/API/persistence/read-back/rehydration is one contract; persistent/async features prove lifecycle behavior; MutationObserver is narrow last-resort glue; critical changed controls use bounded behavior-level browser tests; Dashboard asset identities are content-derived; exact deployed SHA is required before declaring Web work live.
+- local `product_id` is stable operational identity;
+- `lot_id` represents physical/operational lot, normally product + expiry for v1;
+- CMS catalogue identity is external/versioned and CMS code alone is never canonical identity;
+- stock movement is transaction/ledger based;
+- spreadsheet rows/order are projections, not database identifiers.
 
-## Production anchors
+The existing F6B dataset must not be reused as an accepted baseline merely because it already exists.
 
-PR #123 Web hardening merge: `12fe8ed4865027a768b277078ca90648a53103e3`.
+## Immediate sequence
 
-PR #125 Review/composer UX merge/source: `eff5f7a25f715ba2018436005db8a85198fe88e7`; deploy run `32732654844`.
-
-Continuity PR #126 merge: `9294aa47fa2853aa2b53d7669c7540a553a00342`.
-
-## D4.9 Review Thread Conversation + Owner Decisions — DEPLOYED / ACCEPTED
-
-Canonical architecture: `docs/architecture/F7_2D49_REVIEW_THREAD_CONVERSATION_AND_OWNER_DECISIONS.md`.
-
-PR #127 merge/source:
-
-`c2dc42b38a60a7dc625c0d0748530c74c98ed615`
-
-Issue #26 production evidence:
-
-- `status=success`
-- source SHA `c2dc42b38a60a7dc625c0d0748530c74c98ed615`
-- workflow run `32735227026`
-
-### Normal Send
-
-`Owner message -> deterministic participant target -> exactly one authorized native participant -> persisted reply`
-
-- owner can select a Review participant;
-- default prefers Synthesizer, otherwise last configured participant;
-- invalid explicit target fails closed;
-- direct discussion messages persist as `OWNER_MESSAGE` with `staged_for_review=false`;
-- discussion replies persist as `PARTICIPANT_OUTPUT` with `discussion_turn=true` and provenance;
-- ordinary discussion does not start `feedback-pass` or consume external Review evidence.
-
-### Send review
-
-Separate full-preset operation:
-
-`new structured feedback OR direct Owner review instruction -> configured REVIEW participant sequence -> WAITING_OWNER`
-
-A typed composer instruction can start the structured pass directly; normal discussion is not required as a staging step.
-
-### Owner Decision
-
-`Record decision` persists `OWNER_DECISION` + `OWNER_DECISION_RECORDED`. It performs no inventory mutation and does not make PostgreSQL canonical.
-
-### Future execution direction
-
-`evidence -> discussion/review -> Owner decision -> executor agent typed mutation proposal -> required Owner confirmation -> authorized backend operation -> read-back -> audit`
-
-Executor selection, including Synthesizer, never grants raw SQL/direct DB authority.
-
-### D4.9 acceptance evidence
-
-- relevant PR-head workflows 7/7 green;
-- Playwright Chromium 390×844 proves structured Review consumption/settled state, targeted one-agent discussion without feedback-pass, Owner Decision persistence, direct full Review instruction, and export endpoint reuse;
-- browser testing caught a real target-selector re-render cache bug; the implementation was corrected so target hydration belongs to the live DOM node lifecycle rather than a stale Work Item cache;
-- exact deployed main SHA verified through issue #26.
-
-## CURRENT bounded slice — Telegram notification / Attention delivery
-
-Build Telegram delivery over persisted Attention/Event state while keeping workflow correctness independent of Telegram.
-
-Locked constraints:
-
-- persisted Work/Event/Attention state is authoritative; Telegram is delivery only;
-- send failure does not roll back or invalidate workflow state;
-- Owner Telegram identity/routing is explicit, authenticated and auditable;
-- retries/idempotency prevent duplicate notification storms;
-- bot uses typed backend integration boundaries, not arbitrary DB mutation;
-- initial scope is Owner attention only, starting with `WAITING_OWNER` and external-review-completion cases;
-- Telegram notification capability grants no inventory mutation authority.
-
-## Next authorized order
-
-1. **CURRENT:** inspect existing Telegram/bot foundations and lock bounded notification-delivery architecture before code.
-2. Implement identity/routing, idempotent delivery attempts, bounded sender integration and selected Attention/Event triggers.
-3. Prove failure is non-fatal, deploy, verify exact SHA, refresh continuity docs.
-4. Add GROUP shared-context collaboration with Owner pause/resume/stop/steer and optional external checkpoints.
-5. Add COMPARE, then bounded DEBATE.
-6. Return to live PRIMARY -> FALLBACK proof when stable secondary provider/model exists.
-7. Add staff entitlement/location authority before staff tool rollout.
-8. Expand vision/OCR only as a separate bounded evidence-processing slice.
-9. Controlled store writes remain later and require explicit canonicality/authority/idempotency/confirmation/audit/read-back authorization.
+1. **CURRENT:** complete F6C source inspection + parity matrix/function contract.
+2. Owner-review any unresolved formulas/workflows.
+3. Start F6D schema parity changes only after F6C acceptance.
+4. Fresh shadow import + reconciliation.
+5. Historical bootstrap and shadow calculations.
+6. Dual verification against real workbook operations.
+7. Selected read-path promotion.
+8. Controlled write promotion one operation class at a time.
+9. Explicit DB canonical promotion only after all required parity/backup/mirror/month-close/reorder gates pass.
 
 ## Immediate boundary
 
-Proceed from production-verified D4.8/D4.9/Web foundations. Do not enable production inventory mutation, arbitrary agent DB access, or PostgreSQL canonical promotion as part of Telegram notification delivery.
+Focus on reproducing the real medicine-store workflow faithfully. Do not promote PostgreSQL, enable production inventory mutation, or invent replacements for workbook behavior that has not yet been source-verified.
