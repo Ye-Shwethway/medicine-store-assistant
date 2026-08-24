@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Implementation Plan
 
-Status: **AI Workspace / D4.8-D4.9 is accepted. F6B remains test-only; PostgreSQL remains non-canonical. Current bounded slice: F6C Workbook Parity Lock with canonical-domain/configurable-view separation. Next: F6D Canonical Inventory Schema Parity + Fresh Shadow Import.**
+Status: **AI Workspace / D4.8-D4.9 is accepted. F6B remains test-only; PostgreSQL remains non-canonical. F6C core field semantics and Store/Location model are locked. Remaining F6C blockers: month rollover/carry-forward semantics and exact legacy reorder calculation. Next: F6D Canonical Inventory Schema Parity + Fresh Shadow Import.**
 
 ## 1. Global rules
 
@@ -39,7 +39,10 @@ Canonical path:
 
 Human Web/Flutter edits and AI-agent MSA actions converge on the same authorized typed backend command layer.
 
-Canonical architecture: `docs/architecture/CONFIGURABLE_OPERATIONAL_VIEW_ENGINE.md`.
+Canonical architecture:
+
+- `docs/architecture/CONFIGURABLE_OPERATIONAL_VIEW_ENGINE.md`
+- `docs/architecture/STORE_LOCATION_MODEL.md`
 
 ## 4. Canonicality / write boundary
 
@@ -48,93 +51,110 @@ Canonical architecture: `docs/architecture/CONFIGURABLE_OPERATIONAL_VIEW_ENGINE.
 - Existing F6B shadow data is test evidence only.
 - No production inventory write, transfer, Calculator deduction, Telegram/Flutter stock mutation, automatic OCR/vision commit, arbitrary agent DB/SQL mutation, or DB canonical promotion is authorized.
 
-## 5. CURRENT — F6C Workbook Parity Lock
+## 5. CURRENT — F6C Workbook / Domain Parity Lock
 
-Canonical docs:
+### 5.1 Locked core semantics
 
-- `docs/architecture/F6C_WORKBOOK_PARITY_LOCK.md`
-- `docs/architecture/CONFIGURABLE_OPERATIONAL_VIEW_ENGINE.md`
-- `docs/architecture/WORKBOOK_PARITY_MATRIX.md`
-- `docs/architecture/WORKBOOK_FUNCTION_CONTRACT.md`
+- Product is stable local identity.
+- Lot is normally Product + expiry in v1.
+- CMS catalogue identity is external/versioned and CMS code alone is never canonical identity.
+- Main Stock is a stock/lot operational projection, not the DB table design.
+- Daily Usage is a monthly Day 1–31 pivot/edit surface over normalized usage events.
+- Receipt, usage and adjustment are typed canonical movements.
+- `This Month Received`, Reorder Form and Final Reorder are projection/working/snapshot concerns rather than independent stock truth tables.
+- Human UI and AI actions use the same typed backend command layer.
 
-### 5.1 Priority inspection order
+### 5.2 Store / Location — LOCKED CORE
 
-1. Main Stock field semantics and product/lot identity.
-2. Daily Usage movement semantics and monthly pivot behavior.
-3. CMS catalogue/mapping/current-price behavior.
-4. Batch intake, idempotency, new expiry lots and fixed-asset routing.
-5. Reorder inputs/configuration and calculated recommendation.
-6. Month rollover/opening carry-forward/audit behavior.
-7. Store/location model needed for one Main Store plus unlimited Sub Stores.
-8. Projection/archive surfaces only to the degree needed to preserve business meaning.
+Rule:
 
-`This Month Received`, `Reorder Form`, `Final Reorder Form` and Master/archive formatting are primarily views/working outputs/snapshots and must not drive the canonical schema.
+> **Stock belongs to a location; product and catalogue identity do not.**
 
-### 5.2 Required output for each important field/workflow
+Required semantics:
 
-Classify as one of:
+- exactly one configured Main Store and unlimited Sub Stores in v1;
+- Product and normal Lot identities are shared across stores;
+- balance is derived per `(store_id, lot_id)`;
+- every balance-changing movement resolves a location;
+- usage belongs to the actual issuing store;
+- external receipt resolves a destination store;
+- internal transfer is one atomic typed operation with linked source decrease + destination increase;
+- internal transfer must not be represented as unrelated adjustments;
+- month snapshots become store+lot scoped;
+- operational view definitions are reusable with a store context/filter.
 
-- canonical entity/domain field;
-- canonical event/transaction;
-- deterministic computed field;
-- command-backed editable field;
-- display/helper/projection-only field;
-- approved snapshot/archive output;
-- unresolved Owner decision.
+Current schema gap proven from migrations:
 
-Also record:
+- no canonical stores/location table;
+- `inventory_transactions` is lot-only;
+- current movement types do not represent internal transfer.
 
-- source evidence;
-- editable/write semantics;
-- identity implications;
-- authority/idempotency needs;
-- future canonical or view mapping.
+The current `Medicine Store Cloud` has no populated Store/Location/Sub Store field in Main Stock/Daily Usage. F6D migration binds that workbook to the configured Main Store rather than changing its production columns.
 
-### 5.3 F6C completion gate
+### 5.3 Remaining F6C work
 
-F6C is complete when:
+Only behavior that can change canonical meaning remains blocking:
 
-- Product/Lot/Store/Catalogue/Receipt/Usage/Adjustment/Ledger/Audit semantics are explicit;
-- Main Stock and Daily Usage can be reproduced as views over those semantics;
-- current important columns are semantically classified;
-- lower-priority projection/archive tabs are accounted for without over-modeling;
-- unresolved issues are explicit rather than guessed.
+1. **Month rollover/carry-forward**
+   - prior closing balance -> next opening/base state;
+   - reset semantics for monthly receipts/usage/day-grid projections;
+   - snapshot timing and close authority;
+   - store-scoped month behavior.
+2. **Exact reorder calculation**
+   - approved inputs;
+   - formula/threshold/rounding;
+   - store scope;
+   - deterministic recommendation vs manual final adjustment.
 
-No schema migration, fresh real import, production write, or canonical promotion is authorized merely by starting F6C.
+Do not reconstruct either from materialized Google Sheet values alone.
+
+Exact report formatting/macros that do not alter inventory meaning can be handled later as export/compatibility work.
+
+### 5.4 F6C completion gate
+
+F6C is complete when Product/Lot/Store/Catalogue/Receipt/Usage/Adjustment/Ledger/Reorder/Audit/month semantics are explicit enough to reproduce Main Stock and Daily Usage from DB state without guessing canonical inventory meaning.
+
+No schema migration, fresh real import, production write, or canonical promotion is authorized merely by completing documentation.
 
 ## 6. NEXT — F6D Canonical Inventory Schema Parity + Fresh Shadow Import
 
-After F6C acceptance:
+Sequence:
 
-1. compare the locked contract with `INVENTORY_DATA_MODEL.md`, `F2_SCHEMA_DECISION_PROPOSAL.md`, `MONTHLY_LIFECYCLE.md`, `CMS_CATALOGUE_VERSIONING.md`, `SHEET_MIRROR_AND_COMPATIBILITY.md`, and the configurable-view architecture;
-2. lock Store/Location, Product, Lot, Catalogue Mapping, Receipt, Usage, Adjustment, Ledger and Audit identities;
-3. change only domain/schema elements that parity evidence requires;
-4. create versioned migrations and repeatable import tooling;
-5. use a fresh authorized current source snapshot;
-6. import non-canonically with provenance;
-7. reconcile product/lot identity, expiry separation, opening/base stock, receipts, usage, CMS mapping/price and current balances;
-8. prove Main Stock and Daily Usage projections from the shadow DB;
-9. classify every mismatch instead of forcing either side to match;
-10. keep PostgreSQL non-canonical until explicit acceptance.
+1. add canonical Store/Location entity;
+2. seed/configure one Main Store identity for the legacy-source migration context;
+3. make balance-changing movements location-aware;
+4. add location-aware indexes/queries;
+5. add receipt destination location;
+6. add explicit transfer header/lines or equivalent typed transfer representation with paired atomic ledger effects;
+7. make monthly snapshot rows store+lot scoped;
+8. preserve a path for per-store reorder configuration/overrides;
+9. apply only other schema changes proven by F6C;
+10. create versioned migrations and repeatable import tooling;
+11. take a fresh authorized source snapshot;
+12. import non-canonically with provenance bound to Main Store;
+13. reconcile product/lot identity, expiry separation, opening/base stock, receipts, usage, CMS mapping/price and current balances;
+14. prove Main Stock and Daily Usage projections from shadow DB;
+15. classify every mismatch instead of forcing either side to match;
+16. keep PostgreSQL non-canonical until explicit acceptance.
 
 The full custom table-builder/editor is intentionally **not** part of F6D.
 
 ## 7. Subsequent implementation sequence
 
-1. F6C domain/workbook parity lock.
-2. F6D schema parity + fresh shadow import.
-3. Historical bootstrap from strongest available evidence.
-4. Shadow calculation parity.
-5. Minimal field/computation registry and saved view-definition substrate.
-6. DB-backed Main Stock and Daily Usage preset views.
-7. Spreadsheet-like draft/confirm/save editing over typed commands.
-8. Dual verification of real operational events.
-9. Read-path promotion.
-10. Controlled write promotion per operation class.
-11. Explicit database canonicality promotion.
-12. Sheet mirror/rebuild and multi-client expansion.
-13. Resume deferred Telegram/AI collaboration expansions as useful.
+1. finish F6C month/reorder gates;
+2. F6D location-aware schema parity + fresh shadow import;
+3. historical bootstrap from strongest available evidence;
+4. shadow calculation parity;
+5. minimal field/computation registry and saved view-definition substrate;
+6. DB-backed Main Stock and Daily Usage preset views;
+7. spreadsheet-like draft/confirm/save editing over typed commands;
+8. dual verification of real operational events;
+9. read-path promotion;
+10. controlled write promotion per operation class;
+11. explicit database canonicality promotion;
+12. Sheet mirror/rebuild and multi-client expansion;
+13. resume deferred Telegram/AI collaboration expansions as useful.
 
 ## 8. Immediate boundary
 
-The project focus is now the real inventory/workbook/database path. Do not spend the next slices expanding AI collaboration, Telegram delivery, GROUP/COMPARE/DEBATE, or speculative intelligence features unless explicitly reprioritized.
+Continue source-first analysis. Re-read the live Google Sheet whenever field/value behavior matters. Do not infer exact legacy formulas/macros from materialized cloud values. Do not spend the next slices expanding AI collaboration unless explicitly reprioritized.
