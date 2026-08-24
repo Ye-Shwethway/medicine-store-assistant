@@ -35,6 +35,7 @@ jobs:
           paths=set(app.openapi()['paths'])
           assert '/dashboard/api/mcp-bindings' in paths
           assert '/dashboard/api/mcp-bindings/{grant_id}' in paths
+          assert '/dashboard/api/mcp-bindings/{grant_id}/scopes' in paths
           assert MCP_BINDING_ASSET_VERSION.startswith('f72d4a-mcpbind-')
           p=Path('backend/alembic/versions/0014_mcp_agent_bindings.py')
           spec=importlib.util.spec_from_file_location('mcpbindmigration',p)
@@ -48,27 +49,44 @@ jobs:
           PYTHONPATH=backend python - <<'PY'
           from mcp.server.auth.provider import AccessToken
           import app.mcp_server as s
-          access=AccessToken(token='x',client_id='client',subject='00000000-0000-0000-0000-000000000001',scopes=['mcp:connect','offline_access','mcp:read','mcp:write'])
+          access=AccessToken(token='x',client_id='client',subject='00000000-0000-0000-0000-000000000001',scopes=['mcp:connect','offline_access','mcp:read','mcp:propose','mcp:write'])
           original=s._bound_agent_context
           try:
-            s._bound_agent_context=lambda _: {'state':'ACTIVE','runtime_mode':'EXTERNAL_MCP_CLIENT','capability_scopes':['mcp:read'],'authority_ceiling':'WRITE'}
+            s._bound_agent_context=lambda _: {'state':'ACTIVE','runtime_mode':'EXTERNAL_MCP_CLIENT','capability_scopes':['mcp:read','mcp:propose'],'authority_ceiling':'PROPOSE'}
             scopes=s._effective_scopes(access)
-            assert 'mcp:read' in scopes
+            assert 'mcp:read' in scopes and 'mcp:propose' in scopes
             assert 'mcp:write' not in scopes
             assert 'mcp:connect' in scopes and 'offline_access' in scopes
-            s._bound_agent_context=lambda _: {'state':'DISABLED','runtime_mode':'EXTERNAL_MCP_CLIENT','capability_scopes':['mcp:read'],'authority_ceiling':'READ'}
+            s._bound_agent_context=lambda _: {'state':'DISABLED','runtime_mode':'EXTERNAL_MCP_CLIENT','capability_scopes':['mcp:read','mcp:propose'],'authority_ceiling':'PROPOSE'}
             scopes=s._effective_scopes(access)
-            assert 'mcp:read' not in scopes and 'mcp:connect' in scopes
+            assert 'mcp:read' not in scopes and 'mcp:propose' not in scopes and 'mcp:connect' in scopes
           finally:
             s._bound_agent_context=original
           print('mcp_agent_authority_intersection=pass')
+          PY
+      - name: Validate live grant-scope readback contract
+        run: |
+          PYTHONPATH=backend python - <<'PY'
+          from app.mcp_agent_binding import _validated_scopes, _with_effective_scopes
+          assert _validated_scopes(['mcp:read','mcp:propose','mcp:propose']) == ['mcp:propose','mcp:read']
+          item=_with_effective_scopes({
+              'grant_capability_scopes':['mcp:read','mcp:propose','mcp:write'],
+              'agent_capability_scopes':['mcp:read','mcp:propose'],
+              'agent_authority_ceiling':'PROPOSE',
+              'agent_state':'ACTIVE',
+              'agent_runtime_mode':'EXTERNAL_MCP_CLIENT',
+          })
+          assert set(item['effective_capability_scopes']) == {'mcp:read','mcp:propose'}
+          print('mcp_live_grant_scope_readback=pass')
           PY
       - name: Validate Agent Management UI contract
         run: |
           node --check backend/app/dashboard_assets/dashboard_mcp_binding.js
           grep -Fq 'subtree:false' backend/app/dashboard_assets/dashboard_mcp_binding.js
-          grep -Fq 'MCP connection' backend/app/dashboard_assets/dashboard_mcp_binding.js
-          grep -Fq '.danger-action' backend/app/dashboard_assets/dashboard_mcp_binding.css
+          grep -Fq 'Connection permissions' backend/app/dashboard_assets/dashboard_mcp_binding.js
+          grep -Fq 'Effective permission = grant' backend/app/dashboard_assets/dashboard_mcp_binding.js
+          grep -Fq 'data-mcp-save-scopes' backend/app/dashboard_assets/dashboard_mcp_binding.js
+          grep -Fq '.mcp-permission-panel' backend/app/dashboard_assets/dashboard_mcp_binding.css
           grep -Fq 'dashboard_mcp_binding.js' backend/app/main.py
           grep -Fq 'dashboard_mcp_binding.css' backend/app/main.py
           ! grep -Fq 'subtree:true' backend/app/dashboard_assets/dashboard_mcp_binding.js
