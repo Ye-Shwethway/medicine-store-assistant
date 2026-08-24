@@ -86,12 +86,12 @@
 
   async function hydrateOpenedReview(){
     const detail=document.querySelector('#aiMultiMode #reviewWorkDetail');const id=detail?.querySelector('.review-id')?.textContent?.trim();if(!id||hydrateInFlight)return;
-    const status=detail.querySelector('.review-status')?.textContent?.trim()||'';const needsResume=status==='WAITING_EXTERNAL';const needsHydrate=hydrateWorkId!==id;
+    const status=detail.querySelector('.review-status')?.textContent?.trim()||'';const needsResume=status==='WAITING_EXTERNAL'||status==='REVIEWING';const needsHydrate=hydrateWorkId!==id;
     if(!needsResume&&!needsHydrate)return;
     hydrateInFlight=true;
     try{
       const item=await api('/dashboard/api/ai-workspace/multi-agent/work-items/'+encodeURIComponent(id));hydrateWorkId=id;renderLive(item);
-      if(item.status==='WAITING_EXTERNAL'){
+      if(item.status==='WAITING_EXTERNAL'||item.status==='REVIEWING'){
         liveWorkId=id;liveLastSignature=signature(item);if(livePollTimer)clearTimeout(livePollTimer);livePollTimer=setTimeout(pollLive,1000);
       }
     }catch(err){statusNotice(err.message,'error')}finally{hydrateInFlight=false}
@@ -135,7 +135,7 @@
     const copy=event.target.closest('.review-message-copy');if(copy){const text=copy.closest('.review-chat-turn')?.querySelector('.review-chat-bubble')?.dataset.reviewCopyText||'';copyText(text,copy);return}
     const external=event.target.closest('[data-request-external-review]');if(external){event.preventDefault();event.stopPropagation();requestExternalReview(external.dataset.requestExternalReview,external);return}
     const deleteButton=event.target.closest('.review-delete-action');if(deleteButton){event.preventDefault();event.stopPropagation();deleteReview(deleteButton.dataset.reviewDeleteFor,deleteButton);return}
-    if(event.target.closest('[data-ai-conversation],#aiNewConversation,#aiWorkspaceNav,[data-ai-tab],#aiMultiMode .review-work-item')){const card=event.target.closest('#aiMultiMode .review-work-item');if(card&&card.dataset.workId!==hydrateWorkId)hydrateWorkId=null;scheduleReconcile()}
+    if(event.target.closest('[data-ai-conversation],#aiNewConversation,#aiWorkspaceNav,[data-ai-tab],#aiMultiMode .review-work-item')){const card=event.target.closest('#aiMultiMode .review-work-item');if(card)hydrateWorkId=null;scheduleReconcile()}
   },true);
 
   const observer=new MutationObserver(()=>scheduleReconcile());observer.observe(root,{childList:true,subtree:true});scheduleReconcile();

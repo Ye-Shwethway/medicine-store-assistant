@@ -187,6 +187,7 @@
     const payload=a.payload||{};const text=payload.response||payload.instruction||json(payload);const prov=payload.provenance||{};const role=payload.role||a.artifact_type;const related=reviews.find(r=>r.findings?.review_output_artifact_id===a.artifact_id);const verdict=related?'<span class="review-verdict">'+esc(related.verdict)+'</span>':'';
     return '<article class="review-chat-turn review-chat-agent"><div class="review-chat-meta"><div><strong>'+esc(prov.agent_display_name||payload.display_label||'Internal agent')+'</strong><span>'+esc(role)+'</span></div>'+verdict+'</div><div class="review-chat-bubble">'+esc(text)+'</div><div class="review-chat-provenance"><span>'+esc((prov.selected_provider_name||'Provider')+' · '+(prov.selected_model_name||prov.selected_model_id||'Model'))+'</span>'+(prov.fallback_used?'<span>fallback</span>':'')+(prov.latency_ms!=null?'<span>'+esc(prov.latency_ms+' ms')+'</span>':'')+'</div></article>';
   }
+  function externalTurn(a){const payload=a.payload||{};const text=payload.notes||'';const verdict=payload.verdict?'<span class="review-verdict">'+esc(payload.verdict)+'</span>':'';return '<article class="review-chat-turn review-chat-agent review-chat-external"><div class="review-chat-meta"><div><strong>'+esc(payload.external_agent_display_name||payload.external_agent_call_name||'External MCP reviewer')+'</strong><span>EXTERNAL REVIEW</span></div>'+verdict+'</div><div class="review-chat-bubble">'+esc(text)+'</div><div class="review-chat-provenance"><span>External MCP evidence · exact artifact v'+Number(payload.bound_artifact_version||0)+'</span></div></article>'}
   function revisionTurn(a){const payload=a.payload||{};return '<article class="review-chat-turn review-chat-owner"><div class="review-chat-meta"><strong>Owner</strong><span>REVISION</span></div><div class="review-chat-bubble">'+esc(payload.instruction||'')+'</div></article>'}
   function renderWorkDetail(item){
     const detail=host.querySelector('#reviewWorkDetail');
@@ -194,10 +195,11 @@
     const ownerArtifact=artifacts.find(a=>a.artifact_type==='OWNER_TASK');
     const turns=[];if(ownerArtifact||item.objective)turns.push(ownerTurn(item,ownerArtifact));
     artifacts.filter(a=>a.artifact_type==='PARTICIPANT_OUTPUT').forEach(a=>turns.push(agentTurn(a,reviews)));
+    artifacts.filter(a=>a.artifact_type==='EXTERNAL_REVIEW_SUBMISSION').forEach(a=>turns.push(externalTurn(a)));
     artifacts.filter(a=>a.artifact_type==='OWNER_REVISION').forEach(a=>turns.push(revisionTurn(a)));
     detail.innerHTML='<div class="review-chatbox-head"><div><div class="review-detail-title"><h3>'+esc(item.title)+'</h3>'+statusPill(item.status)+'</div><span class="review-id">'+esc(item.work_item_id)+'</span></div><div class="review-safety-line"><strong>Production mutation: NO</strong><span>Database canonical: NO</span></div></div>'
       +'<div class="review-chat-stream">'+(turns.length?turns.join(''):'<div class="review-empty">No persisted turns yet.</div>')+'</div>'
-      +(item.status==='WAITING_OWNER'?'<div class="review-owner-action review-chat-composer"><label for="reviewRevisionInstruction">Owner reply / return for revision</label><textarea id="reviewRevisionInstruction" maxlength="5000" placeholder="Tell the review team what needs another pass."></textarea><button type="button" id="reviewReturnRevision">Return to REVIEWING</button></div>':'')
+      +(item.status==='WAITING_OWNER'?'<div class="review-owner-action review-chat-composer"><label for="reviewRevisionInstruction">Owner feedback / next review pass</label><textarea id="reviewRevisionInstruction" maxlength="5000" placeholder="Add instructions, or leave blank to send the external review back to the native team."></textarea><button type="button" id="reviewReturnRevision">Send feedback to review team</button></div>':'')
       +'<details class="review-debug-details"><summary>Review records & timeline</summary><div class="review-detail-section"><h4>Reviews</h4>'+(reviews.length?reviews.map(r=>'<article class="review-record"><div><strong>'+esc(r.verdict)+'</strong><span>artifact v'+Number(r.artifact_version)+' · '+esc(r.reviewer_actor_type)+'</span></div><pre>'+esc(r.notes||'')+'</pre></article>').join(''):'<p class="muted">No reviewer record.</p>')+'</div><div class="review-detail-section"><h4>Attention & timeline</h4>'+(attention.length?attention.map(a=>'<div class="review-timeline"><strong>'+esc(a.category)+'</strong><span>'+esc(a.status)+' · '+esc(a.summary)+'</span></div>').join(''):'')+events.slice().reverse().map(e=>'<div class="review-timeline"><strong>'+esc(e.event_type)+'</strong><span>'+esc(e.actor_type)+' · '+esc(time(e.created_at))+'</span></div>').join('')+'</div></details>';
     host.querySelector('#reviewReturnRevision')?.addEventListener('click',returnForRevision);
     const stream=host.querySelector('.review-chat-stream');if(stream)stream.scrollTop=stream.scrollHeight;
@@ -205,10 +207,11 @@
 
   async function returnForRevision(){
     if(busy||!currentWorkItemId)return;
-    const instruction=host.querySelector('#reviewRevisionInstruction')?.value.trim();
-    if(!instruction){setStatus('Enter a revision instruction first.','error');return}
-    setBusy(true);setStatus('Returning Work Item to REVIEWING…');
-    try{const item=await api('/dashboard/api/ai-workspace/multi-agent/work-items/'+encodeURIComponent(currentWorkItemId)+'/return-for-revision',{method:'POST',body:JSON.stringify({instruction})});renderWorkDetail(item);await loadWorkItemsSafe();setStatus('Returned to REVIEWING. The Owner revision instruction is persisted.','success')}catch(err){setStatus(err.message,'error')}finally{setBusy(false)}
+    const instruction=host.querySelector('#reviewRevisionInstruction')?.value.trim()||'';
+    const hasExternal=Boolean(host.querySelector('#reviewWorkDetail .review-chat-external'));
+    if(!instruction&&!hasExternal){setStatus('Enter Owner feedback or request an external review first.','error');return}
+    setBusy(true);setStatus('Starting a new native feedback pass…');
+    try{const item=await api('/dashboard/api/ai-workspace/multi-agent/work-items/'+encodeURIComponent(currentWorkItemId)+'/feedback-pass',{method:'POST',body:JSON.stringify({instruction:instruction||null})});renderWorkDetail(item);await loadWorkItemsSafe();setStatus('Feedback sent. Native participants are running a new pass with the persisted review evidence.','success')}catch(err){setStatus(err.message,'error')}finally{setBusy(false)}
   }
 
   async function load(){
