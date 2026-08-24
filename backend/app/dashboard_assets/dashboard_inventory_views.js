@@ -4,17 +4,15 @@
   if(!root||!panel||panel.dataset.inventoryViewEngine)return;
   panel.dataset.inventoryViewEngine='1';
 
-  const state={preset:'main-stock',offset:0,limit:100,q:'',presets:[],registry:[],columns:null,loading:false};
+  const state={preset:'main-stock',offset:0,limit:100,q:'',mappingStatus:'',sourceClassification:'',reviewReason:'',presets:[],registry:[],columns:null,loading:false,items:[],columnsRendered:[],selected:new Set(),drawerIndex:null};
   const esc=value=>String(value??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
   const api=async path=>{const res=await fetch(path,{credentials:'same-origin',headers:{'Accept':'application/json'}});let data=null;try{data=await res.json()}catch{}if(!res.ok)throw new Error(data?.detail||`Request failed: ${res.status}`);return data};
+  const rowKey=(item,index)=>String(item.product_id||item.lot_id||item.source_row_no||`${state.preset}:${state.offset+index}`);
+  const isReviewPreset=()=>state.preset==='migration-review'||state.preset==='cms-mapping-review';
 
   panel.innerHTML=`
     <div class="inventory-view-head">
-      <div>
-        <div class="inventory-view-kicker">Configurable Inventory View</div>
-        <h2 id="inventoryViewName">Main Stock</h2>
-        <p id="inventoryViewDescription" class="sub">Loading view definition…</p>
-      </div>
+      <div><div class="inventory-view-kicker">Configurable Inventory View</div><h2 id="inventoryViewName">Main Stock</h2><p id="inventoryViewDescription" class="sub">Loading view definition…</p></div>
       <div class="inventory-shadow-banner"><strong>Shadow inventory — not canonical</strong><span>Google Sheet remains operational authority · baseline review in progress</span></div>
     </div>
     <div class="inventory-view-toolbar">
@@ -23,117 +21,59 @@
       <button class="secondary" id="inventoryColumnsToggle" type="button">Columns</button>
       <button class="secondary" id="inventoryViewRefresh" type="button">Refresh</button>
     </div>
+    <div class="inventory-review-filters" id="inventoryReviewFilters" hidden>
+      <label>Mapping status<select id="inventoryMappingStatus"><option value="">All mapping states</option><option>REVIEW_REQUIRED</option><option>CMS_DISCONTINUED</option><option>RECYCLED_CODE</option><option>UNMAPPED</option><option>ACTIVE_MATCH</option></select></label>
+      <label id="inventoryClassificationLabel">Source class<select id="inventorySourceClassification"><option value="">All source classes</option><option>SAFE</option><option>REVIEW</option><option>CONFLICT</option><option>NEW_UNMAPPED</option></select></label>
+      <label class="inventory-reason-filter">Review reason<input id="inventoryReviewReason" type="search" placeholder="Contains…"></label>
+      <button class="secondary" id="inventoryClearFilters" type="button">Clear filters</button>
+    </div>
     <div class="inventory-column-panel" id="inventoryColumnPanel" hidden>
       <div class="inventory-column-panel-head"><div><strong>Visible columns</strong><span>Registry fields only — this does not change database structure.</span></div><button class="secondary" id="inventoryColumnsReset" type="button">Reset preset</button></div>
-      <div class="inventory-column-grid" id="inventoryColumnGrid"></div>
-      <div class="inventory-column-actions"><button id="inventoryColumnsApply" type="button">Apply columns</button></div>
+      <div class="inventory-column-grid" id="inventoryColumnGrid"></div><div class="inventory-column-actions"><button id="inventoryColumnsApply" type="button">Apply columns</button></div>
     </div>
+    <div class="inventory-selection-bar" id="inventorySelectionBar" hidden><strong id="inventorySelectionCount">0 selected</strong><span>Review context only — no acceptance or mutation.</span><button class="secondary" id="inventoryClearSelection" type="button">Clear</button></div>
     <div class="inventory-view-meta" id="inventoryViewMeta">Loading…</div>
     <div class="inventory-view-table-wrap">
       <table class="inventory-view-table" id="inventoryViewTable"><thead></thead><tbody></tbody></table>
       <div class="inventory-view-empty" id="inventoryViewEmpty">Loading inventory view…</div>
     </div>
-    <div class="inventory-view-pager">
-      <button class="secondary" id="inventoryPrev" type="button">← Previous</button>
-      <span id="inventoryPageLabel">Rows 1–100</span>
-      <button class="secondary" id="inventoryNext" type="button">Next →</button>
-    </div>`;
+    <div class="inventory-view-pager"><button class="secondary" id="inventoryPrev" type="button">← Previous</button><span id="inventoryPageLabel">Rows 1–100</span><button class="secondary" id="inventoryNext" type="button">Next →</button></div>
+    <aside class="inventory-review-drawer" id="inventoryReviewDrawer" aria-label="Review detail" hidden>
+      <div class="inventory-drawer-head"><div><span>Review detail</span><strong id="inventoryDrawerTitle">Selected row</strong></div><button class="secondary" id="inventoryDrawerClose" type="button" aria-label="Close review detail">Close</button></div>
+      <div id="inventoryDrawerBody"></div>
+    </aside>`;
 
-  const $=s=>panel.querySelector(s);
-  const table=$('#inventoryViewTable');
-  const thead=table.querySelector('thead');
-  const tbody=table.querySelector('tbody');
-  const empty=$('#inventoryViewEmpty');
-  const meta=$('#inventoryViewMeta');
-  const presetSelect=$('#inventoryPresetSelect');
-  const search=$('#inventoryViewSearch');
-  const columnsPanel=$('#inventoryColumnPanel');
-  const columnGrid=$('#inventoryColumnGrid');
+  const $=s=>panel.querySelector(s),table=$('#inventoryViewTable'),thead=table.querySelector('thead'),tbody=table.querySelector('tbody'),empty=$('#inventoryViewEmpty'),meta=$('#inventoryViewMeta'),presetSelect=$('#inventoryPresetSelect'),search=$('#inventoryViewSearch'),columnsPanel=$('#inventoryColumnPanel'),columnGrid=$('#inventoryColumnGrid'),filters=$('#inventoryReviewFilters'),mappingStatus=$('#inventoryMappingStatus'),sourceClassification=$('#inventorySourceClassification'),reviewReason=$('#inventoryReviewReason'),selectionBar=$('#inventorySelectionBar'),drawer=$('#inventoryReviewDrawer');
 
-  function format(value,def){
-    if(value===null||value===undefined||value==='')return '—';
-    if(def?.data_type==='decimal'){
-      const number=Number(value);return Number.isFinite(number)?number.toLocaleString(undefined,{maximumFractionDigits:3}):String(value);
-    }
-    if(def?.data_type==='date'){
-      const d=new Date(`${value}T00:00:00`);return Number.isNaN(d.getTime())?String(value):d.toLocaleDateString();
-    }
-    return String(value);
-  }
+  function format(value,def){if(value===null||value===undefined||value==='')return '—';if(def?.data_type==='decimal'){const n=Number(value);return Number.isFinite(n)?n.toLocaleString(undefined,{maximumFractionDigits:3}):String(value)}if(def?.data_type==='date'){const d=new Date(`${value}T00:00:00`);return Number.isNaN(d.getTime())?String(value):d.toLocaleDateString()}return String(value)}
+  function cellClass(field,value){if(field==='mapping_status'||field==='source_classification')return ` inventory-status-cell status-${String(value||'none').toLowerCase().replace(/[^a-z0-9]+/g,'-')}`;if(field.endsWith('_qty')||field.includes('price'))return ' inventory-number-cell';return ''}
+  function rowClass(item){const values=[item.source_classification,item.mapping_status].filter(Boolean).map(String);if(values.includes('CONFLICT')||values.includes('RECYCLED_CODE'))return 'inventory-row-critical';if(values.includes('REVIEW')||values.includes('REVIEW_REQUIRED')||values.includes('CMS_DISCONTINUED')||values.includes('NEW_UNMAPPED')||values.includes('UNMAPPED'))return 'inventory-row-review';return ''}
+  function renderColumns(columns){thead.innerHTML=`<tr><th class="inventory-select-col" aria-label="Select rows"></th>${columns.map(col=>`<th style="${col.width?`min-width:${Number(col.width)}px`:''}">${esc(col.label)}</th>`).join('')}</tr>`}
+  function updateSelection(){selectionBar.hidden=state.selected.size===0;$('#inventorySelectionCount').textContent=`${state.selected.size.toLocaleString()} selected`;tbody.querySelectorAll('tr[data-row-key]').forEach(tr=>tr.classList.toggle('inventory-row-selected',state.selected.has(tr.dataset.rowKey)))}
+  function renderRows(columns,items){tbody.innerHTML='';state.items=items;state.columnsRendered=columns;if(!items.length){empty.textContent='No rows match this view and filters.';empty.hidden=false;table.hidden=true;return}empty.hidden=true;table.hidden=false;const fragment=document.createDocumentFragment();items.forEach((item,index)=>{const key=rowKey(item,index),tr=document.createElement('tr');tr.dataset.rowKey=key;tr.dataset.rowIndex=String(index);tr.className=rowClass(item);tr.innerHTML=`<td class="inventory-select-col"><input type="checkbox" class="inventory-row-check" aria-label="Select row" ${state.selected.has(key)?'checked':''}></td>`+columns.map(col=>{const value=item[col.field],text=format(value,col.field_definition);return `<td class="${cellClass(col.field,value)}" title="${esc(text)}">${esc(text)}</td>`}).join('');fragment.appendChild(tr)});tbody.appendChild(fragment);updateSelection()}
+  function renderColumnPicker(view){const defaults=new Set(view.columns.map(c=>c.field)),selected=new Set(state.columns||[...defaults]),presetOrder=view.columns.map(c=>c.field),extras=state.registry.map(f=>f.key).filter(k=>!presetOrder.includes(k)),ordered=[...presetOrder,...extras],defs=new Map(state.registry.map(f=>[f.key,f]));columnGrid.innerHTML=ordered.map(key=>{const def=defs.get(key);if(!def)return '';return `<label class="inventory-column-option"><input type="checkbox" value="${esc(key)}" ${selected.has(key)?'checked':''}><span><strong>${esc(def.label)}</strong><small>${esc(def.kind)}</small></span></label>`}).join('')}
+  function syncReviewControls(){const review=isReviewPreset();filters.hidden=!review;$('#inventoryClassificationLabel').hidden=state.preset!=='migration-review';if(!review){state.mappingStatus='';state.sourceClassification='';state.reviewReason='';mappingStatus.value='';sourceClassification.value='';reviewReason.value=''}}
+  function drawerPair(label,leftLabel,leftValue,rightLabel,rightValue){const mismatch=String(leftValue??'')!==String(rightValue??'');return `<div class="inventory-compare-row ${mismatch?'is-mismatch':''}"><strong>${esc(label)}</strong><div><span>${esc(leftLabel)}</span><b>${esc(leftValue??'—')}</b></div><div><span>${esc(rightLabel)}</span><b>${esc(rightValue??'—')}</b></div></div>`}
+  function openDrawer(index){const item=state.items[index];if(!item)return;state.drawerIndex=index;$('#inventoryDrawerTitle').textContent=item.local_item_name||item.cms_name||`Row ${state.offset+index+1}`;let html='';if(state.preset==='migration-review'){html+=`<div class="inventory-compare-grid">${drawerPair('Quantity','Source',item.source_current_qty,'Shadow',item.current_qty)}${drawerPair('CMS code','Source / resolved',item.cms_code,'Mapping',item.cms_code)}${drawerPair('Expiry','Source',item.expiry_date,'Shadow',item.expiry_date)}</div>`}else if(state.preset==='cms-mapping-review'){html+=`<div class="inventory-detail-grid"><div><span>CMS code</span><strong>${esc(item.cms_code??'—')}</strong></div><div><span>CMS name</span><strong>${esc(item.cms_name??'—')}</strong></div><div><span>Current catalogue price</span><strong>${esc(item.catalogue_price??'—')}</strong></div><div><span>Accepted store price</span><strong>${esc(item.accepted_operational_price??'—')}</strong></div></div>`}else{html+=`<div class="inventory-detail-grid"><div><span>Current quantity</span><strong>${esc(item.current_qty??'—')}</strong></div><div><span>CMS code</span><strong>${esc(item.cms_code??'—')}</strong></div></div>`}html+=`<div class="inventory-review-summary"><div><span>Mapping status</span><strong>${esc(item.mapping_status??'—')}</strong></div>${item.source_classification!==undefined?`<div><span>Source class</span><strong>${esc(item.source_classification??'—')}</strong></div>`:''}<div class="span-2"><span>Review reason</span><p>${esc(item.review_reason??'No review reason recorded.')}</p></div></div><p class="inventory-readonly-note">Read-only evidence view. Selecting or opening this row does not accept a mapping, price, or inventory change.</p>`;$('#inventoryDrawerBody').innerHTML=html;drawer.hidden=false}
+  async function loadDefinitions(){const [presets,registry]=await Promise.all([api('/dashboard/api/inventory-view/presets'),api('/dashboard/api/inventory-view/registry')]);state.presets=presets.items||[];state.registry=registry.fields||[];presetSelect.innerHTML=state.presets.map(view=>`<option value="${esc(view.view_id)}">${esc(view.name)}</option>`).join('');presetSelect.value=state.preset}
+  async function load(){if(state.loading)return;state.loading=true;empty.hidden=false;empty.textContent='Loading inventory view…';table.hidden=true;meta.textContent='Loading…';try{if(!state.presets.length)await loadDefinitions();syncReviewControls();const params=new URLSearchParams({preset:state.preset,limit:String(state.limit),offset:String(state.offset)});if(state.q)params.set('q',state.q);if(state.columns?.length)params.set('fields',state.columns.join(','));if(state.mappingStatus)params.set('mapping_status',state.mappingStatus);if(state.sourceClassification&&state.preset==='migration-review')params.set('source_classification',state.sourceClassification);if(state.reviewReason)params.set('review_reason',state.reviewReason);const data=await api('/dashboard/api/inventory-view/rows?'+params.toString()),view=data.view,columns=data.columns||[],items=data.items||[];$('#inventoryViewName').textContent=view.name;$('#inventoryViewDescription').textContent=view.description;renderColumns(columns);renderRows(columns,items);renderColumnPicker(view);meta.textContent=`${view.row_grain.replaceAll('_',' ')} · Store ${view.store_scope} · ${items.length.toLocaleString()} rows shown · Read-only shadow projection`;const start=items.length?state.offset+1:0,end=state.offset+items.length;$('#inventoryPageLabel').textContent=`Rows ${start.toLocaleString()}–${end.toLocaleString()}`;$('#inventoryPrev').disabled=state.offset===0;$('#inventoryNext').disabled=items.length<state.limit}catch(err){empty.hidden=false;table.hidden=true;empty.textContent=err.message;meta.textContent='Unable to load configurable inventory view.'}finally{state.loading=false}}
 
-  function cellClass(field,value){
-    if(field==='mapping_status'||field==='source_classification')return ` inventory-status-cell status-${String(value||'none').toLowerCase().replace(/[^a-z0-9]+/g,'-')}`;
-    if(field.endsWith('_qty')||field.includes('price'))return ' inventory-number-cell';
-    return '';
-  }
-
-  function renderColumns(columns){
-    thead.innerHTML=`<tr>${columns.map(col=>`<th style="${col.width?`min-width:${Number(col.width)}px`:''}">${esc(col.label)}</th>`).join('')}</tr>`;
-  }
-
-  function renderRows(columns,items){
-    tbody.innerHTML='';
-    if(!items.length){empty.textContent='No rows match this view and search.';empty.hidden=false;table.hidden=true;return;}
-    empty.hidden=true;table.hidden=false;
-    const fragment=document.createDocumentFragment();
-    for(const item of items){
-      const tr=document.createElement('tr');
-      tr.innerHTML=columns.map(col=>{const value=item[col.field];const text=format(value,col.field_definition);return `<td class="${cellClass(col.field,value)}" title="${esc(text)}">${esc(text)}</td>`}).join('');
-      fragment.appendChild(tr);
-    }
-    tbody.appendChild(fragment);
-  }
-
-  function renderColumnPicker(view){
-    const defaults=new Set(view.columns.map(c=>c.field));
-    const selected=new Set(state.columns||[...defaults]);
-    const presetOrder=view.columns.map(c=>c.field);
-    const extras=state.registry.map(f=>f.key).filter(k=>!presetOrder.includes(k));
-    const ordered=[...presetOrder,...extras];
-    const defs=new Map(state.registry.map(f=>[f.key,f]));
-    columnGrid.innerHTML=ordered.map(key=>{const def=defs.get(key);if(!def)return '';return `<label class="inventory-column-option"><input type="checkbox" value="${esc(key)}" ${selected.has(key)?'checked':''}><span><strong>${esc(def.label)}</strong><small>${esc(def.kind)}</small></span></label>`}).join('');
-  }
-
-  async function loadDefinitions(){
-    const [presets,registry]=await Promise.all([api('/dashboard/api/inventory-view/presets'),api('/dashboard/api/inventory-view/registry')]);
-    state.presets=presets.items||[];state.registry=registry.fields||[];
-    presetSelect.innerHTML=state.presets.map(view=>`<option value="${esc(view.view_id)}">${esc(view.name)}</option>`).join('');
-    presetSelect.value=state.preset;
-  }
-
-  async function load(){
-    if(state.loading)return;state.loading=true;
-    empty.hidden=false;empty.textContent='Loading inventory view…';table.hidden=true;meta.textContent='Loading…';
-    try{
-      if(!state.presets.length)await loadDefinitions();
-      const params=new URLSearchParams({preset:state.preset,limit:String(state.limit),offset:String(state.offset)});
-      if(state.q)params.set('q',state.q);
-      if(state.columns?.length)params.set('fields',state.columns.join(','));
-      const data=await api('/dashboard/api/inventory-view/rows?'+params.toString());
-      const view=data.view;const columns=data.columns||[];const items=data.items||[];
-      $('#inventoryViewName').textContent=view.name;
-      $('#inventoryViewDescription').textContent=view.description;
-      renderColumns(columns);renderRows(columns,items);renderColumnPicker(view);
-      meta.textContent=`${view.row_grain.replaceAll('_',' ')} · Store ${view.store_scope} · ${items.length.toLocaleString()} rows shown · Read-only shadow projection`;
-      const start=items.length?state.offset+1:0;const end=state.offset+items.length;
-      $('#inventoryPageLabel').textContent=`Rows ${start.toLocaleString()}–${end.toLocaleString()}`;
-      $('#inventoryPrev').disabled=state.offset===0;
-      $('#inventoryNext').disabled=items.length<state.limit;
-    }catch(err){
-      empty.hidden=false;table.hidden=true;empty.textContent=err.message;meta.textContent='Unable to load configurable inventory view.';
-    }finally{state.loading=false;}
-  }
-
-  let timer=null;
-  presetSelect.addEventListener('change',()=>{state.preset=presetSelect.value;state.offset=0;state.columns=null;load()});
+  let timer=null,reasonTimer=null;
+  presetSelect.addEventListener('change',()=>{state.preset=presetSelect.value;state.offset=0;state.columns=null;state.selected.clear();drawer.hidden=true;syncReviewControls();load()});
   search.addEventListener('input',()=>{clearTimeout(timer);timer=setTimeout(()=>{state.q=search.value.trim();state.offset=0;load()},180)});
+  mappingStatus.addEventListener('change',()=>{state.mappingStatus=mappingStatus.value;state.offset=0;load()});
+  sourceClassification.addEventListener('change',()=>{state.sourceClassification=sourceClassification.value;state.offset=0;load()});
+  reviewReason.addEventListener('input',()=>{clearTimeout(reasonTimer);reasonTimer=setTimeout(()=>{state.reviewReason=reviewReason.value.trim();state.offset=0;load()},180)});
+  $('#inventoryClearFilters').addEventListener('click',()=>{state.mappingStatus='';state.sourceClassification='';state.reviewReason='';mappingStatus.value='';sourceClassification.value='';reviewReason.value='';state.offset=0;load()});
   $('#inventoryViewRefresh').addEventListener('click',()=>load());
   $('#inventoryColumnsToggle').addEventListener('click',()=>{columnsPanel.hidden=!columnsPanel.hidden});
   $('#inventoryColumnsReset').addEventListener('click',()=>{state.columns=null;columnsPanel.hidden=true;load()});
   $('#inventoryColumnsApply').addEventListener('click',()=>{const selected=[...columnGrid.querySelectorAll('input:checked')].map(input=>input.value);if(!selected.length)return;state.columns=selected;state.offset=0;columnsPanel.hidden=true;load()});
-  $('#inventoryPrev').addEventListener('click',()=>{state.offset=Math.max(0,state.offset-state.limit);load()});
-  $('#inventoryNext').addEventListener('click',()=>{state.offset+=state.limit;load()});
+  $('#inventoryPrev').addEventListener('click',()=>{state.offset=Math.max(0,state.offset-state.limit);drawer.hidden=true;load()});
+  $('#inventoryNext').addEventListener('click',()=>{state.offset+=state.limit;drawer.hidden=true;load()});
+  $('#inventoryClearSelection').addEventListener('click',()=>{state.selected.clear();tbody.querySelectorAll('.inventory-row-check').forEach(input=>{input.checked=false});updateSelection()});
+  $('#inventoryDrawerClose').addEventListener('click',()=>{drawer.hidden=true;state.drawerIndex=null});
+  tbody.addEventListener('click',event=>{const tr=event.target.closest('tr[data-row-index]');if(!tr)return;const index=Number(tr.dataset.rowIndex),key=tr.dataset.rowKey;if(event.target.matches('.inventory-row-check')){event.stopPropagation();event.target.checked?state.selected.add(key):state.selected.delete(key);updateSelection();return}openDrawer(index)});
   root.addEventListener('click',event=>{const nav=event.target.closest('.nav-btn[data-view="inventory"]');if(nav)setTimeout(load,0)});
-
   load();
 })();
