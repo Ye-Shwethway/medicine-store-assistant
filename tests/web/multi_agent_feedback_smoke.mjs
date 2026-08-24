@@ -14,6 +14,8 @@ await page.setContent(`
     <button id="aiMultiTab" type="button">Multi-Agent</button>
     <div id="aiMultiMode"></div>
     <div class="ai-chat-head"></div>
+    <div class="ai-conversation-item active"><button data-ai-conversation="chat-1">Chat one</button></div>
+    <form id="aiChatForm"><textarea id="aiMessageInput"></textarea><button id="aiSend" type="submit">Send</button></form>
   </main>
 `);
 
@@ -22,7 +24,7 @@ await page.evaluate(() => {
   const baseArtifacts = [
     { artifact_id: 'owner-1', artifact_type: 'OWNER_TASK', version: 1, created_at: now, payload: { task: 'Inspect current evidence.' } },
     { artifact_id: 'native-1', artifact_type: 'PARTICIPANT_OUTPUT', version: 1, created_at: now, payload: { role: 'REVIEWER', response: 'Native review complete.', provenance: { agent_display_name: 'Reviewer', selected_provider_name: 'Test', selected_model_name: 'Model' } } },
-    { artifact_id: 'external-1', artifact_type: 'EXTERNAL_REVIEW_SUBMISSION', version: 1, created_at: now, payload: { notes: 'External evidence review.', verdict: 'COMMENT', external_agent_display_name: 'IANEO', bound_artifact_version: 2 } },
+    { artifact_id: 'external-1', artifact_type: 'EXTERNAL_REVIEW_SUBMISSION', version: 1, created_at: now, payload: { notes: 'External evidence review.', verdict: 'COMMENT', external_agent_display_name: 'IANEO', bound_artifact_id: 'native-1', bound_artifact_version: 1 } },
   ];
   window.__requests = [];
   window.__work = {
@@ -42,12 +44,22 @@ await page.evaluate(() => {
       return response({ degraded: false, items: [{ work_item_id: 'work-1', title: 'Reliability acceptance', status: window.__work.status, session_name: 'Review', updated_at: window.__work.updated_at }] });
     }
     if (url === '/dashboard/api/ai-workspace/multi-agent/work-items/work-1' && method === 'GET') return response(window.__work);
+    if (url === '/dashboard/api/ai-workspace/multi-agent/work-items/work-1/owner-messages' && method === 'POST') {
+      const body = JSON.parse(options.body || '{}');
+      const ownerMessage = { artifact_id: 'owner-message-1', artifact_type: 'OWNER_MESSAGE', version: 1, created_at: new Date().toISOString(), payload: { message: body.message, staged_for_review: true } };
+      window.__work = { ...window.__work, artifacts: [...window.__work.artifacts, ownerMessage], updated_at: new Date().toISOString() };
+      return response(window.__work);
+    }
     if (url === '/dashboard/api/ai-workspace/multi-agent/work-items/work-1/feedback-pass' && method === 'POST') {
-      const ownerRevision = {
-        artifact_id: 'owner-feedback-1', artifact_type: 'OWNER_REVISION', version: 1, created_at: new Date().toISOString(),
-        payload: { instruction: 'Use the external review as feedback for the next pass.', feedback_pass: true },
-      };
-      window.__work = { ...window.__work, status: 'REVIEWING', artifacts: [...window.__work.artifacts, ownerRevision], updated_at: new Date().toISOString() };
+      const pendingOwnerIds = window.__work.artifacts.filter(a => a.artifact_type === 'OWNER_MESSAGE').map(a => a.artifact_id);
+      const pendingExternalIds = window.__work.events.some(e => e.event_type === 'OWNER_STARTED_FEEDBACK_PASS') ? [] : ['external-1'];
+      const event = { event_type: 'OWNER_STARTED_FEEDBACK_PASS', actor_type: 'OWNER', created_at: new Date().toISOString(), payload: { owner_message_artifact_ids: pendingOwnerIds, external_review_artifact_ids: pendingExternalIds } };
+      window.__work = { ...window.__work, status: 'REVIEWING', events: [...window.__work.events, event], updated_at: new Date().toISOString() };
+      setTimeout(() => {
+        const nextVersion = window.__work.artifacts.filter(a => a.artifact_type === 'PARTICIPANT_OUTPUT').length + 1;
+        const participant = { artifact_id: 'native-' + nextVersion, artifact_type: 'PARTICIPANT_OUTPUT', version: nextVersion, created_at: new Date().toISOString(), payload: { role: 'REVIEWER', response: 'Native feedback pass complete.', provenance: { agent_display_name: 'Reviewer', selected_provider_name: 'Test', selected_model_name: 'Model' } } };
+        window.__work = { ...window.__work, status: 'WAITING_OWNER', artifacts: [...window.__work.artifacts, participant], updated_at: new Date().toISOString() };
+      }, 100);
       return response(window.__work, 202);
     }
     return response({ detail: `Unhandled test request: ${method} ${url}` }, 500);
@@ -70,15 +82,58 @@ assert.equal(await page.locator('#aiMultiMode').evaluate(el => el.classList.cont
 await workCard.click();
 await page.getByText('External evidence review.').waitFor({ state: 'visible' });
 
-// The button lives in replaceable DOM. Delegated event wiring must survive the live renderer.
-const feedback = page.getByRole('button', { name: 'Send feedback to review team' });
-await feedback.waitFor({ state: 'visible' });
-await feedback.click();
+// Existing external feedback is actionable exactly once.
+const reviewSend = page.getByRole('button', { name: 'Send review' });
+await reviewSend.waitFor({ state: 'visible' });
+assert.equal(await reviewSend.isEnabled(), true);
+await reviewSend.click();
 await page.waitForFunction(() => window.__requests.some(r => r.url.endsWith('/feedback-pass') && r.method === 'POST'));
-
 const feedbackRequest = await page.evaluate(() => window.__requests.find(r => r.url.endsWith('/feedback-pass') && r.method === 'POST'));
 assert.deepEqual(JSON.parse(feedbackRequest.body), { instruction: null });
-await page.getByText('Use the external review as feedback for the next pass.').waitFor({ state: 'visible' });
+
+// After the pass settles, consumed external feedback must stay disabled on rehydration.
+await page.waitForFunction(() => window.__work.status === 'WAITING_OWNER');
+await page.waitForTimeout(1200);
+const settled = page.getByRole('button', { name: 'Review sent' });
+await settled.waitFor({ state: 'visible' });
+assert.equal(await settled.isDisabled(), true);
+await page.getByRole('button', { name: /Back to reviews/ }).click();
+const detailGetsBeforeSettledReopen = await page.evaluate(() => window.__requests.filter(r => r.url === '/dashboard/api/ai-workspace/multi-agent/work-items/work-1' && r.method === 'GET').length);
+await workCard.click();
+await page.waitForFunction(
+  before => window.__requests.filter(r => r.url === '/dashboard/api/ai-workspace/multi-agent/work-items/work-1' && r.method === 'GET').length > before,
+  detailGetsBeforeSettledReopen,
+);
+await settled.waitFor({ state: 'visible' });
+assert.equal(await settled.isDisabled(), true);
+
+// Ordinary Owner Send persists a message only and must not itself start another feedback pass.
+const feedbackCallsBeforeMessage = await page.evaluate(() => window.__requests.filter(r => r.url.endsWith('/feedback-pass')).length);
+await page.getByRole('textbox', { name: 'Owner message' }).fill('Please focus on rows 312 and 648.');
+await page.getByRole('button', { name: 'Send Owner message' }).click();
+await page.waitForFunction(() => window.__requests.some(r => r.url.endsWith('/owner-messages') && r.method === 'POST'));
+await page.waitForFunction(() => window.__work.artifacts.some(a => a.artifact_type === 'OWNER_MESSAGE'));
+const feedbackCallsAfterMessage = await page.evaluate(() => window.__requests.filter(r => r.url.endsWith('/feedback-pass')).length);
+assert.equal(feedbackCallsAfterMessage, feedbackCallsBeforeMessage);
+
+// Reopen proves the ordinary message and newly actionable review state rehydrate from persisted work detail.
+await page.getByRole('button', { name: /Back to reviews/ }).click();
+const detailGetsBeforeMessageReopen = await page.evaluate(() => window.__requests.filter(r => r.url === '/dashboard/api/ai-workspace/multi-agent/work-items/work-1' && r.method === 'GET').length);
+await workCard.click();
+await page.waitForFunction(
+  before => window.__requests.filter(r => r.url === '/dashboard/api/ai-workspace/multi-agent/work-items/work-1' && r.method === 'GET').length > before,
+  detailGetsBeforeMessageReopen,
+);
+await page.getByText('Please focus on rows 312 and 648.').waitFor({ state: 'visible' });
+assert.equal(await page.getByRole('button', { name: 'Send review' }).isEnabled(), true);
+
+// Composer-side exports reuse the exact same endpoints as the top actions.
+const reviewDocxHrefs = await page.locator('a[href$="/export?format=docx"]').evaluateAll(nodes => nodes.map(n => n.getAttribute('href')));
+assert.ok(reviewDocxHrefs.filter(href => href === '/dashboard/api/ai-workspace/multi-agent/work-items/work-1/export?format=docx').length >= 2);
+const singleDocx = page.locator('#aiChatForm .ai-chat-export-composer a', { hasText: 'DOCX' });
+await singleDocx.waitFor({ state: 'visible' });
+assert.equal(await singleDocx.getAttribute('href'), '/dashboard/api/ai-workspace/conversations/chat-1/export?format=docx');
+assert.equal(await page.locator('#aiSend').getAttribute('aria-label'), 'Send message');
 
 await browser.close();
 console.log('multi_agent_feedback_browser_smoke=pass');

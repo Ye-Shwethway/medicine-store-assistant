@@ -45,7 +45,19 @@
   }
 
   function statusNotice(text,kind='info'){const el=document.querySelector('#aiMultiMode #reviewUiStatus');if(!el)return;el.textContent=text||'';el.dataset.kind=kind;el.hidden=!text}
-  function reviewExportHtml(workItemId){const id=encodeURIComponent(workItemId);return '<div class="review-export-actions" data-review-export-for="'+esc(workItemId)+'"><a href="/dashboard/api/ai-workspace/multi-agent/work-items/'+id+'/export?format=docx">DOCX</a><a href="/dashboard/api/ai-workspace/multi-agent/work-items/'+id+'/export?format=json">JSON</a></div>'}
+  function reviewExportHtml(workItemId,position='top'){const id=encodeURIComponent(workItemId);return '<div class="review-export-actions review-export-'+esc(position)+'" data-review-export-for="'+esc(workItemId)+'"><a href="/dashboard/api/ai-workspace/multi-agent/work-items/'+id+'/export?format=docx">DOCX</a><a href="/dashboard/api/ai-workspace/multi-agent/work-items/'+id+'/export?format=json">JSON</a></div>'}
+  function consumedIds(item,key){const ids=new Set();(item.events||[]).forEach(event=>{if(event.event_type!=='OWNER_STARTED_FEEDBACK_PASS')return;((event.payload||{})[key]||[]).forEach(id=>{if(id)ids.add(String(id))})});return ids}
+  function pendingReviewInputs(item){
+    const artifacts=item.artifacts||[];
+    const consumedOwner=consumedIds(item,'owner_message_artifact_ids');
+    const consumedExternal=consumedIds(item,'external_review_artifact_ids');
+    const ownerMessages=artifacts.filter(a=>a.artifact_type==='OWNER_MESSAGE'&&!consumedOwner.has(String(a.artifact_id)));
+    const externalReviews=artifacts.filter(a=>a.artifact_type==='EXTERNAL_REVIEW_SUBMISSION'&&!consumedExternal.has(String(a.artifact_id)));
+    return {ownerMessages,externalReviews,actionable:ownerMessages.length>0||externalReviews.length>0};
+  }
+  function latestReviewableArtifact(item){return (item.artifacts||[]).filter(a=>a.artifact_type==='PARTICIPANT_OUTPUT').slice().sort((a,b)=>Number(b.version||0)-Number(a.version||0))[0]||null}
+  function hasExternalForLatest(item){const latest=latestReviewableArtifact(item);if(!latest)return false;return (item.artifacts||[]).some(a=>a.artifact_type==='EXTERNAL_REVIEW_SUBMISSION'&&String(a.payload?.bound_artifact_id||'')===String(latest.artifact_id)&&Number(a.payload?.bound_artifact_version||0)===Number(latest.version||0))}
+
   function enterReviewChatView(){
     const host=document.querySelector('#aiMultiMode');
     if(!host)return;
@@ -73,10 +85,11 @@
     head.prepend(button);
   }
 
-  function federationActionHtml(workItemId,status,hasExternalSubmission=false){
+  function federationActionHtml(workItemId,status,alreadyReviewed=false){
     if(status==='WAITING_EXTERNAL')return '<div class="review-federation-action review-federation-wait"><span class="review-live-dot"></span><div><strong>Waiting for external review</strong><small>Bound artifact snapshot is available to authorized external MCP agents.</small></div></div>';
     if(status!=='WAITING_OWNER')return '';
-    return '<div class="review-federation-action"><div><strong>'+(hasExternalSubmission?'External review received':'Optional external review')+'</strong><small>Freeze the latest Review artifact/version for an authorized external MCP reviewer.</small></div><button type="button" data-request-external-review="'+esc(workItemId)+'">'+(hasExternalSubmission?'Request another':'Request external review')+'</button></div>';
+    if(alreadyReviewed)return '<div class="review-federation-action review-federation-settled"><div><strong>External review received</strong><small>The latest Review artifact already has an external review. A new native pass creates a new reviewable artifact.</small></div><button type="button" disabled>Review received</button></div>';
+    return '<div class="review-federation-action"><div><strong>Optional external review</strong><small>Freeze the latest Review artifact/version for an authorized external MCP reviewer.</small></div><button type="button" data-request-external-review="'+esc(workItemId)+'">Request external review</button></div>';
   }
 
   function renderLive(item){
@@ -96,6 +109,10 @@
         const payload=a.payload||{};const text=cleanDisplayText(payload.notes||'');const verdict=payload.verdict?'<span class="review-verdict">'+esc(payload.verdict)+'</span>':'';
         return '<article class="review-chat-turn review-chat-agent review-chat-external"><div class="review-chat-meta"><div><strong>'+esc(payload.external_agent_display_name||payload.external_agent_call_name||'External MCP reviewer')+'</strong><span>EXTERNAL REVIEW</span></div>'+verdict+'</div><div class="review-chat-bubble" data-review-copy-text="'+esc(text)+'">'+esc(text)+'</div><div class="review-chat-provenance"><span>External MCP evidence · exact artifact v'+Number(payload.bound_artifact_version||0)+'</span></div><button class="review-message-copy" type="button">Copy</button></article>';
       }
+      if(a.artifact_type==='OWNER_MESSAGE'){
+        const text=cleanDisplayText(a.payload?.message||'');
+        return '<article class="review-chat-turn review-chat-owner"><div class="review-chat-meta"><strong>Owner</strong><span>MESSAGE</span></div><div class="review-chat-bubble" data-review-copy-text="'+esc(text)+'">'+esc(text)+'</div><button class="review-message-copy" type="button">Copy</button></article>';
+      }
       if(a.artifact_type==='OWNER_REVISION'){
         const text=cleanDisplayText(a.payload?.instruction||'');
         return '<article class="review-chat-turn review-chat-owner"><div class="review-chat-meta"><strong>Owner</strong><span>FEEDBACK</span></div><div class="review-chat-bubble" data-review-copy-text="'+esc(text)+'">'+esc(text)+'</div><button class="review-message-copy" type="button">Copy</button></article>';
@@ -104,9 +121,9 @@
     };
     artifacts.forEach(a=>{const turn=artifactTurn(a);if(turn)turns.push(turn)});
     const running=item.status==='REVIEWING'?'<div class="review-live-wait"><span class="review-live-dot"></span>Waiting for the next configured participant…</div>':'';
-    const hasExternal=artifacts.some(a=>a.artifact_type==='EXTERNAL_REVIEW_SUBMISSION');
-    const ownerAction=item.status==='WAITING_OWNER'?'<div class="review-owner-action review-chat-composer"><label for="reviewRevisionInstruction">Owner message</label><textarea id="reviewRevisionInstruction" maxlength="5000" placeholder="Add instructions, or leave blank to send the external review back to the native team."></textarea><button type="button" id="reviewReturnRevision">Send feedback to review team</button></div>':'';
-    detail.innerHTML='<div class="review-chatbox-head"><div><div class="review-detail-title"><h3>'+esc(item.title)+'</h3><span class="review-status review-status-'+esc(String(item.status||'').toLowerCase())+'">'+esc(item.status)+'</span></div><span class="review-id">'+esc(item.work_item_id)+'</span></div>'+reviewExportHtml(item.work_item_id)+'<div class="review-safety-line"><strong>Production mutation: NO</strong><span>Database canonical: NO</span></div>'+federationActionHtml(item.work_item_id,item.status,hasExternal)+'</div><div class="review-chat-stream">'+turns.join('')+running+'</div>'+ownerAction;
+    const reviewInputs=pendingReviewInputs(item);
+    const ownerAction=item.status==='WAITING_OWNER'?'<div class="review-owner-action review-chat-composer">'+reviewExportHtml(item.work_item_id,'composer')+'<label for="reviewRevisionInstruction">Owner message</label><div class="review-message-compose-row"><textarea id="reviewRevisionInstruction" maxlength="5000" placeholder="Write a message, then tap Send. Messages wait here until you send the next review pass."></textarea><button type="button" class="review-message-send" data-owner-message-send="'+esc(item.work_item_id)+'" aria-label="Send Owner message" title="Send message">➤</button></div><button type="button" id="reviewReturnRevision" data-review-send-pass="'+esc(item.work_item_id)+'"'+(reviewInputs.actionable?'':' disabled')+'>'+(reviewInputs.actionable?'Send review':'Review sent')+'</button><small class="review-send-state">'+(reviewInputs.actionable?'New Owner/external feedback is ready for the native review team.':'No unsent review feedback.')+'</small></div>':'';
+    detail.innerHTML='<div class="review-chatbox-head"><div><div class="review-detail-title"><h3>'+esc(item.title)+'</h3><span class="review-status review-status-'+esc(String(item.status||'').toLowerCase())+'">'+esc(item.status)+'</span></div><span class="review-id">'+esc(item.work_item_id)+'</span></div>'+reviewExportHtml(item.work_item_id)+'<div class="review-safety-line"><strong>Production mutation: NO</strong><span>Database canonical: NO</span></div>'+federationActionHtml(item.work_item_id,item.status,hasExternalForLatest(item))+'</div><div class="review-chat-stream">'+turns.join('')+running+'</div>'+ownerAction;
     ensureReviewBackButton();
     const stream=detail.querySelector('.review-chat-stream');if(stream)stream.scrollTop=stream.scrollHeight;scheduleReconcile();
   }
@@ -151,6 +168,16 @@
     try{const item=await api('/dashboard/api/ai-workspace/multi-agent/work-items/'+encodeURIComponent(workItemId)+'/request-external-review',{method:'POST',body:JSON.stringify({})});hydrateWorkId=workItemId;renderLive(item);statusNotice('External review requested. Waiting for an authorized external MCP agent.','success');liveWorkId=workItemId;liveLastSignature=signature(item);if(livePollTimer)clearTimeout(livePollTimer);livePollTimer=setTimeout(pollLive,1000);setTimeout(()=>document.querySelector('#aiMultiMode #reviewRefresh')?.click(),300)}catch(err){statusNotice(err.message,'error');if(button){button.disabled=false;button.textContent='Request external review'}}
   }
 
+  async function sendOwnerMessage(workItemId,button){
+    if(!workItemId)return;const input=document.querySelector('#aiMultiMode #reviewRevisionInstruction');const message=String(input?.value||'').trim();if(!message){statusNotice('Write a message before sending.','error');return}if(button)button.disabled=true;
+    try{const item=await api('/dashboard/api/ai-workspace/multi-agent/work-items/'+encodeURIComponent(workItemId)+'/owner-messages',{method:'POST',body:JSON.stringify({message})});hydrateWorkId=workItemId;renderLive(item);statusNotice('Message saved. Send review when you want the native team to act on the pending feedback.','success')}catch(err){statusNotice(err.message,'error');if(button)button.disabled=false}
+  }
+
+  async function sendReviewPass(workItemId,button){
+    if(!workItemId||button?.disabled)return;if(button){button.disabled=true;button.textContent='Sending review…'}statusNotice('Sending the pending Owner/external feedback to the native review team…');
+    try{const item=await api('/dashboard/api/ai-workspace/multi-agent/work-items/'+encodeURIComponent(workItemId)+'/feedback-pass',{method:'POST',body:JSON.stringify({instruction:null})});hydrateWorkId=workItemId;renderLive(item);statusNotice('Review sent. Native participants are running a new pass.','success');liveWorkId=workItemId;liveLastSignature=signature(item);if(livePollTimer)clearTimeout(livePollTimer);livePollTimer=setTimeout(pollLive,1000)}catch(err){statusNotice(err.message,'error');if(button){button.disabled=false;button.textContent='Send review'}}
+  }
+
   async function deleteReview(workItemId,button){
     if(!workItemId)return;const confirmed=window.confirm('Delete this Review from workspace history? Audit evidence will be preserved.');if(!confirmed)return;if(button){button.disabled=true;button.dataset.restoreText=button.textContent;button.textContent=button.classList.contains('review-work-delete')?'…':'Deleting…'}
     try{await api('/dashboard/api/ai-workspace/multi-agent/work-items/'+encodeURIComponent(workItemId),{method:'DELETE'});if(liveWorkId===workItemId)stopLivePolling();if(hydrateWorkId===workItemId)hydrateWorkId=null;const activeCard=document.querySelector('#aiMultiMode .review-work-item.active');const activeId=activeCard?.dataset.workId||'';if(activeId===workItemId){const detail=document.querySelector('#aiMultiMode #reviewWorkDetail');if(detail)detail.innerHTML='<div class="review-empty"><strong>Review deleted</strong><p>Removed from Recent Review work. Audit evidence remains preserved.</p></div>'}statusNotice('Review deleted from workspace history. Audit evidence was preserved.','success');setTimeout(()=>document.querySelector('#aiMultiMode #reviewRefresh')?.click(),250)}catch(err){statusNotice(err.message,'error');if(button){button.disabled=false;button.textContent=button.dataset.restoreText||'×'}}
@@ -159,7 +186,7 @@
   function addWorkCardDeleteControls(scope=document){scope.querySelectorAll?.('#aiMultiMode .review-work-item:not([data-delete-shell-ready])').forEach(card=>{const id=card.dataset.workId;if(!id)return;card.dataset.deleteShellReady='1';const parent=card.parentNode;if(!parent)return;const shell=document.createElement('div');shell.className='review-work-card-shell';parent.insertBefore(shell,card);shell.appendChild(card);const button=document.createElement('button');button.type='button';button.className='review-delete-action review-work-delete';button.dataset.reviewDeleteFor=id;button.textContent='×';button.setAttribute('aria-label','Delete '+(card.querySelector('.review-work-title strong')?.textContent||'Review'));button.title='Delete review';shell.appendChild(button)})}
 
   function syncFederationAction(detail,id){
-    const head=detail?.querySelector('.review-chatbox-head');if(!id||!head)return;head.querySelectorAll('.review-federation-action').forEach(el=>el.remove());const status=detail.querySelector('.review-status')?.textContent?.trim()||'';const hasExternal=detail.textContent?.includes('EXTERNAL REVIEW')||false;if(status==='WAITING_OWNER'||status==='WAITING_EXTERNAL'){const wrapper=document.createElement('div');wrapper.innerHTML=federationActionHtml(id,status,hasExternal);const action=wrapper.firstElementChild;if(action)head.appendChild(action)}
+    const head=detail?.querySelector('.review-chatbox-head');if(!id||!head)return;head.querySelectorAll('.review-federation-action').forEach(el=>el.remove());const status=detail.querySelector('.review-status')?.textContent?.trim()||'';if(status!=='WAITING_OWNER'&&status!=='WAITING_EXTERNAL')return;hydrateOpenedReview()
   }
 
   function polishReviewDom(scope=document){
@@ -168,7 +195,14 @@
   }
 
   function currentConversationId(){return document.querySelector('.ai-conversation-item.active [data-ai-conversation]')?.dataset.aiConversation||null}
-  function syncSingleChatExport(){const head=document.querySelector('.ai-chat-head');if(!head)return;let actions=head.querySelector('.ai-chat-export-actions');const id=currentConversationId();if(!id){actions?.remove();return}if(actions?.dataset.conversationId===id)return;if(!actions){actions=document.createElement('div');actions.className='ai-chat-export-actions';head.appendChild(actions)}actions.dataset.conversationId=id;actions.replaceChildren();const label=document.createElement('span');label.textContent='Export';const docx=document.createElement('a');docx.textContent='DOCX';docx.href='/dashboard/api/ai-workspace/conversations/'+encodeURIComponent(id)+'/export?format=docx';const json=document.createElement('a');json.textContent='JSON';json.href='/dashboard/api/ai-workspace/conversations/'+encodeURIComponent(id)+'/export?format=json';actions.append(label,docx,json)}
+  function singleExportHtml(id,position='top'){const encoded=encodeURIComponent(id);return '<div class="ai-chat-export-actions ai-chat-export-'+esc(position)+'" data-conversation-id="'+esc(id)+'"><span>Export</span><a href="/dashboard/api/ai-workspace/conversations/'+encoded+'/export?format=docx">DOCX</a><a href="/dashboard/api/ai-workspace/conversations/'+encoded+'/export?format=json">JSON</a></div>'}
+  function syncSingleChatExport(){
+    const id=currentConversationId();const head=document.querySelector('.ai-chat-head');const form=document.querySelector('#aiChatForm');if(!head||!form)return;
+    let actions=head.querySelector('.ai-chat-export-actions');if(!id){actions?.remove();form.querySelector('.ai-chat-export-composer')?.remove();return}
+    if(!actions||actions.dataset.conversationId!==id){if(actions)actions.remove();const wrapper=document.createElement('div');wrapper.innerHTML=singleExportHtml(id);actions=wrapper.firstElementChild;if(actions)head.appendChild(actions)}
+    let bottom=form.querySelector('.ai-chat-export-composer');if(!bottom||bottom.dataset.conversationId!==id){bottom?.remove();const wrapper=document.createElement('div');wrapper.innerHTML=singleExportHtml(id,'composer');bottom=wrapper.firstElementChild;if(bottom){bottom.classList.add('ai-chat-export-composer');form.prepend(bottom)}}
+    const send=form.querySelector('#aiSend');if(send){send.classList.add('ai-send-icon');send.textContent='➤';send.setAttribute('aria-label','Send message');send.title='Send message'}
+  }
   function reconcileDom(){reconcileFrame=null;polishReviewDom(document);syncSingleChatExport();hydrateOpenedReview()}
   function scheduleReconcile(){if(reconcileFrame!==null)return;reconcileFrame=requestAnimationFrame(reconcileDom)}
 
@@ -176,6 +210,8 @@
     const run=event.target.closest('#aiMultiMode #reviewRun');if(run){event.preventDefault();event.stopPropagation();startLiveReview();return}
     const copy=event.target.closest('.review-message-copy');if(copy){const text=copy.closest('.review-chat-turn')?.querySelector('.review-chat-bubble')?.dataset.reviewCopyText||'';copyText(text,copy);return}
     const back=event.target.closest('[data-review-back]');if(back){event.preventDefault();event.stopPropagation();exitReviewChatView();return}
+    const ownerSend=event.target.closest('[data-owner-message-send]');if(ownerSend){event.preventDefault();event.stopPropagation();sendOwnerMessage(ownerSend.dataset.ownerMessageSend,ownerSend);return}
+    const reviewSend=event.target.closest('[data-review-send-pass]');if(reviewSend){event.preventDefault();event.stopPropagation();sendReviewPass(reviewSend.dataset.reviewSendPass,reviewSend);return}
     const external=event.target.closest('[data-request-external-review]');if(external){event.preventDefault();event.stopPropagation();requestExternalReview(external.dataset.requestExternalReview,external);return}
     const deleteButton=event.target.closest('.review-delete-action');if(deleteButton){event.preventDefault();event.stopPropagation();deleteReview(deleteButton.dataset.reviewDeleteFor,deleteButton);return}
     if(event.target.closest('[data-ai-conversation],#aiNewConversation,#aiWorkspaceNav,[data-ai-tab],#aiMultiMode .review-work-item')){const card=event.target.closest('#aiMultiMode .review-work-item');if(card){hydrateWorkId=null;enterReviewChatView()}scheduleReconcile()}

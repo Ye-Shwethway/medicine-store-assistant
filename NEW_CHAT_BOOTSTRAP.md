@@ -169,7 +169,7 @@ Critical rules:
 
 ### Content-derived asset identity
 
-Dashboard bundle identities are now automatically derived from the exact served file content while preserving semantic prefixes, for example:
+Dashboard bundle identities are automatically derived from the exact served file content while preserving semantic prefixes, for example:
 
 `f72d48-review-ui-<12-char-hash>`
 
@@ -197,6 +197,44 @@ Issue #26 production evidence:
 
 All 13 relevant regression workflows were green on the accepted PR head before merge, including the new Web production reliability browser smoke.
 
+Continuity sync PR #124 merge:
+
+`b6e7985bebac7ffd2b1631ba24177c63920d807b`
+
+## CURRENT bounded Web UX slice
+
+The next active work is deliberately small and must preserve the hardened renderer/persistence contracts.
+
+### Review-send state
+
+- A Review send/request action is a workflow action, not a generic chat send.
+- It is enabled only while an actionable unsent/pending Review request exists.
+- After successful persisted send/request, it must settle/disable (`Review sent` or equivalent).
+- Refresh/reopen must rehydrate the settled state and must not accidentally enable the old action again.
+- A genuinely new actionable Review request may enable it again.
+- Backend duplicate protection remains required independently of the UI.
+
+### Normal Owner send
+
+- Single Chat and Multi-Agent messaging need an ordinary composer Send control, preferably a compact Telegram-style send icon/button.
+- Normal Send must call only the normal conversation/message path.
+- Review workflow state must not disable ordinary messaging.
+
+### Composer-adjacent exports
+
+- Existing top-level DOCX/JSON controls remain.
+- Add compact DOCX/JSON controls at the composer/bottom region for long conversations.
+- Apply to Single Chat and Multi-Agent.
+- Bottom controls must invoke the same existing export implementation, not a fork.
+
+### Browser acceptance for this slice
+
+Prove behavior, not strings:
+
+`pending review -> Review enabled -> send/request -> persisted settled/disabled -> refresh/reopen still settled -> new actionable review -> enabled again`
+
+Also prove normal Send does not hit Review endpoints, and composer-side DOCX/JSON uses the same export paths on Single Chat and Multi-Agent mobile layouts.
+
 ## Access + authority invariant
 
 Owner-only controls require backend authorization plus UI restriction. UI hiding is not authorization.
@@ -209,17 +247,18 @@ Provider/model assignment never grants authority. Session participant privileges
 
 ## Next authorized order
 
-1. Keep the new Web reliability standard as a blocking requirement for every future Dashboard slice.
-2. Continue from the proven D4.8 federation/native feedback foundation; do not reintroduce dual-renderer patch patterns.
-3. Add Telegram notification/attention delivery over persisted Attention/Event state; notification failure remains non-fatal.
-4. Add GROUP as a bounded native shared-context loop with Owner pause/resume/stop/steer and optional external checkpoints.
-5. Add COMPARE, preserving independent answers until comparison.
-6. Add DEBATE with bounded rounds before synthesis.
-7. Return to live PRIMARY -> FALLBACK proof when a stable secondary model/provider is available.
-8. Add per-user Chat entitlement/allowed-agent UI plus human/location authority intersection before staff tool rollout.
-9. Expand vision/OCR only through a separate bounded evidence-processing slice.
-10. Controlled store writes remain later and require explicit canonicality/authority/idempotency/audit/read-back authorization.
+1. **CURRENT:** complete Review-send state correctness + normal Send separation + composer-adjacent DOCX/JSON controls.
+2. Keep the Web reliability standard and bounded behavior-level browser acceptance as blocking requirements.
+3. Refresh continuity docs with exact merged/deployed evidence after acceptance.
+4. Add Telegram notification/attention delivery over persisted Attention/Event state; notification failure remains non-fatal.
+5. Add GROUP as a bounded native shared-context loop with Owner pause/resume/stop/steer and optional external checkpoints.
+6. Add COMPARE, preserving independent answers until comparison.
+7. Add DEBATE with bounded rounds before synthesis.
+8. Return to live PRIMARY -> FALLBACK proof when a stable secondary model/provider is available.
+9. Add per-user Chat entitlement/allowed-agent UI plus human/location authority intersection before staff tool rollout.
+10. Expand vision/OCR only through a separate bounded evidence-processing slice.
+11. Controlled store writes remain later and require explicit canonicality/authority/idempotency/audit/read-back authorization.
 
 ## Immediate boundary
 
-Proceed from the now-hardened D4.8/Web foundation. Production inventory mutation and PostgreSQL canonical promotion remain unauthorized.
+Proceed from the hardened D4.8/Web foundation. Production inventory mutation and PostgreSQL canonical promotion remain unauthorized.
