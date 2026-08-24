@@ -27,172 +27,120 @@ Before changing code/config/schema/runtime, read:
 15. `docs/architecture/MIGRATION_AND_SHADOW_VALIDATION.md`
 16. `docs/architecture/SHEET_MIRROR_AND_COMPATIBILITY.md`
 17. `docs/architecture/CMS_CATALOGUE_VERSIONING.md`
-18. `docs/architecture/MONTHLY_LIFECYCLE.md`
-19. `skills/medicine-store-assistant/SKILL.md`
-20. task-relevant files under `skills/medicine-store-assistant/references/`
-21. latest F6C/F6D checkpoints and issue #26 runtime evidence when runtime truth matters.
+18. `skills/medicine-store-assistant/SKILL.md`
+19. latest F6C/F6D checkpoints;
+20. current PR/runtime evidence when deployment truth matters.
 
 Treat newer verified repository/runtime/source evidence as authoritative over remembered chat context.
 
-## Current project priority
+## Current state
 
-The AI Workspace is accepted supporting infrastructure, not the immediate development center.
+- F6C Canonical Inventory Foundation is complete enough for implementation.
+- F6D schema foundation migration `0022_inventory_foundation` is implemented and PostgreSQL-CI verified.
+- Current bounded target is **fresh authorized Main Store shadow snapshot/import + reconciliation**.
+- PostgreSQL remains non-canonical: `database_canonical=false`, `migration_baseline_accepted=false`.
+- F6B is test-only and is not the accepted F6D migration baseline.
 
-**F6C Canonical Inventory Foundation documentation is aligned enough to move into F6D.**
-
-**Current bounded implementation slice: F6D Canonical Inventory Schema Parity + Fresh Shadow Import.**
-
-Exact legacy reorder formula and monthly Excel formula/macro parity are deferred unless they change foundational inventory truth.
-
-## Product direction — LOCKED
-
-Canonical foundation:
+## Locked architecture
 
 `Product -> Lot -> Store -> Movement -> Balance -> Transfer -> CMS Mapping -> Actor/Audit`
 
-Core rules:
+Rules:
 
-> **Spreadsheet layout is configurable; inventory semantics are not arbitrary.**
-
-> **Stock belongs to a location; product and catalogue identity do not.**
-
-> **Store quantity truth comes from movements; totals and operational quantity columns are projections of that truth.**
-
-> **AI enhances store workflows but must not become a single point of operational failure.**
-
-MSA must support:
-
-- one Main Store plus unlimited Sub Stores;
-- human staff and AI agents over one backend;
-- Web, Flutter, Telegram, ChatGPT and automation clients;
-- durable operation with or without ChatGPT/Google Sheets;
-- preset and user-defined spreadsheet-like operational views;
-- deterministic essential fallbacks when AI is unavailable;
-- optional AI-assisted reconciliation and intelligence.
-
-## Canonical inventory semantics
+- spreadsheet layout is configurable; inventory semantics are not arbitrary;
+- stock belongs to a location; Product/CMS identity does not;
+- quantity truth comes from canonical movements;
+- Total Stock is aggregate truth, not an editable master number;
+- AI improves workflows but is not an availability dependency.
 
 ### Product / Lot
 
 - `product_id` = stable local identity.
-- v1 normal `lot_id` = Product + Expiry Date operational identity.
-- changing store/location does not create a new Product/Lot.
-- `No.` is display/order metadata only.
+- normal v1 Lot = Product + structured Expiry Date.
+- Store movement does not create new Product/Lot identity.
+- Main Stock `No.` is presentation/order metadata only.
 
-### Store / balance
+### Store / Balance
 
-- exactly one configured Main Store plus unlimited Sub Stores.
-- canonical balance is per `(store_id, lot_id)`.
-- current live Medicine Store Cloud contains no populated Store/Location field and is treated as the configured legacy Main Store context for migration.
-
-### Quantity fields
-
-Operational views may show:
-
-`Original/Opening Qty | Received Qty | Deducted/Used Qty | Current Qty | Total Stock`
-
-These are not separate mutable truths.
-
-```text
-Current Qty
-  = Opening
-  + Receipts
-  + Transfer In
-  + Positive Adjustments
-  - Usage
-  - Transfer Out
-  - Negative Adjustments
-```
-
-Total system stock is the sum of location balances, not a separately editable master number.
+- exactly one configured Main Store + unlimited Sub Stores;
+- same Lot can hold quantity in multiple stores;
+- balance = per `(store_id, lot_id)`;
+- current live Medicine Store Cloud contains no populated Store column and is treated as legacy Main Store context for migration.
 
 ### Transfer
 
-Internal transfer preserves Product/Lot identity and atomically produces source `TRANSFER_OUT` + destination `TRANSFER_IN` effects under one transfer/operation identity.
+Internal transfer is one typed operation with linked `TRANSFER_OUT` and `TRANSFER_IN` effects. Total system quantity must remain unchanged.
 
-### Universal CMS Catalogue / mapping lifecycle
+### Universal CMS Catalogue / Mapping
 
-- global/versioned external catalogue, not per store;
-- local Product identity does not use CMS Code as primary key;
-- mapping is historical/auditable accepted state, not blind direct sync;
-- current catalogue price is separate from historical receipt/source price;
-- last accepted mapping and operational price remain usable while a newer catalogue is unresolved;
-- recycled/discontinued/ambiguous mappings are structured review states;
-- AI can assist candidate reasoning but cannot silently remap;
-- when AI is unavailable, manual mapping remains possible and ordinary inventory continues with accepted state.
+- CMS catalogue is global/versioned.
+- CMS Code is never local Product identity.
+- Product-CMS mapping is historical/auditable accepted state, not blind direct sync.
+- last accepted mapping and operational price remain usable while a newer catalogue is unresolved.
+- recycled/discontinued/ambiguous states remain explicit.
+- AI may assist mapping review; manual mapping remains possible when AI is unavailable.
+- current CMS catalogue price is separate from historical receipt/source price.
 
-Core rule:
+### Reorder
 
-> **CMS mapping is never blindly auto-synced. Last accepted mapping and price state remain usable until a newer mapping is reviewed and accepted.**
+Future reorder has a deterministic local/backend baseline plus optional AI enhancement/review. Exact legacy Estimated Reorder Qty formula parity is not an F6D schema blocker. AI outage must still leave a useful baseline recommendation.
 
-The live workbook contains `Recycled ID`, `CMS Discontinued (Local Stock Retained)` and same-code/identity-conflict evidence. Do not treat every conflict as a CMS error or a local error; preserve uncertainty for review.
+## F6D schema foundation — IMPLEMENTED
 
-### Actor / audit
+Migration `0022_inventory_foundation` adds:
 
-All protected operations resolve stable human or agent/service-principal identity, client/channel, operation/idempotency ID, source/reason/evidence, outcome and read-back.
+- `stores` and deterministic `MAIN` seed;
+- non-null Store on inventory movements;
+- transfer movement types;
+- store-bound migration batches;
+- receipt batch/line provenance;
+- transfer header/lines linked to paired ledger entries;
+- `product_cms_mappings` lifecycle with accepted operational price retention;
+- `inventory_location_balances`;
+- `inventory_total_stock`.
 
-AI proposal/review never implicitly grants mutation authority.
+Targeted PostgreSQL 16 CI proves:
 
-## Workbook role
+- empty DB -> Alembic head;
+- Main 100 -> transfer 25 -> Main 75 / Sub 25 / total 100;
+- transfer linkage;
+- unresolved new CMS candidate does not erase accepted mapping/price;
+- schema downgrade/re-upgrade after cleanup of synthetic F6D-only business fixtures.
 
-Use the live Google Sheet repeatedly whenever current structure/value behavior matters.
+Do not make downgrade silently delete/coerce real transfer history. A real downgrade with committed F6D-only movement data requires an explicit migration decision.
 
-- Main Stock = operational stock/lot projection.
-- Daily Usage = monthly Day 1-31 pivot/edit view over normalized usage events.
-- This Month Received = derived receipt view.
-- Reorder Form = working view.
-- Final Reorder = reviewed/manual-adjustable output.
-- Master archive = legacy reporting/archive compatibility.
+## CURRENT — fresh shadow import
 
-Representative Google Sheet `FORMULA` reads return materialized values, not exact Excel formula strings. Do not reverse-engineer Excel formulas from them.
+Next bounded sequence:
 
-## Reorder resilience
+1. re-read the live Google workbook source-first;
+2. take a fresh authorized read-only snapshot;
+3. hash and stage it as a migration batch bound to Main Store;
+4. preserve row/sheet provenance;
+5. resolve local Product identities independently of CMS Code;
+6. resolve expiry Lots from structured Expiry Date;
+7. create one provenance-bearing migration `OPENING_BALANCE` per accepted pre-existing lot;
+8. reconcile CMS mapping states without forcing recycled/discontinued/ambiguous matches;
+9. preserve last accepted operational price distinctly from newest catalogue candidates;
+10. use receipt/usage evidence only where source support is strong; never fabricate transaction history;
+11. derive Main Store balances and compare with live Main Stock;
+12. classify mismatches explicitly;
+13. replay the same source snapshot to prove idempotency;
+14. generate shadow Main Stock/Daily Usage projections;
+15. remain non-canonical.
 
-Exact legacy Estimated Reorder Qty formula parity is **not an F6D blocker**, but reorder must work without AI.
+## Source rules
 
-Two-layer model:
+Use the live Google Sheet repeatedly whenever structure/value behavior matters. Representative `FORMULA` reads return materialized values rather than exact legacy Excel formula strings, so do not reverse-engineer formulas from cloud values.
 
-1. deterministic baseline calculation from structured local/backend data and configuration;
-2. optional AI/advanced enhancement/review.
+Important known source facts:
 
-AI unavailable:
-
-`stock/history -> deterministic baseline -> human review/adjustment -> final reorder`
-
-AI available:
-
-`stock/history -> deterministic baseline -> AI enhancement/review -> human/authorized workflow -> final reorder`
-
-The user must not be forced to manually calculate every item merely because AI providers are unavailable.
-
-## Current canonicality boundary
-
-- Google Sheet/source documents remain operationally authoritative.
-- PostgreSQL remains **non-canonical shadow/test**.
-- F6B is not an accepted migration baseline.
-- `database_canonical=false`; `migration_baseline_accepted=false`.
-- no production inventory mutation or canonical promotion is authorized.
-
-## F6D immediate sequence
-
-1. add canonical Store/Location identity;
-2. make stock movements location-aware;
-3. add receipt destination/provenance;
-4. add explicit atomic internal transfer representation;
-5. preserve Product/Lot identity independently of location;
-6. retain Universal CMS Catalogue versioning;
-7. implement historical/auditable Product-CMS mapping lifecycle and last-accepted-state persistence;
-8. ensure actor/audit/idempotency coverage;
-9. take a fresh authorized source snapshot bound to Main Store;
-10. import non-canonically with provenance;
-11. reconcile opening stock, receipts, usage, CMS mapping/price and current balances;
-12. preserve recycled/discontinued/review-required mapping states rather than forcing matches;
-13. prove per-store balance + all-store Total Stock aggregation;
-14. prove Main Stock and Daily Usage projections from DB;
-15. keep mismatches explicit and PostgreSQL non-canonical.
-
-F6D does not need the final AI semantic matcher or full deterministic reorder engine. It must persist the state needed to add them later without redesign.
+- Product identity != expiry Lot identity != CMS catalogue identity.
+- item-name expiry suffix may disagree with structured Expiry Date.
+- recycled/discontinued/same-code conflicts exist and may reflect historical mapping, CMS change, or local staff error; preserve uncertainty for review.
+- current workbook Audit_Log preserves previous/current price state and backup references.
+- actual usage/movement wins over ideal FIFO/FEFO advice.
 
 ## Immediate boundary
 
-Do not let legacy spreadsheet formulas or report formatting drive the canonical schema. Build the minimal durable inventory foundation first, then add configurable views, deterministic fallback engines and optional AI-assisted workflows on top.
+No production inventory write, DB canonical promotion, full semantic AI matcher, full reorder engine, or broad UI expansion belongs in the current import/reconciliation slice.
