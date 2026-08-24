@@ -1,0 +1,68 @@
+name: F6D materialization plan
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/app/f6d_materialization_plan.py'
+      - 'docs/architecture/MAIN_STOCK_DAILY_USAGE_MATERIALIZATION.md'
+      - '.github/workflows/f6d-materialization-plan.yml'
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: msa-f6d-shadow-maintenance
+  cancel-in-progress: false
+
+jobs:
+  plan-materialization:
+    runs-on: [self-hosted, linux, msa-vps]
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          path: source
+          persist-credentials: false
+      - name: Build runtime image
+        shell: bash
+        working-directory: source
+        run: |
+          set -euo pipefail
+          ENV_FILE=/opt/medicine-store-assistant/secrets/runtime.env
+          COMPOSE_FILE="$PWD/deploy/docker-compose.yml"
+          test -r "$ENV_FILE"
+          export COMPOSE_PROJECT_NAME="${MSA_COMPOSE_PROJECT_NAME:-deploy}"
+          docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" build api
+      - name: Generate read-only materialization plan
+        id: plan
+        shell: bash
+        working-directory: source
+        run: |
+          set -euo pipefail
+          ENV_FILE=/opt/medicine-store-assistant/secrets/runtime.env
+          COMPOSE_FILE="$PWD/deploy/docker-compose.yml"
+          export COMPOSE_PROJECT_NAME="${MSA_COMPOSE_PROJECT_NAME:-deploy}"
+          docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm api python -m app.f6d_materialization_plan | tee /tmp/f6d-plan.txt
+      - name: Publish evidence to issue 138
+        shell: bash
+        working-directory: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          {
+            echo '## Main-primary materialization planner'
+            echo
+            echo "source_sha=${GITHUB_SHA}"
+            echo "workflow_run_id=${GITHUB_RUN_ID}"
+            echo 'database_canonical=false'
+            echo 'migration_baseline_accepted=false'
+            echo
+            echo '```text'
+            cat /tmp/f6d-plan.txt
+            echo '```'
+          } > /tmp/f6d-plan-comment.md
+          gh issue comment 138 --repo "$GITHUB_REPOSITORY" --body-file /tmp/f6d-plan-comment.md
