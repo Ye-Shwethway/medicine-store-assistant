@@ -38,7 +38,9 @@
     try{
       if(navigator.clipboard&&window.isSecureContext)await navigator.clipboard.writeText(value);
       else{
-        const area=document.createElement('textarea');area.value=value;area.style.position='fixed';area.style.opacity='0';document.body.appendChild(area);area.select();document.execCommand('copy');area.remove();
+        const area=document.createElement('textarea');
+        area.value=value;area.style.position='fixed';area.style.opacity='0';
+        document.body.appendChild(area);area.select();document.execCommand('copy');area.remove();
       }
       if(button){const old=button.textContent;button.textContent='Copied';setTimeout(()=>button.textContent=old,1200)}
     }catch{window.alert('Could not copy this message.')}
@@ -47,7 +49,11 @@
   async function api(path,opts={}){
     const response=await fetch(path,{credentials:'same-origin',headers:{'Content-Type':'application/json',...(opts.headers||{})},...opts});
     let data=null;try{data=await response.json()}catch{}
-    if(!response.ok){let message='Request failed: '+response.status;if(data?.detail)message=typeof data.detail==='string'?data.detail:(data.detail.message||data.detail.code||message);const error=new Error(message);error.status=response.status;error.data=data;throw error}
+    if(!response.ok){
+      let message='Request failed: '+response.status;
+      if(data?.detail)message=typeof data.detail==='string'?data.detail:(data.detail.message||data.detail.code||message);
+      const error=new Error(message);error.status=response.status;error.data=data;throw error;
+    }
     return data;
   }
 
@@ -56,9 +62,9 @@
     el.textContent=text||'';el.dataset.kind=kind;el.hidden=!text;
   }
 
-  function reviewActionsHtml(workItemId){
+  function reviewExportHtml(workItemId){
     const id=encodeURIComponent(workItemId);
-    return '<div class="review-export-actions" data-review-export-for="'+esc(workItemId)+'"><a href="/dashboard/api/ai-workspace/multi-agent/work-items/'+id+'/export?format=docx">DOCX</a><a href="/dashboard/api/ai-workspace/multi-agent/work-items/'+id+'/export?format=json">JSON</a><button class="review-delete-action" type="button" data-review-delete-for="'+esc(workItemId)+'">Delete</button></div>';
+    return '<div class="review-export-actions" data-review-export-for="'+esc(workItemId)+'"><a href="/dashboard/api/ai-workspace/multi-agent/work-items/'+id+'/export?format=docx">DOCX</a><a href="/dashboard/api/ai-workspace/multi-agent/work-items/'+id+'/export?format=json">JSON</a></div>';
   }
 
   function renderLive(item){
@@ -73,7 +79,9 @@
       turns.push('<article class="review-chat-turn review-chat-owner"><div class="review-chat-meta"><strong>Owner</strong><span>TASK</span></div><div class="review-chat-bubble" data-review-copy-text="'+esc(text)+'">'+esc(text)+'</div><button class="review-message-copy" type="button">Copy</button></article>');
     }
     artifacts.filter(a=>a.artifact_type==='PARTICIPANT_OUTPUT').forEach(a=>{
-      const payload=a.payload||{};const prov=payload.provenance||{};const text=cleanDisplayText(payload.response||'');
+      const payload=a.payload||{};
+      const prov=payload.provenance||{};
+      const text=cleanDisplayText(payload.response||'');
       const related=reviews.find(r=>r.findings?.review_output_artifact_id===a.artifact_id);
       const verdict=related?'<span class="review-verdict">'+esc(related.verdict)+'</span>':'';
       const uniqueTools=Array.isArray(prov.native_unique_tools_executed)?prov.native_unique_tools_executed:(Array.isArray(prov.native_model_tools_executed)?prov.native_model_tools_executed:[]);
@@ -84,20 +92,13 @@
       turns.push('<article class="review-chat-turn review-chat-agent"><div class="review-chat-meta"><div><strong>'+esc(prov.agent_display_name||payload.display_label||'Internal agent')+'</strong><span>'+esc(payload.role||'PARTICIPANT')+'</span></div>'+verdict+'</div><div class="review-chat-bubble" data-review-copy-text="'+esc(text)+'">'+esc(text)+'</div><div class="review-chat-provenance"><span>'+esc((prov.selected_provider_name||'Provider')+' · '+(prov.selected_model_name||prov.selected_model_id||'Model'))+'</span>'+(prov.fallback_used?'<span>fallback</span>':'')+(prov.latency_ms!=null?'<span>'+esc(prov.latency_ms+' ms')+'</span>':'')+toolInfo+'</div><button class="review-message-copy" type="button">Copy</button></article>');
     });
     const running=item.status==='REVIEWING'?'<div class="review-live-wait"><span class="review-live-dot"></span>Waiting for the next configured participant…</div>':'';
-    detail.innerHTML='<div class="review-chatbox-head"><div><div class="review-detail-title"><h3>'+esc(item.title)+'</h3><span class="review-status review-status-'+esc(String(item.status||'').toLowerCase())+'">'+esc(item.status)+'</span></div><span class="review-id">'+esc(item.work_item_id)+'</span></div>'+reviewActionsHtml(item.work_item_id)+'<div class="review-safety-line"><strong>Production mutation: NO</strong><span>Database canonical: NO</span></div></div><div class="review-chat-stream">'+turns.join('')+running+'</div>';
+    detail.innerHTML='<div class="review-chatbox-head"><div><div class="review-detail-title"><h3>'+esc(item.title)+'</h3><span class="review-status review-status-'+esc(String(item.status||'').toLowerCase())+'">'+esc(item.status)+'</span></div><span class="review-id">'+esc(item.work_item_id)+'</span></div>'+reviewExportHtml(item.work_item_id)+'<div class="review-safety-line"><strong>Production mutation: NO</strong><span>Database canonical: NO</span></div></div><div class="review-chat-stream">'+turns.join('')+running+'</div>';
     const stream=detail.querySelector('.review-chat-stream');if(stream)stream.scrollTop=stream.scrollHeight;
+    scheduleReconcile();
   }
 
-  function signature(item){
-    return [item.status,(item.artifacts||[]).length,(item.reviews||[]).length,(item.events||[]).length].join(':');
-  }
-
-  function stopLivePolling(){
-    if(livePollTimer){clearTimeout(livePollTimer);livePollTimer=null}
-    liveRunning=false;
-    liveWorkId=null;
-    liveLastSignature='';
-  }
+  function signature(item){return[item.status,(item.artifacts||[]).length,(item.reviews||[]).length,(item.events||[]).length].join(':')}
+  function stopLivePolling(){if(livePollTimer){clearTimeout(livePollTimer);livePollTimer=null}liveRunning=false;liveWorkId=null;liveLastSignature=''}
 
   async function pollLive(){
     if(!liveWorkId)return;
@@ -106,11 +107,9 @@
       const nextSignature=signature(item);
       if(nextSignature!==liveLastSignature){liveLastSignature=nextSignature;renderLive(item)}
       if(item.status==='WAITING_OWNER'||item.status==='FAILED'||item.status==='CANCELLED'){
-        const terminalStatus=item.status;
-        stopLivePolling();
+        const terminalStatus=item.status;stopLivePolling();
         statusNotice(terminalStatus==='WAITING_OWNER'?'Review completed and is waiting for Owner attention.':terminalStatus==='CANCELLED'?'Review deleted from workspace history.':'Review failed. Open the Work Item timeline for details.',terminalStatus==='WAITING_OWNER'?'success':terminalStatus==='CANCELLED'?'success':'error');
-        setTimeout(()=>document.querySelector('#aiMultiMode #reviewRefresh')?.click(),700);
-        return;
+        setTimeout(()=>document.querySelector('#aiMultiMode #reviewRefresh')?.click(),700);return;
       }
     }catch(err){statusNotice(err.message,'error');stopLivePolling();return}
     livePollTimer=setTimeout(pollLive,1000);
@@ -138,15 +137,37 @@
     if(!workItemId)return;
     const confirmed=window.confirm('Delete this Review from workspace history? Audit evidence will be preserved.');
     if(!confirmed)return;
-    if(button){button.disabled=true;button.textContent='Deleting…'}
+    if(button){button.disabled=true;button.dataset.restoreText=button.textContent;button.textContent=button.classList.contains('review-work-delete')?'…':'Deleting…'}
     try{
       await api('/dashboard/api/ai-workspace/multi-agent/work-items/'+encodeURIComponent(workItemId),{method:'DELETE'});
       if(liveWorkId===workItemId)stopLivePolling();
-      const detail=document.querySelector('#aiMultiMode #reviewWorkDetail');
-      if(detail)detail.innerHTML='<div class="review-empty"><strong>Review deleted</strong><p>Removed from Recent Review work. Audit evidence remains preserved.</p></div>';
+      const activeCard=document.querySelector('#aiMultiMode .review-work-item.active');
+      const activeId=activeCard?.dataset.workId||'';
+      if(activeId===workItemId){
+        const detail=document.querySelector('#aiMultiMode #reviewWorkDetail');
+        if(detail)detail.innerHTML='<div class="review-empty"><strong>Review deleted</strong><p>Removed from Recent Review work. Audit evidence remains preserved.</p></div>';
+      }
       statusNotice('Review deleted from workspace history. Audit evidence was preserved.','success');
       setTimeout(()=>document.querySelector('#aiMultiMode #reviewRefresh')?.click(),250);
-    }catch(err){statusNotice(err.message,'error');if(button){button.disabled=false;button.textContent='Delete'}}
+    }catch(err){
+      statusNotice(err.message,'error');
+      if(button){button.disabled=false;button.textContent=button.dataset.restoreText||'×'}
+    }
+  }
+
+  function addWorkCardDeleteControls(scope=document){
+    scope.querySelectorAll?.('#aiMultiMode .review-work-item:not([data-delete-shell-ready])').forEach(card=>{
+      const id=card.dataset.workId;if(!id)return;
+      card.dataset.deleteShellReady='1';
+      const parent=card.parentNode;if(!parent)return;
+      const shell=document.createElement('div');shell.className='review-work-card-shell';
+      parent.insertBefore(shell,card);shell.appendChild(card);
+      const button=document.createElement('button');
+      button.type='button';button.className='review-delete-action review-work-delete';
+      button.dataset.reviewDeleteFor=id;button.textContent='×';
+      button.setAttribute('aria-label','Delete '+(card.querySelector('.review-work-title strong')?.textContent||'Review'));
+      button.title='Delete review';shell.appendChild(button);
+    });
   }
 
   function polishReviewDom(scope=document){
@@ -156,48 +177,31 @@
         const button=document.createElement('button');button.type='button';button.className='review-message-copy';button.textContent='Copy';turn.appendChild(button);
       }
     });
+    addWorkCardDeleteControls(scope);
     const detail=scope.querySelector?.('#reviewWorkDetail')||document.querySelector('#reviewWorkDetail');
     const id=detail?.querySelector('.review-id')?.textContent?.trim();
     const head=detail?.querySelector('.review-chatbox-head');
+    if(head)head.querySelectorAll('.review-delete-action').forEach(button=>button.remove());
     if(id&&head&&!head.querySelector('.review-export-actions')){
-      const wrapper=document.createElement('div');wrapper.innerHTML=reviewActionsHtml(id);const actions=wrapper.firstElementChild;if(actions)head.appendChild(actions);
-    }else if(id&&head){
-      const actions=head.querySelector('.review-export-actions');
-      if(actions&&!actions.querySelector('.review-delete-action')){
-        const button=document.createElement('button');button.type='button';button.className='review-delete-action';button.dataset.reviewDeleteFor=id;button.textContent='Delete';actions.appendChild(button);
-      }
+      const wrapper=document.createElement('div');wrapper.innerHTML=reviewExportHtml(id);const actions=wrapper.firstElementChild;if(actions)head.appendChild(actions);
     }
   }
 
-  function currentConversationId(){
-    return document.querySelector('.ai-conversation-item.active [data-ai-conversation]')?.dataset.aiConversation||null;
-  }
-
+  function currentConversationId(){return document.querySelector('.ai-conversation-item.active [data-ai-conversation]')?.dataset.aiConversation||null}
   function syncSingleChatExport(){
     const head=document.querySelector('.ai-chat-head');if(!head)return;
-    let actions=head.querySelector('.ai-chat-export-actions');
-    const id=currentConversationId();
-    if(!id){actions?.remove();return}
-    if(actions?.dataset.conversationId===id)return;
+    let actions=head.querySelector('.ai-chat-export-actions');const id=currentConversationId();
+    if(!id){actions?.remove();return}if(actions?.dataset.conversationId===id)return;
     if(!actions){actions=document.createElement('div');actions.className='ai-chat-export-actions';head.appendChild(actions)}
-    actions.dataset.conversationId=id;
-    actions.replaceChildren();
+    actions.dataset.conversationId=id;actions.replaceChildren();
     const label=document.createElement('span');label.textContent='Export';
     const docx=document.createElement('a');docx.textContent='DOCX';docx.href='/dashboard/api/ai-workspace/conversations/'+encodeURIComponent(id)+'/export?format=docx';
     const json=document.createElement('a');json.textContent='JSON';json.href='/dashboard/api/ai-workspace/conversations/'+encodeURIComponent(id)+'/export?format=json';
     actions.append(label,docx,json);
   }
 
-  function reconcileDom(){
-    reconcileFrame=null;
-    polishReviewDom(document);
-    syncSingleChatExport();
-  }
-
-  function scheduleReconcile(){
-    if(reconcileFrame!==null)return;
-    reconcileFrame=requestAnimationFrame(reconcileDom);
-  }
+  function reconcileDom(){reconcileFrame=null;polishReviewDom(document);syncSingleChatExport()}
+  function scheduleReconcile(){if(reconcileFrame!==null)return;reconcileFrame=requestAnimationFrame(reconcileDom)}
 
   document.addEventListener('click',event=>{
     const run=event.target.closest('#aiMultiMode #reviewRun');
@@ -206,7 +210,7 @@
     if(copy){const text=copy.closest('.review-chat-turn')?.querySelector('.review-chat-bubble')?.dataset.reviewCopyText||'';copyText(text,copy);return}
     const deleteButton=event.target.closest('.review-delete-action');
     if(deleteButton){event.preventDefault();event.stopPropagation();deleteReview(deleteButton.dataset.reviewDeleteFor,deleteButton);return}
-    if(event.target.closest('[data-ai-conversation],#aiNewConversation,#aiWorkspaceNav,[data-ai-tab]'))scheduleReconcile();
+    if(event.target.closest('[data-ai-conversation],#aiNewConversation,#aiWorkspaceNav,[data-ai-tab],#aiMultiMode .review-work-item'))scheduleReconcile();
   },true);
 
   const observer=new MutationObserver(()=>scheduleReconcile());
