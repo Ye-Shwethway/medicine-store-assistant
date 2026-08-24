@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Project Roadmap
 
-Status: **F6C Canonical Inventory Foundation is locked. F6D schema foundation is implemented and CI-verified on PostgreSQL 16. PostgreSQL remains non-canonical. Current bounded target: fresh Main-Store shadow snapshot/import + reconciliation.**
+Status: **F6C Canonical Inventory Foundation is locked. F6D schema foundation and fresh-source snapshot staging adapter are implemented and CI-verified on PostgreSQL 16. PostgreSQL remains non-canonical. Current bounded target: stage a fresh authorized live Main Store snapshot, then perform safe shadow materialization/reconciliation.**
 
 The live Google workbook/source documents remain operationally authoritative. `migration_baseline_accepted=false`; `database_canonical=false`.
 
@@ -99,25 +99,47 @@ Targeted PostgreSQL CI proves from an empty DB:
 
 Important downgrade rule: committed F6D-only transfer history must never be silently coerced into old movement semantics merely to make a downgrade succeed. A real downgrade with such data would require an explicit data-migration decision.
 
-### CURRENT — fresh Main Store shadow import
+### Fresh-source snapshot staging adapter — IMPLEMENTED + VERIFIED
+
+The existing F6B live-sheet reader has been upgraded rather than replaced.
+
+The F6D staging adapter now:
+
+- binds each snapshot batch explicitly to the configured Main Store;
+- includes Store context in deterministic snapshot hashing;
+- converts Google Sheets date serials to structured ISO dates;
+- strips only a terminal numeric `(month/year)` expiry suffix for Product matching while preserving product-defining parentheses;
+- preserves the raw local item name and flags suffix/structured-expiry disagreement;
+- allows valid non-expiry consumables instead of auto-classifying all missing-expiry rows as REVIEW;
+- captures CMS Price, displayed Price, Remark, Serial Code and CS Name;
+- derives mapping hints `ACTIVE_MATCH`, `UNMAPPED`, `REVIEW_REQUIRED`, `RECYCLED_CODE`, `CMS_DISCONTINUED` without forcing mapping mutation;
+- treats literal `Nil` CMS codes as unmapped;
+- preserves recycled IDs for review and discontinued local stock as valid inventory state when stock arithmetic is otherwise sound;
+- supports both observed Daily Usage Remaining Stock header spellings;
+- stages source rows idempotently with sheet/row provenance.
+
+CI proves source-shaped normalization plus PostgreSQL Main Store staging and exact snapshot replay idempotency. This adapter stages evidence only; it does not yet create canonical Product/Lot/opening movements from live rows.
+
+### CURRENT — actual fresh live snapshot + safe shadow materialization
 
 Next bounded work:
 
-1. take a fresh authorized current source snapshot from the live workbook;
-2. bind the source batch explicitly to the configured Main Store;
-3. create repeatable non-canonical import/reconciliation tooling;
-4. resolve stable Product and expiry-Lot identities;
-5. establish opening/migration quantities with provenance without fabricating historical transactions;
-6. reconcile available receipt, usage and CMS mapping/price evidence;
-7. preserve `RECYCLED_CODE`, `CMS_DISCONTINUED`, `REVIEW_REQUIRED` and `UNMAPPED` states rather than forcing clean mappings;
-8. derive current Main Store balances;
-9. classify every mismatch explicitly;
-10. prove useful Main Stock and Daily Usage projections from DB state;
-11. keep PostgreSQL non-canonical until explicit later acceptance.
+1. verify the `0022` schema and snapshot adapter are available in the target shadow runtime;
+2. take and stage a fresh authorized read-only live workbook snapshot bound to Main Store;
+3. record batch hash, row counts, classification counts and mapping-hint counts;
+4. inspect real SAFE/REVIEW/CONFLICT/NEW_UNMAPPED distributions before writing any canonical shadow movements;
+5. define/materialize only identity and opening-balance cases whose semantics are source-safe;
+6. resolve stable Product and expiry-Lot identities independently of CMS Code;
+7. preserve recycled/discontinued/review-required CMS mapping states rather than forcing clean matches;
+8. avoid fabricating receipt/usage history where the workbook provides only aggregate evidence;
+9. derive Main Store balances and compare with live Main Stock current state;
+10. prove materialization replay idempotency;
+11. generate useful shadow Main Stock and Daily Usage projection evidence;
+12. keep PostgreSQL non-canonical until explicit later acceptance.
 
 ## Subsequent path
 
-1. Fresh F6D shadow import + reconciliation.
+1. Actual fresh F6D source staging + safe shadow materialization/reconciliation.
 2. Historical bootstrap from strongest available evidence without inventing movements.
 3. Shadow balance/projection parity and transfer tests.
 4. Minimal field/computation registry + saved view definitions.
@@ -134,4 +156,4 @@ Next bounded work:
 
 ## Immediate boundary
 
-Do not let legacy spreadsheet formulas or report formatting dictate the canonical schema. Continue re-reading the live workbook whenever source behavior matters. The next engineering work is the fresh Main Store shadow import and reconciliation, not production canonical promotion.
+Do not let legacy spreadsheet formulas or report formatting dictate the canonical schema. Continue re-reading the live workbook whenever source behavior matters. The immediate next action is real read-only source staging and review of its classification evidence before any new canonical shadow materialization.
