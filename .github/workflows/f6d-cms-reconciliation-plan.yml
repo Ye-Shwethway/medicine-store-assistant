@@ -1,0 +1,86 @@
+name: F6D CMS reconciliation plan
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/app/f6d_cms_reconciliation_plan.py'
+      - '.github/workflows/f6d-cms-reconciliation-plan.yml'
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: msa-f6d-shadow-maintenance
+  cancel-in-progress: false
+
+jobs:
+  reconcile-read-only:
+    runs-on: [self-hosted, linux, msa-vps]
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          path: source
+          persist-credentials: false
+
+      - name: Run read-only reconciliation planner
+        id: plan
+        continue-on-error: true
+        shell: bash
+        working-directory: source
+        run: |
+          set -o pipefail
+          ENV_FILE=/opt/medicine-store-assistant/secrets/runtime.env
+          COMPOSE_FILE="$PWD/deploy/docker-compose.yml"
+          test -r "$ENV_FILE"
+          export COMPOSE_PROJECT_NAME="${MSA_COMPOSE_PROJECT_NAME:-deploy}"
+          docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" build api
+          docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm api \
+            python -m app.f6d_cms_reconciliation_plan 2>&1 | tee "${RUNNER_TEMP}/f6d-cms-reconciliation.txt"
+
+      - name: Publish reconciliation evidence
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVIDENCE_ISSUE: '158'
+          PLAN_OUTCOME: ${{ steps.plan.outcome }}
+        run: |
+          set -euo pipefail
+          export PLAN_FILE="${RUNNER_TEMP}/f6d-cms-reconciliation.txt"
+          BODY_FILE="${RUNNER_TEMP}/f6d-cms-reconciliation-body.json"
+          python3 - <<'PY' > "$BODY_FILE"
+          import json, os
+          from pathlib import Path
+          path = Path(os.environ['PLAN_FILE'])
+          evidence = path.read_text(encoding='utf-8').strip() if path.exists() else '(not produced)'
+          body = "\n".join([
+              "F6D deterministic CMS reconciliation planner evidence.",
+              "",
+              f"status={os.environ['PLAN_OUTCOME']}",
+              f"source_sha={os.environ['GITHUB_SHA']}",
+              f"workflow_run_id={os.environ['GITHUB_RUN_ID']}",
+              "mutation=false",
+              "mapping_mutation=false",
+              "inventory_mutation=false",
+              "ai_required=false",
+              "database_canonical=false",
+              "migration_baseline_accepted=false",
+              "",
+              "```text",
+              evidence,
+              "```",
+          ])
+          print(json.dumps({'body': body}))
+          PY
+          curl --fail-with-body --silent --show-error \
+            --request PATCH \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/${EVIDENCE_ISSUE}" \
+            --data-binary "@${BODY_FILE}" >/dev/null
+          test "$PLAN_OUTCOME" = success
