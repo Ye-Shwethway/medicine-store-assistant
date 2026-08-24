@@ -22,16 +22,18 @@ def main() -> None:
                            source_kind,
                            source_label,
                            source_hash,
-                           row_count
+                           row_count,
+                           store_id::text AS store_id
                     FROM migration_batches
-                    WHERE source_kind = 'google_sheet_snapshot'
-                    ORDER BY created_at DESC
+                    WHERE source_kind IN ('f6d_google_sheet_snapshot', 'google_sheet_snapshot')
+                    ORDER BY CASE WHEN source_kind='f6d_google_sheet_snapshot' THEN 0 ELSE 1 END,
+                             created_at DESC
                     LIMIT 1
                     """
                 )
             ).mappings().one_or_none()
             if batch is None:
-                raise SystemExit("no test-only Google Sheet shadow batch found")
+                raise SystemExit("no Google Sheet shadow batch found")
 
             counts = {
                 row["classification"]: row["row_count"]
@@ -53,15 +55,19 @@ def main() -> None:
                     f"shadow row-count mismatch: batch={batch['row_count']} staged={staged_count}"
                 )
 
-            print("F6C shadow read foundation verification PASS")
+            if batch["source_kind"] == "f6d_google_sheet_snapshot" and not batch["store_id"]:
+                raise SystemExit("F6D shadow batch is missing explicit store binding")
+
+            print("F6D shadow read foundation verification PASS")
             print(
-                "test_only_batch=pass provenance=pass classification_summary=pass "
+                "shadow_batch=pass provenance=pass classification_summary=pass "
                 "migration_baseline_accepted=false database_canonical=false"
             )
             print(
-                f"batch_id={batch['migration_batch_id']} row_count={batch['row_count']} "
-                f"safe={counts.get('SAFE', 0)} review={counts.get('REVIEW', 0)} "
-                f"conflict={counts.get('CONFLICT', 0)} new_unmapped={counts.get('NEW_UNMAPPED', 0)}"
+                f"source_kind={batch['source_kind']} batch_id={batch['migration_batch_id']} "
+                f"row_count={batch['row_count']} safe={counts.get('SAFE', 0)} "
+                f"review={counts.get('REVIEW', 0)} conflict={counts.get('CONFLICT', 0)} "
+                f"new_unmapped={counts.get('NEW_UNMAPPED', 0)}"
             )
     finally:
         engine.dispose()
