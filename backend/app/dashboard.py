@@ -58,8 +58,9 @@ def _latest_google_snapshot_batch_id() -> str | None:
         """
         SELECT migration_batch_id::text AS migration_batch_id
         FROM migration_batches
-        WHERE source_kind = 'google_sheet_snapshot'
-        ORDER BY created_at DESC, migration_batch_id DESC
+        WHERE source_kind IN ('f6d_google_sheet_snapshot', 'google_sheet_snapshot')
+        ORDER BY CASE WHEN source_kind='f6d_google_sheet_snapshot' THEN 0 ELSE 1 END,
+                 created_at DESC, migration_batch_id DESC
         LIMIT 1
         """
     )
@@ -201,7 +202,7 @@ def dashboard_owner_authorization_probe(response: Response) -> dict[str, bool]:
 
 @router.get(
     "/dashboard/api/overview",
-    summary="Read dashboard overview from test-only shadow data",
+    summary="Read dashboard overview from shadow inventory source evidence",
     dependencies=[Depends(require_dashboard_session)],
 )
 def dashboard_overview(response: Response) -> dict[str, Any]:
@@ -219,9 +220,10 @@ def dashboard_overview(response: Response) -> dict[str, Any]:
                COUNT(msr.migration_source_row_id) FILTER (WHERE msr.classification = 'NEW_UNMAPPED') AS new_unmapped_count
         FROM migration_batches mb
         LEFT JOIN migration_source_rows msr ON msr.migration_batch_id = mb.migration_batch_id
-        WHERE mb.source_kind = 'google_sheet_snapshot'
+        WHERE mb.source_kind IN ('f6d_google_sheet_snapshot', 'google_sheet_snapshot')
         GROUP BY mb.migration_batch_id, mb.source_kind, mb.source_label, mb.row_count, mb.created_at
-        ORDER BY mb.created_at DESC, mb.migration_batch_id DESC
+        ORDER BY CASE WHEN mb.source_kind='f6d_google_sheet_snapshot' THEN 0 ELSE 1 END,
+                 mb.created_at DESC, mb.migration_batch_id DESC
         LIMIT 1
         """
     )
