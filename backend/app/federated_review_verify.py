@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import app.main  # noqa: F401 - constructs production MCP app and loads schema layers in order
 import app.mcp_schema_v2 as schema
-import app.mcp_shadow_reads  # noqa: F401 - loads v2.2 before MCP transport in production
 from app.federated_review import router
 
 
