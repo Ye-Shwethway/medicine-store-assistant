@@ -1,6 +1,6 @@
 # Inventory View Engine v1
 
-Status: **IMPLEMENTATION CONTRACT — first read-only substrate**
+Status: **IMPLEMENTATION CONTRACT — read-only substrate + review workspace expansion**
 
 ## Decision
 
@@ -63,6 +63,38 @@ Row grain: source Main Stock row joined to materialized shadow state where resol
 
 It is a review preset, not a second inventory truth. It exists so source-versus-shadow review can use the same table/view architecture that later serves production inventory.
 
+### CMS Mapping Review
+
+Row grain: current local Product mapped to its current non-accepted CMS review-state row.
+
+This preset is a read-only review projection over `products`, current `product_cms_mappings`, and the current referenced catalogue item. It must expose mapping status, CMS evidence, current catalogue price and accepted operational price without accepting a mapping or changing a price.
+
+The initial review-state dataset is intentionally dominated by `REVIEW_REQUIRED`; `CMS_DISCONTINUED`, `RECYCLED_CODE`, and `UNMAPPED` must remain directly filterable and visible rather than being collapsed into one generic warning state.
+
+## Slice C review filter contract
+
+The generic rows endpoint may accept validated review filters in addition to text search:
+
+- `mapping_status` — exact current mapping status such as `REVIEW_REQUIRED`, `CMS_DISCONTINUED`, `RECYCLED_CODE`, or `UNMAPPED`;
+- `source_classification` — exact staged source classification for Migration Review;
+- `review_reason` — case-insensitive substring match against the staged review reason.
+
+Filters are provider-aware. A filter that is not meaningful for a selected provider is ignored rather than translated into arbitrary SQL.
+
+The API must continue to construct SQL only from server-owned clauses and typed parameter values. Clients never supply raw predicates, column names, joins, SQL fragments, or database expressions.
+
+The Web renderer may expose these filters contextually for review presets. Changing filters changes only the read projection.
+
+## Slice C source-vs-shadow detail contract
+
+Migration Review rows remain source-row-grain. A later detail/drawer interaction may request the same registered fields plus source evidence required to explain a mismatch, but the review workspace must keep these boundaries:
+
+- source values are visually distinguished from shadow projections;
+- HOLD/review reason remains explicit;
+- missing or ambiguous source values are never filled from shadow state merely to make the comparison look complete;
+- no row-selection or bulk-selection action may imply acceptance;
+- selection exists only as context for human review and later AI copilot handoff until typed acceptance commands are separately authorized.
+
 ## Shadow/canonical boundary
 
 During migration review:
@@ -106,3 +138,5 @@ The first implementation slice is acceptable when:
 5. unknown field keys are rejected;
 6. output remains explicitly read-only/non-canonical;
 7. no inventory, mapping-acceptance or price mutation is introduced.
+
+Slice C extends that same substrate rather than replacing it: CMS Mapping Review and provider-aware review filters must remain read-only, registry-driven and non-canonical.
