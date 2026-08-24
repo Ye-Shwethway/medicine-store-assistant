@@ -10,8 +10,12 @@ on:
       - 'backend/app/native_agent_runtime.py'
       - 'backend/app/ai_workspace_chat.py'
       - 'backend/app/ai_workspace_attachments.py'
+      - 'backend/app/multi_agent_review.py'
+      - 'backend/app/multi_agent_review_live.py'
+      - 'backend/app/multi_agent_review_tools_verify.py'
       - 'backend/app/main.py'
       - 'backend/app/dashboard_assets/dashboard_ai_workspace.css'
+      - 'backend/app/dashboard_assets/dashboard_multi_agent_live_export.js'
       - 'backend/alembic/versions/0019_ai_workspace_attachments.py'
       - '.github/workflows/validate-native-agent-tools.yml'
 
@@ -29,19 +33,27 @@ jobs:
         run: python -m compileall -q backend/app backend/alembic
       - name: Validate hybrid native tool contract
         run: PYTHONPATH=backend python backend/app/native_agent_tools_verify.py
+      - name: Validate per-participant REVIEW read authority
+        run: PYTHONPATH=backend python backend/app/multi_agent_review_tools_verify.py
       - name: Validate bounded model-driven tool loop
         run: |
           grep -Fq 'MAX_TOOL_ROUNDS = 4' backend/app/native_agent_tool_runtime.py
           grep -Fq '"tool_choice": "auto"' backend/app/native_agent_tool_runtime.py
           grep -Fq 'execute_native_read_tool' backend/app/native_agent_tool_runtime.py
           grep -Fq 'owner.get("role") != "OWNER"' backend/app/native_agent_tool_runtime.py
+          grep -Fq 'native_agent_read_allowed(agent)' backend/app/native_agent_tool_runtime.py
+          grep -Fq 'invoke_native_agent_with_read_tools' backend/app/multi_agent_review_live.py
+          grep -Fq 'native_store_tools_allowed' backend/app/multi_agent_review_live.py
+          grep -Fq 'native_model_tools_executed' backend/app/dashboard_assets/dashboard_multi_agent_live_export.js
           grep -Fq 'native_tools_exposed' backend/app/ai_workspace_chat.py
-          echo 'native_agent_model_tool_contract=pass'
+          echo 'native_agent_model_tool_contract=pass d4_8_participant_read_authority=pass'
       - name: Validate presentation and attachment UI contract
         run: |
           grep -Fq '.ai-chat-form>button' backend/app/dashboard_assets/dashboard_ai_workspace.css
           grep -Fq '.ai-pending-attachment' backend/app/dashboard_assets/dashboard_ai_workspace.css
           grep -Fq 'background:var(--accent)' backend/app/dashboard_assets/dashboard_ai_workspace.css
           grep -Fq 'f7.2d47b-human-presentation' backend/app/main.py
+          grep -Fq 'f72d48-live-export-2' backend/app/main.py
+          grep -Fq 'f7.2d48-participant-native-read-tools' backend/app/main.py
           grep -Fq 'metadata-and-evidence-persistence-no-model-processing' backend/app/main.py
           echo 'native_agent_tool_ui_contract=pass'
