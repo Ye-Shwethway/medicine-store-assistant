@@ -25,6 +25,7 @@ on:
       - 'backend/alembic/versions/0019_ai_workspace_attachments.py'
       - 'backend/alembic/versions/0020_work_review_substrate.py'
       - 'backend/alembic/versions/0021_review_orchestration_roles.py'
+      - 'backend/alembic/versions/0022_canonical_inventory_foundation.py'
       - '.github/workflows/validate-ai-workspace-chat.yml'
 
 permissions:
@@ -55,13 +56,15 @@ jobs:
           conversations=load('backend/alembic/versions/0018_ai_workspace_conversations.py','m0018')
           attachments=load('backend/alembic/versions/0019_ai_workspace_attachments.py','m0019')
           substrate=load('backend/alembic/versions/0020_work_review_substrate.py','m0020')
-          head=load('backend/alembic/versions/0021_review_orchestration_roles.py','m0021')
+          review_head=load('backend/alembic/versions/0021_review_orchestration_roles.py','m0021')
+          inventory_head=load('backend/alembic/versions/0022_canonical_inventory_foundation.py','m0022')
           assert conversations.revision == '0018_ai_workspace_conversations'
           assert attachments.revision == '0019_ai_workspace_attachments'
           assert attachments.down_revision == conversations.revision
           assert substrate.down_revision == attachments.revision
-          assert head.down_revision == substrate.revision
-          assert EXPECTED_MIGRATION == head.revision
+          assert review_head.down_revision == substrate.revision
+          assert inventory_head.down_revision == review_head.revision
+          assert EXPECTED_MIGRATION == inventory_head.revision
           assert MULTI_AGENT_REVIEW_ASSET_VERSION.startswith('f72d48-review-ui-')
           assert len(MULTI_AGENT_REVIEW_ASSET_VERSION.removeprefix('f72d48-review-ui-')) == 12
 
