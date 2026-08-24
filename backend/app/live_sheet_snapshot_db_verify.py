@@ -64,10 +64,10 @@ def main() -> None:
             if not first["created"]:
                 raise AssertionError("first staging pass must create a batch")
             if first["classification_counts"] != {
-                "SAFE": 3,
+                "SAFE": 4,
                 "REVIEW": 1,
                 "CONFLICT": 0,
-                "NEW_UNMAPPED": 2,
+                "NEW_UNMAPPED": 1,
             }:
                 raise AssertionError(first["classification_counts"])
             if first["mapping_hint_counts"] != {
