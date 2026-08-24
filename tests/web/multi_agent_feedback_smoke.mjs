@@ -98,7 +98,12 @@ const settled = page.getByRole('button', { name: 'Review sent' });
 await settled.waitFor({ state: 'visible' });
 assert.equal(await settled.isDisabled(), true);
 await page.getByRole('button', { name: /Back to reviews/ }).click();
+const detailGetsBeforeSettledReopen = await page.evaluate(() => window.__requests.filter(r => r.url === '/dashboard/api/ai-workspace/multi-agent/work-items/work-1' && r.method === 'GET').length);
 await workCard.click();
+await page.waitForFunction(
+  before => window.__requests.filter(r => r.url === '/dashboard/api/ai-workspace/multi-agent/work-items/work-1' && r.method === 'GET').length > before,
+  detailGetsBeforeSettledReopen,
+);
 await settled.waitFor({ state: 'visible' });
 assert.equal(await settled.isDisabled(), true);
 
@@ -113,7 +118,12 @@ assert.equal(feedbackCallsAfterMessage, feedbackCallsBeforeMessage);
 
 // Reopen proves the ordinary message and newly actionable review state rehydrate from persisted work detail.
 await page.getByRole('button', { name: /Back to reviews/ }).click();
+const detailGetsBeforeMessageReopen = await page.evaluate(() => window.__requests.filter(r => r.url === '/dashboard/api/ai-workspace/multi-agent/work-items/work-1' && r.method === 'GET').length);
 await workCard.click();
+await page.waitForFunction(
+  before => window.__requests.filter(r => r.url === '/dashboard/api/ai-workspace/multi-agent/work-items/work-1' && r.method === 'GET').length > before,
+  detailGetsBeforeMessageReopen,
+);
 await page.getByText('Please focus on rows 312 and 648.').waitFor({ state: 'visible' });
 assert.equal(await page.getByRole('button', { name: 'Send review' }).isEnabled(), true);
 
