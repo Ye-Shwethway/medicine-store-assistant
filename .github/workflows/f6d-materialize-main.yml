@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'backend/app/f6d_materialize_main.py'
+      - 'backend/app/f6d_materialize_main_review_holds.py'
       - '.github/workflows/f6d-materialize-main.yml'
 
 permissions:
@@ -65,7 +66,7 @@ jobs:
           export COMPOSE_PROJECT_NAME="${MSA_COMPOSE_PROJECT_NAME:-deploy}"
           docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm \
             -e MSA_F6D_EXPECTED_SOURCE_HASH="$MSA_F6D_EXPECTED_SOURCE_HASH" \
-            api python -m app.f6d_materialize_main --execute 2>&1 | tee "${RUNNER_TEMP}/f6d-materialize-execute.txt"
+            api python -m app.f6d_materialize_main_review_holds 2>&1 | tee "${RUNNER_TEMP}/f6d-materialize-execute.txt"
 
       - name: Replay idempotency proof
         id: replay
@@ -82,7 +83,7 @@ jobs:
           export COMPOSE_PROJECT_NAME="${MSA_COMPOSE_PROJECT_NAME:-deploy}"
           docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm \
             -e MSA_F6D_EXPECTED_SOURCE_HASH="$MSA_F6D_EXPECTED_SOURCE_HASH" \
-            api python -m app.f6d_materialize_main --execute 2>&1 | tee "${RUNNER_TEMP}/f6d-materialize-replay.txt"
+            api python -m app.f6d_materialize_main_review_holds 2>&1 | tee "${RUNNER_TEMP}/f6d-materialize-replay.txt"
 
       - name: Post-run read-only audit
         id: audit
