@@ -30,7 +30,8 @@ Treat newer verified repository/runtime/source evidence as authoritative over re
 
 - F6C Canonical Inventory Foundation is locked.
 - F6D shadow foundation for the current dataset is runtime-verified through source staging, Product/Lot/opening-balance materialization, live CMS catalogue import, deterministic CMS reconciliation and durable non-accepted mapping review-state staging.
-- F6E is active: **configurable read-only Inventory View Engine + migration-review Web surface**.
+- F6E configurable read-only Inventory View Engine + first Web renderer are **runtime-verified**.
+- Current bounded work: **source-vs-shadow compare detail, HOLD/review filtering and CMS Mapping Review system preset**.
 - PostgreSQL remains non-canonical: `database_canonical=false`, `migration_baseline_accepted=false`.
 - Google Sheet/source documents remain operational authority.
 
@@ -80,7 +81,7 @@ HOLDs remain unresolved instead of guessed: 14 inventory-semantic review rows, d
 
 Deterministic reconciliation produced 526 exact-name/same-price continuity candidates, 77 exact-name/changed-price candidates, 30 multiple-source-code cases, 19 discontinued, 9 code/name mismatch, 6 unmapped, 1 missing source CMS name, 1 multiple source CMS names and 1 recycled-code case.
 
-Durable non-accepted mapping state now contains **670** rows:
+Durable non-accepted mapping state contains **670** rows:
 
 - `REVIEW_REQUIRED` **644**;
 - `CMS_DISCONTINUED` **19**;
@@ -89,33 +90,38 @@ Durable non-accepted mapping state now contains **670** rows:
 - `ACTIVE_MATCH` **0**;
 - accepted operational prices **0**.
 
-Replay created **0** additional review rows. This state is review evidence, not accepted mapping authority.
+This state is review evidence, not accepted mapping authority.
 
-## F6E Inventory View Engine
+## F6E Inventory View Engine — runtime verified
 
-The product-facing Inventory Web surface must replace the old staged-source-row grid with a generic preset-driven renderer while keeping Shadow Inspection as a separate diagnostic surface.
+Implemented and live:
 
-### Implemented substrate
+- `backend/app/inventory_view_engine.py` typed field registry + generic View Definition model;
+- semantic classes `ENTITY_FIELD`, `COMPUTED_FIELD`, `COMMAND_EDITABLE_FIELD`, `DISPLAY_HELPER`;
+- `main-stock` system preset at `PRODUCT_LOT` grain / Store MAIN;
+- `migration-review` system preset at `SOURCE_MAIN_ROW` grain / Store MAIN;
+- authenticated `/dashboard/api/inventory-view/registry`, `/presets`, `/rows` API;
+- validated caller-selected registry field subset/order; unknown fields rejected;
+- generic product-facing Inventory Web renderer driven by API `columns[]` metadata;
+- one renderer switches Main Stock / Migration Review;
+- registry-driven visible-column selection, search and pagination;
+- explicit `Shadow inventory — not canonical` banner;
+- old staged-row Inventory grid removed from the product-facing subtree while Shadow Inspection remains separate;
+- content-derived JS/CSS asset versioning;
+- Playwright 390x844 behavior proof; mobile banner overflow was caught and fixed before merge.
 
-- `backend/app/inventory_view_engine.py` defines a typed field registry and generic View Definition model.
-- semantic classes: `ENTITY_FIELD`, `COMPUTED_FIELD`, `COMMAND_EDITABLE_FIELD`, `DISPLAY_HELPER`.
-- system presets now start with:
-  - `main-stock` at `PRODUCT_LOT` grain, Store `MAIN`;
-  - `migration-review` at `SOURCE_MAIN_ROW` grain, Store `MAIN`.
-- generic `/dashboard/api/inventory-view/rows` validates registered field selection/order; unknown field keys are rejected.
-- output is explicitly read-only, customizable-projection capable, non-canonical.
+PR #165 merge/runtime SHA: `3da90d7e1a26eaee23fc60c4dd9467012610c1ea`; deploy status succeeded.
 
-### Web transition in progress
+Runtime issue #166 proves:
 
-The generic renderer must:
-
-- derive table headers/cells from API `columns[]` metadata, not fixed HTML columns;
-- use one component for Main Stock and Migration Review;
-- support registry-only column visibility/order selection, search and pagination;
-- prominently show `Shadow inventory — not canonical`;
-- preserve one owner per interactive Inventory DOM subtree;
-- retain Shadow Inspection separately for migration diagnostics;
-- pass behavior-level browser verification, including 390x844 mobile.
+- Main Stock projected rows **799**;
+- Migration Review projected rows **823**;
+- Main Stock current quantity sum **72,009.000**;
+- Products/Lots/inventory transactions **670 / 799 / 679**;
+- `ACTIVE_MATCH` **0**;
+- accepted operational prices **0**;
+- mutation **false**;
+- canonical flags remain false.
 
 ## AI / review direction
 
@@ -127,9 +133,9 @@ Migration progression remains:
 
 ## Next sequence
 
-1. finish and runtime-prove the generic Main Stock/Migration Review Web renderer;
-2. add source-vs-shadow compare detail and HOLD/review filters;
-3. add CMS Mapping Review system preset;
+1. add source-vs-shadow compare detail/drawer and HOLD/review filters;
+2. add CMS Mapping Review system preset over the same generic engine;
+3. add selection/bulk-context substrate, still no automatic acceptance;
 4. add embedded AI copilot + deep-review handoff;
 5. resolve HOLD rows/mapping exceptions through reviewed typed actions;
 6. persist saved user-defined view definitions and build View Builder;
@@ -140,4 +146,4 @@ Migration progression remains:
 
 ## Immediate boundary
 
-Do not present shadow DB as canonical. Do not create accepted CMS mappings, push catalogue prices, mutate inventory or enable production writes as part of the current View Engine slice.
+Do not present shadow DB as canonical. Do not create accepted CMS mappings, push catalogue prices, mutate inventory or enable production writes as part of the current review/View Engine slice.

@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Project Roadmap
 
-Status: **F6C Canonical Inventory Foundation is locked. F6D schema foundation, fresh Main Store staging, source-safe Main-primary shadow materialization, live versioned CMS catalogue import, deterministic CMS reconciliation, and durable non-accepted CMS mapping review-state staging are runtime-verified. Current bounded target: configurable read-only Inventory View Engine + migration-review Web surface. PostgreSQL remains non-canonical.**
+Status: **F6C Canonical Inventory Foundation is locked. F6D schema foundation, fresh Main Store staging, source-safe Main-primary shadow materialization, live versioned CMS catalogue import, deterministic CMS reconciliation, and durable non-accepted CMS mapping review-state staging are runtime-verified. F6E configurable read-only Inventory View Engine + first Web renderer are runtime-verified. Current bounded target: source-vs-shadow review detail, HOLD/review filtering and CMS Mapping Review preset. PostgreSQL remains non-canonical.**
 
 The live Google workbook/source documents remain operationally authoritative. `migration_baseline_accepted=false`; `database_canonical=false`.
 
@@ -131,7 +131,7 @@ Deterministic screening over 670 materialized Products produced:
 - multiple source CMS names: **1**;
 - recycled code: **1**.
 
-The subsequent guarded review-state stage created **670 durable non-accepted mapping rows**:
+The guarded review-state stage created **670 durable non-accepted mapping rows**:
 
 - `REVIEW_REQUIRED`: **644**;
 - `CMS_DISCONTINUED`: **19**;
@@ -142,54 +142,71 @@ The subsequent guarded review-state stage created **670 durable non-accepted map
 
 Immediate replay created **0** additional review rows. Products/Lots/inventory transaction counts remained **670 / 799 / 679**. No mapping acceptance or price mutation occurred.
 
-## F6E — CURRENT: CONFIGURABLE INVENTORY VIEW + MIGRATION REVIEW
+## F6E — ACTIVE: CONFIGURABLE INVENTORY VIEW + REVIEW WORKSPACE
 
-The existing Web Inventory screen is an old shadow-source-row viewer and must not become the production Inventory model.
-
-Target architecture:
+Architecture:
 
 `Field/Computation Registry -> View Definition -> Generic Renderer -> System/User Presets -> Draft/Edit Commands later`
 
-Current first slice:
+### Read-only substrate + Web renderer — COMPLETE + RUNTIME VERIFIED
 
-1. typed field registry with semantic classes `ENTITY_FIELD`, `COMPUTED_FIELD`, `COMMAND_EDITABLE_FIELD`, `DISPLAY_HELPER`;
-2. generic validated projection contract; clients may select/reorder registered field keys but never arbitrary SQL/raw DB expressions;
-3. `Main Stock` as a system preset at Product-Lot grain;
-4. `Migration Review` as a system preset over source-vs-shadow review evidence;
-5. explicit shadow/non-canonical state in every response;
-6. read-only implementation first;
-7. no accepted CMS mapping, price, stock or canonicality mutation.
+Implemented:
 
-Web transition direction:
+- typed registry with `ENTITY_FIELD`, `COMPUTED_FIELD`, `COMMAND_EDITABLE_FIELD`, `DISPLAY_HELPER` semantics;
+- generic validated registered-field projection; arbitrary SQL/raw DB expressions are rejected;
+- `Main Stock` system preset at Product-Lot grain;
+- `Migration Review` system preset at source Main Stock row grain;
+- authenticated dashboard API;
+- one generic Web table renderer driven by returned `columns[]` metadata;
+- preset switching, registry-only column selection, search and pagination;
+- strong `Shadow inventory — not canonical` state presentation;
+- old product-facing staged-row grid replaced while Shadow Inspection remains separate;
+- dedicated 390x844 Playwright behavior verification, including a real mobile overflow regression detected and fixed before merge.
 
-- Inventory becomes the primary visual operational/review workspace;
-- old staged-row diagnostics move/remain under Shadow/Admin inspection;
-- Main Stock and Migration Review render through the same generic table component;
-- a later View Builder permits user-created sheet-style tables by mapping columns to registered semantic fields/computations/commands;
-- custom view definitions do not create new inventory truth;
-- embedded AI receives current view/selection/filter/evidence context and acts as copilot;
+Runtime issue #166 proves:
+
+- Main Stock projected rows **799**;
+- Migration Review projected rows **823**;
+- Main current quantity sum **72,009.000**;
+- Products/Lots/inventory transactions **670 / 799 / 679**;
+- `ACTIVE_MATCH` **0**;
+- accepted operational prices **0**;
+- mutation **false**;
+- canonical flags remain false.
+
+### CURRENT bounded slice — source compare + review
+
+1. source-vs-shadow compare detail/drawer for Migration Review;
+2. explicit HOLD/review state highlighting and reason/status filters;
+3. `CMS Mapping Review` as another system preset over the same View Engine;
+4. selection/bulk-context substrate without automatic acceptance;
+5. prepare current-view/selection/evidence context for embedded AI copilot;
+6. no accepted CMS mapping, price mutation, inventory write or baseline/canonical promotion.
+
+Web direction remains:
+
+- Inventory is the primary visual operational/review workspace;
+- custom saved views will later let users create their own sheet-style layouts from registered semantic fields/computations/commands;
+- embedded AI will act as context-aware copilot;
 - difficult cases may escalate into AI Workspace/multi-agent review;
-- Owner/authorized typed acceptance remains the authority boundary.
+- Owner/authorized typed acceptance remains the mutation authority boundary.
 
 ## Subsequent path
 
-1. Wire authenticated Inventory View Engine API and prove Main Stock/Migration Review projection parity from shadow DB.
-2. Replace product-facing old Inventory staged-row table with generic preset-driven renderer; retain Shadow Inspection separately.
-3. Add source-vs-shadow compare detail and review status/filtering.
-4. Add CMS Mapping Review system preset over the same engine.
-5. Add embedded context-aware AI assistant + deep-review handoff to AI Workspace.
-6. Resolve HOLD inventory rows and mapping exceptions with typed reviewed actions.
-7. Persist saved user-defined view definitions and add View Builder.
-8. Add Daily Usage monthly-pivot system preset.
-9. Add spreadsheet-like draft/preview/Confirm & Save editing over typed commands.
-10. Add deterministic reorder baseline engine and reorder presets.
-11. Dual verification of real operational events.
-12. Accept migration baseline only after source/recovery/reconciliation gates pass.
-13. Promote selected DB read paths.
-14. Promote controlled write operation classes one at a time.
-15. Explicit DB canonicality promotion only after migration/recovery/reconciliation/write gates pass.
-16. Sheet mirror/rebuild, exports, Flutter/Telegram expansion and further automation.
+1. Source compare/HOLD filters + CMS Mapping Review preset.
+2. Embedded context-aware AI assistant + deep-review handoff to AI Workspace.
+3. Resolve HOLD inventory rows and mapping exceptions with typed reviewed actions.
+4. Persist saved user-defined view definitions and add View Builder.
+5. Add Daily Usage monthly-pivot system preset.
+6. Add spreadsheet-like draft/preview/Confirm & Save editing over typed commands.
+7. Add deterministic reorder baseline engine and reorder presets.
+8. Dual verification of real operational events.
+9. Accept migration baseline only after source/recovery/reconciliation gates pass.
+10. Promote selected DB read paths.
+11. Promote controlled write operation classes one at a time.
+12. Explicit DB canonicality promotion only after migration/recovery/reconciliation/write gates pass.
+13. Sheet mirror/rebuild, exports, Flutter/Telegram expansion and further automation.
 
 ## Immediate boundary
 
-Do not present shadow DB as canonical merely because normalized domain rows and review states now exist. The immediate target is a **read-only configurable Inventory View Engine and migration-review Web surface** that can later survive canonical promotion without being rewritten as a second fixed UI.
+Do not present shadow DB as canonical merely because normalized domain rows, review states and the new Inventory renderer exist. The immediate target is **review capability on top of the verified generic View Engine**, with no mapping acceptance or production mutation.
