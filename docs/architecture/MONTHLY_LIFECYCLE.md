@@ -1,232 +1,136 @@
 # Monthly Inventory Lifecycle
 
-Status: **design contract — implementation pending**
+Status: **reporting/compatibility design contract — foundation schema does not wait on exact Excel month formulas**
 
 ## Purpose
 
-Preserve the useful behavior of the existing Excel Master workflow while moving monthly history and month-transition logic into deterministic backend operations.
+Describe how monthly operational views and historical reporting can be produced from the canonical movement ledger without making monthly spreadsheet resets or formulas the source of inventory truth.
 
-The familiar four-sheet monthly package remains an important human-facing/export contract:
+Canonical companion: `CANONICAL_INVENTORY_FOUNDATION.md`.
 
-1. Main Stock
-2. Daily Usage
-3. This Month Received
-4. Final Reorder
+## Foundation relationship
 
-However, these four sheets are **not four independent canonical data stores**.
+The canonical database is lifetime movement/history based.
 
-- `Main Stock` is an operational inventory-state projection.
-- `Daily Usage` is an operational usage projection over normalized dated usage events.
-- `This Month Received` is a display-only filtered projection of current-month receipts.
-- `Final Reorder` is a human-facing final reorder output derived from inventory/reorder state and may include authorized manual edits before submission.
+Monthly views are selected-period projections over that history.
 
-The database must be able to reproduce the historical month package without depending on an old workbook copy as the only archive.
+Therefore:
 
-## Month entity
+- do not create a new stock movement merely because a calendar month changed;
+- do not delete/reset canonical receipt/usage history to imitate Excel;
+- migration/opening balance provenance remains explicit under the F2 decision;
+- month snapshots may be added for reporting/performance/history convenience, but they do not replace the movement ledger.
 
-Represent each operating month explicitly.
+## Calendar month entity
 
-Candidate fields:
+A shared month/period entity may contain:
 
-- `month_id`
-- `year`
-- `month_number`
-- `status` — `OPEN`, `CLOSING`, `CLOSED`
-- `opened_at`
-- `closed_at`
-- `closed_by_actor`
-- optional close-operation identifier
+- month ID;
+- year/month;
+- open/closed/reporting status where needed;
+- opened/closed timestamps and actor context.
 
-Only one normal active store month should be `OPEN` unless a future workflow explicitly requires overlap.
+Whether a formal operational close is mandatory for every future workflow can be decided after the canonical stock foundation is proven.
 
-## Open month behavior
+## Store-scoped monthly projections
 
-At month open:
+Any monthly stock values are scoped by Store + Lot.
 
-- prior closed-month lot closing balances become the new month's opening/brought-forward balances according to the approved carry-forward rule,
-- current active products/lots become available to operational views,
-- monthly usage starts at zero,
-- monthly received totals start at zero,
-- reorder calculations begin from current configuration and the new month's activity,
-- historical prior-month transactions and snapshots remain unchanged.
+A monthly view may expose:
 
-Do not simulate this by deleting old transactions or overwriting their dates.
+- opening/selected-period starting quantity;
+- receipt total;
+- transfer in/out totals;
+- usage/deduction total;
+- adjustments;
+- closing/current quantity;
+- daily usage pivot;
+- CMS/display context;
+- planning/reorder outputs when relevant.
 
-## During-month activity
+System-wide reporting aggregates store-scoped values when requested; it never merges store balances into one mutable canonical total.
 
-### Receipts
+## Main Stock
 
-Every committed intake records receipt batch/line history and canonical stock movement.
+For a selected Store and period, Main Stock is a generated operational inventory projection over Product/Lot/CMS data and movement aggregates.
 
-`This Month Received` is not a second receipt ledger. It is a display-only projection of rows/lots whose `Received Stock` or canonical receipt activity belongs to the active month.
+## Daily Usage
 
-The legacy Excel view contains only the operational fields needed for review, such as:
+Day 1-31 is a monthly pivot of normalized dated usage movements.
 
-- No.
-- Items
-- Sub Store Qty
-- Received Qty
-- Unit
-- Expiry Date
-- Remark
+The future backend does not need 31 canonical database quantity columns.
 
-The backend may generate an equivalent view from canonical receipt and inventory data. No independent `this_month_received` truth table is required merely to reproduce the worksheet.
+## This Month Received
 
-### Usage
+Generated view of selected-period receipt movements. No separate canonical receipt ledger is required for this worksheet.
 
-Daily usage records remain date-based canonical events.
+## Reorder / Final Reorder
 
-The month view projects them into Day 1–31 columns and monthly totals.
+Legacy workflow used a fixed Estimated Reorder Qty calculation followed by manual reasoning and adjustment in Final Reorder.
 
-### Adjustments
+Future planning is intentionally dynamic and may use history/trends, current/incoming stock, expiry risk, store demand, deterministic calculations, AI proposal/review and human approval.
 
-Approved adjustments are explicit events with reason and actor. They must not silently masquerade as usage or receipts.
+Exact legacy reorder formula parity is not required before F6D.
 
-### New product/lot
+A final approved reorder may later be stored as a durable reviewed business artifact/snapshot associated with a month/period when useful.
 
-A new product or expiry lot can become active during an open month.
+## Optional closed-period snapshot
 
-Its month snapshot must reflect its real opening semantics:
+When historical snapshot support is implemented, a Store+Lot snapshot may preserve:
 
-- a newly introduced receipt lot normally begins with zero brought-forward stock and gains stock from its receipt transaction,
-- a migrated pre-existing lot may have an opening balance established by the migration evidence.
+- Product/Lot display context;
+- selected-period opening quantity;
+- receipt/transfer/usage/adjustment totals;
+- closing quantity;
+- relevant CMS/catalogue display context;
+- final approved planning/reorder artifact references if produced.
 
-## Derived monthly views
+Snapshots are append-only under normal operation and remain reconcilable to canonical movements.
 
-For the open month, the backend should be able to generate:
+## Next-period behavior
 
-### Main Stock
+The user-facing view for a new month can present the prior period closing/current balance as the next period opening reference without fabricating a new physical stock event.
 
-Lot-level current state including current balance, current-month usage, expiry and configured reorder fields.
-
-### Daily Usage
-
-For each lot:
-
-- opening/base stock as required by the compatibility contract,
-- current-month received total,
-- Day 1–31 aggregated usage,
-- this-month usage total,
-- this-month remaining/current balance,
-- expiry projection.
-
-### This Month Received
-
-A display-only filtered projection of current-month receipt activity.
-
-It should be reproducible from canonical receipt/inventory data and should not become a separately maintained ledger after database promotion.
-
-### Reorder working view
-
-The legacy Excel workflow contains an intermediate `Reorder` sheet that synchronizes or displays reorder candidates already calculated from Main Stock. It is a working/display surface rather than canonical stock truth.
-
-The future backend may expose an equivalent generated working view when useful, but it should derive from canonical inventory state and the approved reorder calculation.
-
-### Final Reorder
-
-`Final Reorder` is the human-facing reorder document prepared from the calculated reorder candidates.
-
-The existing workflow copies the working reorder output into `Final Reorder`, where the user may make authorized manual edits before sending it to CMS and archiving it in the monthly Master package.
-
-Therefore distinguish:
-
-1. **calculated reorder recommendation** — deterministic derived output,
-2. **working Reorder view** — generated/display surface,
-3. **final reorder submission** — the user-approved, potentially manually adjusted result.
-
-Only the final approved/submitted reorder needs durable month-close snapshot semantics as a historical business record. The intermediate display sheet does not need its own canonical truth table.
-
-The exact reorder formula must still be documented from the existing Main Stock/Excel behavior before backend implementation. Do not invent a replacement formula during architecture work.
-
-## Month close preflight
-
-Month close is a controlled operation, not a simple date flip.
-
-Before close, the backend should require deterministic checks such as:
-
-- all committed usage/receipt operations are internally consistent,
-- no half-committed import exists,
-- stock ledger balances reconcile to materialized/current state,
-- unresolved conflicts that are defined as close-blocking are surfaced,
-- required reorder computation has completed under the approved rule,
-- the intended final reorder submission state is known when a final reorder is required for that month,
-- the intended month is still `OPEN`,
-- the close operation has not already been completed.
-
-Whether specific REVIEW items block close or are allowed with explicit carry-forward warning should be decided during implementation policy review.
-
-## Closed-month snapshot
-
-Closing creates an immutable historical snapshot package.
-
-At minimum, preserve enough data to reproduce the familiar monthly views and business records:
-
-- product/lot identity snapshot,
-- opening stock,
-- receipt totals and batch references,
-- daily/monthly usage,
-- closing stock,
-- expiry data,
-- reorder configuration used,
-- calculated reorder recommendation where useful for audit,
-- final user-approved reorder result when one was produced,
-- relevant current CMS price/mapping snapshot if the historical report requires it.
-
-Closed snapshots are append-only/immutable under normal operation.
-
-If a genuine historical correction is later required, use a documented correction/amendment mechanism rather than silently rewriting the original closed snapshot.
-
-## Next-month preparation
-
-After successful close:
-
-1. freeze the closed-month snapshot,
-2. set the prior month to `CLOSED`,
-3. create the next `OPEN` month,
-4. carry forward eligible lot closing balances,
-5. preserve product/lot identities even if display order changes,
-6. reset only month-scoped projections, not canonical lifetime history,
-7. regenerate/synchronize the Google Sheet operational mirror for the new month.
-
-This replaces the fragile parts of macro-driven archive/reset behavior with a deterministic backend transaction or controlled sequence.
+Month-scoped display totals such as received/usage/day cells reset because the selected period changed, not because canonical history was erased.
 
 ## Excel Master compatibility
 
-The future system should support export of any closed month into an `.xlsx` workbook containing the familiar four views:
+The familiar monthly workbook package remains an export/report compatibility target:
 
-- Main Stock
-- Daily Usage
-- This Month Received
-- Final Reorder
+- Main Stock;
+- Daily Usage;
+- This Month Received;
+- Final Reorder when applicable.
 
-The four-sheet export is a compatibility/report package, not evidence that all four sheets require independent canonical database tables.
+High-fidelity formatting/macros can be implemented after the canonical database foundation is stable.
 
-Historical Excel export becomes a portable representation generated from the database, not the only canonical archive.
+Exact legacy reset/archive formulas are not foundation blockers unless source evidence proves that a specific macro carries independent inventory truth that cannot be reconstructed from canonical movements/provenance.
 
-If exact existing workbook formatting/macros must be preserved, treat that as a compatibility/export project after the canonical data model is stable.
+## Back-dated evidence
 
-## Back-dated source evidence
+Always distinguish:
 
-A source document may legitimately arrive or be reconciled after its effective date.
+- event effective date;
+- recorded/imported timestamp;
+- source provenance;
+- later reconciliation/correction time.
 
-The system must distinguish:
-
-- event effective date,
-- event recorded/imported timestamp,
-- month in which the event belongs operationally,
-- date of later reconciliation/correction.
-
-Never force a historical transfer into the current month merely because it was entered later.
+Never force historical source evidence into the current month merely because it was entered later.
 
 ## Historical queries
 
-The database should allow queries such as:
+The canonical database should support queries such as:
 
-- stock state at a closed month,
-- usage for a product/lot on a particular date,
-- receipts for a transfer or month,
-- month-over-month usage changes,
-- calculated and final historical reorder outputs,
-- price/catalogue context at a prior month.
+- Store/Lot balance at a date or period boundary;
+- usage for a Product/Lot/Store/date;
+- receipts by source transfer/document;
+- internal transfers between locations;
+- month-over-month usage trends;
+- historical catalogue context;
+- planning/reorder proposals and final approvals when those workflows are implemented.
 
-These queries should not depend on locating an archived worksheet copy.
+These queries must not depend on locating an old workbook copy.
+
+## Boundary
+
+Do not let exact Excel monthly formula/macro parity delay the F6D canonical inventory schema unless a genuinely independent quantity/provenance rule is discovered.
