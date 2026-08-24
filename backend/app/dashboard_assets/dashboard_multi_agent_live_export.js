@@ -7,6 +7,7 @@
   let livePollTimer=null;
   let liveLastSignature='';
   let liveRunning=false;
+  let reconcileFrame=null;
 
   const esc=value=>String(value??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
   const compact=value=>String(value??'').replace(/\s+/g,' ').trim();
@@ -140,21 +141,36 @@
     let actions=head.querySelector('.ai-chat-export-actions');
     const id=currentConversationId();
     if(!id){actions?.remove();return}
+    if(actions?.dataset.conversationId===id)return;
     if(!actions){actions=document.createElement('div');actions.className='ai-chat-export-actions';head.appendChild(actions)}
-    actions.innerHTML='<span>Export</span><a href="/dashboard/api/ai-workspace/conversations/'+encodeURIComponent(id)+'/export?format=docx">DOCX</a><a href="/dashboard/api/ai-workspace/conversations/'+encodeURIComponent(id)+'/export?format=json">JSON</a>';
+    actions.dataset.conversationId=id;
+    actions.replaceChildren();
+    const label=document.createElement('span');label.textContent='Export';
+    const docx=document.createElement('a');docx.textContent='DOCX';docx.href='/dashboard/api/ai-workspace/conversations/'+encodeURIComponent(id)+'/export?format=docx';
+    const json=document.createElement('a');json.textContent='JSON';json.href='/dashboard/api/ai-workspace/conversations/'+encodeURIComponent(id)+'/export?format=json';
+    actions.append(label,docx,json);
+  }
+
+  function reconcileDom(){
+    reconcileFrame=null;
+    polishReviewDom(document);
+    syncSingleChatExport();
+  }
+
+  function scheduleReconcile(){
+    if(reconcileFrame!==null)return;
+    reconcileFrame=requestAnimationFrame(reconcileDom);
   }
 
   document.addEventListener('click',event=>{
     const run=event.target.closest('#aiMultiMode #reviewRun');
     if(run){event.preventDefault();event.stopPropagation();startLiveReview();return}
     const copy=event.target.closest('.review-message-copy');
-    if(copy){const text=copy.closest('.review-chat-turn')?.querySelector('.review-chat-bubble')?.dataset.reviewCopyText||'';copyText(text,copy)}
+    if(copy){const text=copy.closest('.review-chat-turn')?.querySelector('.review-chat-bubble')?.dataset.reviewCopyText||'';copyText(text,copy);return}
+    if(event.target.closest('[data-ai-conversation],#aiNewConversation,#aiWorkspaceNav,[data-ai-tab]'))scheduleReconcile();
   },true);
 
-  const observer=new MutationObserver(mutations=>{
-    for(const mutation of mutations){for(const node of mutation.addedNodes){if(node.nodeType===1)polishReviewDom(node)}}
-    polishReviewDom(document);syncSingleChatExport();
-  });
+  const observer=new MutationObserver(()=>scheduleReconcile());
   observer.observe(root,{childList:true,subtree:true});
-  polishReviewDom(document);syncSingleChatExport();
+  scheduleReconcile();
 })();
