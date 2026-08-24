@@ -8,6 +8,7 @@ on:
       - 'backend/app/native_agent_runtime_verify.py'
       - 'backend/app/agent_model_assignments.py'
       - 'backend/app/dashboard_assets/dashboard_native_agent_test.js'
+      - 'backend/app/dashboard_asset_version.py'
       - 'backend/app/main.py'
       - '.github/workflows/validate-native-agent-runtime.yml'
 
@@ -31,5 +32,11 @@ jobs:
           grep -Fq 'Test native runtime' backend/app/dashboard_assets/dashboard_native_agent_test.js
           grep -Fq 'mcp_used' backend/app/dashboard_assets/dashboard_native_agent_test.js
           grep -Fq 'dashboard_native_agent_test.js' backend/app/main.py
-          grep -Fq 'f72d4d-native-test-' backend/app/main.py
+          grep -Fq '"dashboard_native_agent_test.js": "f72d4d-native-test-"' backend/app/dashboard_asset_version.py
+          PYTHONPATH=backend python - <<'PY'
+          from app.main import NATIVE_AGENT_TEST_ASSET_VERSION
+          assert NATIVE_AGENT_TEST_ASSET_VERSION.startswith('f72d4d-native-test-')
+          assert len(NATIVE_AGENT_TEST_ASSET_VERSION.removeprefix('f72d4d-native-test-')) == 12
+          print('native_agent_test_asset_identity=pass')
+          PY
           echo 'native_agent_test_ui=pass'
