@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Implementation Plan
 
-Status: **AI Workspace is accepted supporting infrastructure. F6B remains test-only; PostgreSQL remains non-canonical. F6C has been realigned around the Canonical Inventory Foundation. Exact legacy reorder/monthly Excel formula parity is deferred. Next implementation target: F6D Canonical Inventory Schema Parity + Fresh Shadow Import.**
+Status: **AI Workspace is accepted supporting infrastructure. F6B remains test-only; PostgreSQL remains non-canonical. F6C Canonical Inventory Foundation is aligned, including deterministic reorder fallback and assisted CMS mapping lifecycle. Next implementation target: F6D Canonical Inventory Schema Parity + Fresh Shadow Import.**
 
 ## 1. Global rules
 
@@ -11,6 +11,7 @@ Status: **AI Workspace is accepted supporting infrastructure. F6B remains test-o
 - Never expose arbitrary SQL, DB credentials, VPS shell/filesystem, Sheet credentials, plaintext provider keys, passwords/tokens/recovery secrets, or unrestricted HTTP proxying to AI/client runtimes.
 - Deterministic backend code owns identity, authorization, constraints, idempotency, transactions, confirmation, read-back and audit semantics.
 - Provider/model choice never grants authority; participant privileges never union.
+- Essential store workflows must degrade safely when AI providers are unavailable.
 - Significant implementation/deploy/next-work changes update `ROADMAP.md`, `NEW_CHAT_BOOTSTRAP.md`, this file, and relevant architecture docs.
 
 ## 2. Accepted supporting foundation
@@ -33,10 +34,14 @@ Core rules:
 
 > **Store quantity truth comes from movements; totals and operational quantity columns are projections of that truth.**
 
+> **AI enhances store workflows but must not become a single point of operational failure.**
+
 Canonical docs:
 
 - `docs/architecture/CANONICAL_INVENTORY_FOUNDATION.md`
 - `docs/architecture/STORE_LOCATION_MODEL.md`
+- `docs/architecture/CMS_MAPPING_LIFECYCLE.md`
+- `docs/architecture/REORDER_BASELINE_AND_AI_ENHANCEMENT.md`
 - `docs/architecture/CONFIGURABLE_OPERATIONAL_VIEW_ENGINE.md`
 
 Human Web/Flutter edits and AI-agent MSA actions converge on the same authorized typed backend command layer.
@@ -92,14 +97,21 @@ Current Qty
 - `Total Store Stock` = sum of store balances; never a second manually editable truth.
 - materialized balance caching may be added only with deterministic reconciliation against the ledger.
 
-### 5.4 Universal CMS Catalogue
+### 5.4 Universal CMS Catalogue + assisted mapping
 
 - one global/versioned CMS catalogue subsystem;
 - CMS catalogue is independent of store/location;
 - local Product identity does not use CMS Code as primary key;
-- `product_cms_mappings` or equivalent preserves auditable/version-aware mapping;
+- mappings are historical/auditable lifecycle records, not direct code sync;
 - current catalogue price remains separate from historical receipt/source price;
-- Store/Main Stock views resolve CMS Name/Code/Price through accepted current mapping.
+- last accepted mapping/price remains usable while a newer catalogue is unresolved;
+- recycled/discontinued/ambiguous mappings are explicit review states;
+- AI may rank/explain candidates but does not silently remap;
+- when AI is unavailable, manual mapping/review remains possible and ordinary inventory continues using accepted state.
+
+Required principle:
+
+> **CMS mapping is never blindly auto-synced. Last accepted mapping and price state remain usable until a newer mapping is reviewed and accepted.**
 
 ### 5.5 Actor / Audit
 
@@ -126,23 +138,28 @@ AI proposal/review does not itself grant mutation authority.
 
 Do not create canonical tables merely because worksheets exist.
 
-### 5.7 Reorder and calculation realignment
+### 5.7 Reorder fallback + AI enhancement
 
 Exact legacy Estimated Reorder Qty formula/threshold/rounding is **not an F6D prerequisite**.
 
-Future reorder is a dynamic intelligence/workflow layer and may combine:
+However, reorder capability must not disappear when AI services fail.
 
-- usage trend/history;
-- current/expected stock;
-- store-specific demand;
-- expiry risk;
-- safety stock / lead time / seasonality;
-- deterministic calculations;
-- AI proposal;
-- agent review;
-- authorized human adjustment/approval.
+Two-layer direction:
 
-F6D must preserve the underlying stock and history needed for these workflows rather than locking the system to one Excel formula.
+1. deterministic baseline recommendation using structured backend data/configuration;
+2. optional AI/advanced enhancement and review.
+
+AI unavailable path:
+
+`canonical stock/history -> deterministic baseline -> human review/adjustment -> final reorder`
+
+AI available path:
+
+`canonical stock/history -> deterministic baseline -> AI enhancement/review -> human/authorized workflow -> final reorder`
+
+Keep baseline, AI-enhanced proposal and final approved result distinguishable for audit.
+
+The exact baseline strategy is later implementation policy and may evolve/version without changing canonical inventory identity.
 
 ### 5.8 Monthly formula/macro realignment
 
@@ -152,7 +169,9 @@ Opening/migration balance provenance remains required.
 
 ### 5.9 F6C completion gate
 
-F6C may close once the docs consistently describe Product/Lot/Store/Movement/Balance/Transfer/CMS Mapping/Actor-Audit semantics and any remaining unresolved issue would not force a different canonical foundation.
+F6C may close once the docs consistently describe Product/Lot/Store/Movement/Balance/Transfer/CMS Mapping/Actor-Audit semantics and remaining unresolved issues would not force a different canonical foundation.
+
+This gate is now satisfied for moving into the F6D schema slice; later workflow refinements remain separate bounded work.
 
 ## 6. NEXT — F6D Canonical Inventory Schema Parity + Fresh Shadow Import
 
@@ -163,15 +182,17 @@ Implement only the minimum foundation:
 1. `stores` or equivalent canonical location table;
 2. one configured Main Store seed/identity;
 3. location-aware `inventory_transactions` / ledger;
-4. appropriate movement types including internal transfer effects;
+4. movement types including internal transfer effects;
 5. receipt batch/line provenance with destination store;
 6. explicit transfer header/lines or equivalent atomic typed transfer structure;
 7. Product/Lot identity retained independent of location;
-8. Universal CMS Catalogue versioning + Product mapping;
-9. actor/audit/idempotency coverage for inventory mutations;
-10. minimal indexes/queries needed for location balance and total-stock aggregation.
+8. Universal CMS Catalogue versioning retained;
+9. historical/auditable Product-CMS mapping lifecycle with accepted/current/review/discontinued/recycled semantics;
+10. retention of last accepted operational mapping/price state when newer catalogue reconciliation is pending;
+11. actor/audit/idempotency coverage for inventory/mapping mutations;
+12. minimal indexes/queries needed for location balance and total-stock aggregation.
 
-Do not add speculative tables for AI analysis, custom formula engines, or report-only worksheets.
+Do not add speculative tables for final AI matching, AI reorder analysis, custom formula engines, or report-only worksheets.
 
 ### 6.2 Fresh shadow import
 
@@ -181,9 +202,10 @@ Do not add speculative tables for AI analysis, custom formula engines, or report
 4. create/resolve Product and Lot identities;
 5. establish migration/opening quantities without fabricating historical transactions;
 6. reconcile current receipt/usage/CMS mapping evidence;
-7. derive current Main Store balances;
-8. explicitly classify unresolved mismatches;
-9. do not reuse F6B as accepted baseline.
+7. preserve mapping exceptions such as recycled/discontinued/review-required instead of forcing clean matches;
+8. derive current Main Store balances;
+9. explicitly classify unresolved mismatches;
+10. do not reuse F6B as accepted baseline.
 
 ### 6.3 Foundation proof
 
@@ -194,7 +216,9 @@ Before F6D acceptance, prove in shadow/test:
 - same lot represented in multiple stores;
 - atomic transfer preserving total system quantity;
 - receipt and usage provenance;
-- CMS current mapping without historical-price overwrite;
+- last accepted CMS mapping/price survives an unresolved newer catalogue;
+- recycled/discontinued mapping states do not corrupt Product identity;
+- CMS current mapping never overwrites historical receipt price;
 - actor/audit attribution;
 - Main Stock and Daily Usage projection generation.
 
@@ -202,22 +226,24 @@ PostgreSQL remains non-canonical after this proof until later promotion gates pa
 
 ## 7. Subsequent implementation sequence
 
-1. finish F6C doc alignment;
-2. F6D canonical inventory schema + fresh shadow import;
+1. F6D canonical inventory schema foundation;
+2. fresh shadow import and reconciliation;
 3. historical bootstrap/reconciliation;
 4. shadow balance/projection parity + transfer testing;
 5. minimal field/computation registry + saved view definitions;
 6. DB-backed Main Stock and Daily Usage presets;
 7. spreadsheet-like draft/confirm/save editing over typed commands;
-8. dynamic reorder/trend/AI proposal-review workflows;
-9. dual verification of real operations;
-10. read-path promotion;
-11. controlled write promotion per operation class;
-12. explicit DB canonicality promotion;
-13. Sheet mirror/rebuild, exports, Flutter/Telegram and broader automation.
+8. deterministic reorder baseline engine;
+9. CMS assisted reconciliation UI/workflow + optional AI candidate reasoning;
+10. AI-enhanced reorder/trend proposal-review workflows;
+11. dual verification of real operations;
+12. read-path promotion;
+13. controlled write promotion per operation class;
+14. explicit DB canonicality promotion;
+15. Sheet mirror/rebuild, exports, Flutter/Telegram and broader automation.
 
 ## 8. Immediate boundary
 
 Keep re-reading the live Google Sheet when source structure/value behavior matters, but stop treating exact spreadsheet formulas as the center of database design.
 
-The immediate engineering target is the canonical inventory foundation.
+The immediate engineering target is the canonical inventory schema foundation and safe CMS mapping persistence lifecycle.

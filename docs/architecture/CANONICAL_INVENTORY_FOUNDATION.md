@@ -12,6 +12,12 @@ The foundation is intentionally simple:
 
 The current Excel/Google workflow remains source evidence for operational meaning, but the future database must not clone spreadsheet calculations or worksheet layout as canonical truth.
 
+Canonical companion contracts:
+
+- `STORE_LOCATION_MODEL.md`
+- `CMS_MAPPING_LIFECYCLE.md`
+- `REORDER_BASELINE_AND_AI_ENHANCEMENT.md`
+
 ## Core rules
 
 > **Spreadsheet layout is configurable; inventory semantics are not arbitrary.**
@@ -19,6 +25,8 @@ The current Excel/Google workflow remains source evidence for operational meanin
 > **Stock belongs to a location; product and catalogue identity do not.**
 
 > **Store quantity truth comes from movements; totals and operational quantity columns are projections of that truth.**
+
+> **AI improves store workflows but must not become a single point of operational failure.**
 
 ## 1. Product
 
@@ -208,7 +216,7 @@ The current Daily Usage Day 1-31 sheet is a monthly pivot/edit view over these d
 
 Actual historical movement is preserved even when it does not follow ideal FIFO/FEFO advice.
 
-## 9. Universal CMS Catalogue
+## 9. Universal CMS Catalogue and mapping lifecycle
 
 The CMS catalogue is a separate global/versioned external reference domain.
 
@@ -218,21 +226,36 @@ Conceptual structure:
 
 - `cms_catalogue_versions` — each issued catalogue/version/effective period.
 - `cms_catalogue_items` — code, CMS name/brand, description, form/type/class, selling price, etc.
-- `product_cms_mappings` — auditable/version-aware relationship from local Product to external catalogue identity.
+- `product_cms_mappings` — auditable/version-aware mapping lifecycle from local Product to external catalogue identity/context.
 
-CMS code alone never becomes stable local identity because codes may change, disappear, retire, or be reused.
+CMS code alone never becomes stable local identity because codes may change, disappear, retire, be reused, or be incorrectly/stale-mapped in local data.
+
+The live workbook contains real evidence of recycled/discontinued/ambiguous states, so mapping must be treated as assisted reconciliation rather than direct synchronization.
+
+Core mapping rule:
+
+> **CMS mapping is never blindly auto-synced. Last accepted mapping and price state remain usable until a newer mapping is reviewed and accepted.**
+
+A new catalogue version may be deterministically diffed and screened, but ambiguous identity changes go to review. AI can rank/explain candidates when available; human manual mapping remains possible when AI is unavailable.
+
+Accepted mapping history is never destructively replaced merely because a new catalogue was issued.
+
+See `CMS_MAPPING_LIFECYCLE.md` for the full state/fallback contract.
 
 ### Price semantics
 
 Separate:
 
-- current catalogue price;
+- newest/current catalogue price from the imported CMS dataset;
+- last accepted operational mapping/price used by the store;
 - historical receipt/source price;
 - local display/derived price where required by compatibility rules.
 
 Updating the Universal CMS Catalogue must not rewrite genuine historical receipt-price truth.
 
-Operational Store/Main Stock views may display current `CMS Code`, `CMS Name` and `CMS Price` by resolving the current accepted Product-to-CMS mapping.
+If a new catalogue mapping is unresolved, the store may continue using its last accepted operational mapping/price while clearly surfacing stale/unreviewed status. Do not silently adopt a new price from code equality alone.
+
+Operational Store/Main Stock views may display current accepted `CMS Code`, `CMS Name`, `CMS Price`, mapping status and catalogue-review warning by resolving mapping lifecycle state.
 
 ## 10. Actors and audit
 
@@ -254,14 +277,21 @@ Important operation context includes:
 
 AI reasoning does not grant inventory authority. Human UI and AI workflows converge on the same typed backend command layer.
 
-## 11. Reorder and analysis are workflow/intelligence layers
+## 11. Reorder resilience and intelligence
 
-The legacy Excel `Estimated Reorder Qty` is a useful historical/manual calculation, not a required canonical database formula.
+The legacy Excel `Estimated Reorder Qty` is a useful historical/manual baseline, not a required canonical database formula.
 
-Reorder strategy is intentionally dynamic and may evolve to use:
+The future system must still provide reorder capability when all AI services are unavailable.
 
-- recent usage trend;
-- longer historical usage;
+Core rule:
+
+> **A deterministic baseline reorder engine is always available. AI enhances/reviews the baseline; AI is not the only way to calculate a proposal.**
+
+Deterministic fallback may use structured local data such as current balance, usage history, configured reorder level/safety settings, lead time, incoming stock and store scope. The exact strategy may evolve and be versioned/configurable without changing canonical inventory identity.
+
+When AI is available, reorder may additionally use:
+
+- recent and long-term usage trends;
 - store-specific demand;
 - current and incoming stock;
 - expiry risk;
@@ -269,14 +299,16 @@ Reorder strategy is intentionally dynamic and may evolve to use:
 - lead time;
 - seasonality;
 - unusual consumption;
-- deterministic rules;
+- cross-store context;
 - AI proposal;
 - single/multi-agent review;
 - authorized human adjustment/approval.
 
-Therefore F6D must preserve the underlying stock/history/configuration data needed for analysis, but **exact legacy reorder formula parity is not a blocker for the canonical inventory schema**.
+Keep deterministic baseline, AI-enhanced proposal, reviews and final authorized quantity distinguishable for audit.
 
-Final approved reorder output may later be stored as a durable business artifact/snapshot with provenance and reviewer/approver context.
+Therefore F6D must preserve the underlying stock/history/configuration data needed for later reorder strategies, but **exact legacy reorder formula parity is not a blocker for the canonical inventory schema**.
+
+See `REORDER_BASELINE_AND_AI_ENHANCEMENT.md`.
 
 ## 12. Monthly Excel formulas and archives
 
@@ -298,7 +330,7 @@ Exact names may change during implementation, but F6D must provide the equivalen
 - `inventory_transfers` / `inventory_transfer_lines` or equivalent typed transfer structures;
 - `cms_catalogue_versions`;
 - `cms_catalogue_items`;
-- `product_cms_mappings`;
+- historical/auditable `product_cms_mappings` with lifecycle state;
 - existing human identity / service-principal / agent identity structures;
 - `audit_events`.
 
@@ -316,10 +348,14 @@ Before any canonical promotion, the shadow database must prove that it can:
 4. represent the same lot in multiple stores with independent balances;
 5. perform/replay an internal transfer atomically without changing total system stock;
 6. aggregate Total Store Stock across locations without a second mutable truth;
-7. resolve current accepted CMS mapping/catalogue price without overwriting historical receipt price;
-8. attribute mutations/proposals/reviews/execution to stable human/agent identities;
-9. reproduce useful Main Stock and Daily Usage projections from DB data;
-10. reconcile all mismatches explicitly while PostgreSQL remains non-canonical.
+7. preserve last accepted CMS mapping/price state while allowing a newer catalogue to remain unresolved;
+8. represent recycled/discontinued/review-required CMS mapping lifecycle without corrupting local Product identity;
+9. keep current catalogue price separate from historical receipt price;
+10. attribute mutations/proposals/reviews/execution to stable human/agent identities;
+11. reproduce useful Main Stock and Daily Usage projections from DB data;
+12. reconcile all mismatches explicitly while PostgreSQL remains non-canonical.
+
+The full deterministic reorder engine is a later slice, but the foundation must retain the structured history/configuration needed to run it without AI.
 
 ## Boundary
 

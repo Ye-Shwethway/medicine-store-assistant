@@ -15,20 +15,22 @@ Before changing code/config/schema/runtime, read:
 3. `ROADMAP.md`
 4. `IMPLEMENTATION_PLAN.md`
 5. `docs/architecture/CANONICAL_INVENTORY_FOUNDATION.md`
-6. `docs/architecture/F6C_WORKBOOK_PARITY_LOCK.md`
-7. `docs/architecture/STORE_LOCATION_MODEL.md`
-8. `docs/architecture/INVENTORY_DATA_MODEL.md`
-9. `docs/architecture/CONFIGURABLE_OPERATIONAL_VIEW_ENGINE.md`
-10. `docs/architecture/WORKBOOK_PARITY_MATRIX.md`
-11. `docs/architecture/WORKBOOK_FUNCTION_CONTRACT.md`
-12. `docs/architecture/F2_SCHEMA_DECISION_PROPOSAL.md`
-13. `docs/architecture/MIGRATION_AND_SHADOW_VALIDATION.md`
-14. `docs/architecture/SHEET_MIRROR_AND_COMPATIBILITY.md`
-15. `docs/architecture/CMS_CATALOGUE_VERSIONING.md`
-16. `docs/architecture/MONTHLY_LIFECYCLE.md`
-17. `skills/medicine-store-assistant/SKILL.md`
-18. task-relevant files under `skills/medicine-store-assistant/references/`
-19. latest F6C/F6D checkpoints and issue #26 runtime evidence when runtime truth matters.
+6. `docs/architecture/STORE_LOCATION_MODEL.md`
+7. `docs/architecture/CMS_MAPPING_LIFECYCLE.md`
+8. `docs/architecture/REORDER_BASELINE_AND_AI_ENHANCEMENT.md`
+9. `docs/architecture/F6C_WORKBOOK_PARITY_LOCK.md`
+10. `docs/architecture/INVENTORY_DATA_MODEL.md`
+11. `docs/architecture/CONFIGURABLE_OPERATIONAL_VIEW_ENGINE.md`
+12. `docs/architecture/WORKBOOK_PARITY_MATRIX.md`
+13. `docs/architecture/WORKBOOK_FUNCTION_CONTRACT.md`
+14. `docs/architecture/F2_SCHEMA_DECISION_PROPOSAL.md`
+15. `docs/architecture/MIGRATION_AND_SHADOW_VALIDATION.md`
+16. `docs/architecture/SHEET_MIRROR_AND_COMPATIBILITY.md`
+17. `docs/architecture/CMS_CATALOGUE_VERSIONING.md`
+18. `docs/architecture/MONTHLY_LIFECYCLE.md`
+19. `skills/medicine-store-assistant/SKILL.md`
+20. task-relevant files under `skills/medicine-store-assistant/references/`
+21. latest F6C/F6D checkpoints and issue #26 runtime evidence when runtime truth matters.
 
 Treat newer verified repository/runtime/source evidence as authoritative over remembered chat context.
 
@@ -36,9 +38,9 @@ Treat newer verified repository/runtime/source evidence as authoritative over re
 
 The AI Workspace is accepted supporting infrastructure, not the immediate development center.
 
-**Current bounded task: finish F6C documentation alignment around the Canonical Inventory Foundation.**
+**F6C Canonical Inventory Foundation documentation is aligned enough to move into F6D.**
 
-**Next bounded implementation slice: F6D Canonical Inventory Schema Parity + Fresh Shadow Import.**
+**Current bounded implementation slice: F6D Canonical Inventory Schema Parity + Fresh Shadow Import.**
 
 Exact legacy reorder formula and monthly Excel formula/macro parity are deferred unless they change foundational inventory truth.
 
@@ -56,6 +58,8 @@ Core rules:
 
 > **Store quantity truth comes from movements; totals and operational quantity columns are projections of that truth.**
 
+> **AI enhances store workflows but must not become a single point of operational failure.**
+
 MSA must support:
 
 - one Main Store plus unlimited Sub Stores;
@@ -63,7 +67,8 @@ MSA must support:
 - Web, Flutter, Telegram, ChatGPT and automation clients;
 - durable operation with or without ChatGPT/Google Sheets;
 - preset and user-defined spreadsheet-like operational views;
-- dynamic inventory intelligence/workflows on top of canonical stock history.
+- deterministic essential fallbacks when AI is unavailable;
+- optional AI-assisted reconciliation and intelligence.
 
 ## Canonical inventory semantics
 
@@ -105,12 +110,22 @@ Total system stock is the sum of location balances, not a separately editable ma
 
 Internal transfer preserves Product/Lot identity and atomically produces source `TRANSFER_OUT` + destination `TRANSFER_IN` effects under one transfer/operation identity.
 
-### Universal CMS Catalogue
+### Universal CMS Catalogue / mapping lifecycle
 
 - global/versioned external catalogue, not per store;
 - local Product identity does not use CMS Code as primary key;
-- Product-to-CMS mapping is auditable/version-aware;
-- current catalogue price is separate from historical receipt/source price.
+- mapping is historical/auditable accepted state, not blind direct sync;
+- current catalogue price is separate from historical receipt/source price;
+- last accepted mapping and operational price remain usable while a newer catalogue is unresolved;
+- recycled/discontinued/ambiguous mappings are structured review states;
+- AI can assist candidate reasoning but cannot silently remap;
+- when AI is unavailable, manual mapping remains possible and ordinary inventory continues with accepted state.
+
+Core rule:
+
+> **CMS mapping is never blindly auto-synced. Last accepted mapping and price state remain usable until a newer mapping is reviewed and accepted.**
+
+The live workbook contains `Recycled ID`, `CMS Discontinued (Local Stock Retained)` and same-code/identity-conflict evidence. Do not treat every conflict as a CMS error or a local error; preserve uncertainty for review.
 
 ### Actor / audit
 
@@ -131,13 +146,24 @@ Use the live Google Sheet repeatedly whenever current structure/value behavior m
 
 Representative Google Sheet `FORMULA` reads return materialized values, not exact Excel formula strings. Do not reverse-engineer Excel formulas from them.
 
-## Reorder realignment
+## Reorder resilience
 
-Exact legacy Estimated Reorder Qty formula parity is **not an F6D blocker**.
+Exact legacy Estimated Reorder Qty formula parity is **not an F6D blocker**, but reorder must work without AI.
 
-Future reorder may combine usage trends/history, current/incoming stock, expiry risk, safety stock, lead time, store-specific demand, deterministic rules, AI proposal, agent review and human adjustment/approval.
+Two-layer model:
 
-The foundational requirement is good stock/history data, not one fixed formula.
+1. deterministic baseline calculation from structured local/backend data and configuration;
+2. optional AI/advanced enhancement/review.
+
+AI unavailable:
+
+`stock/history -> deterministic baseline -> human review/adjustment -> final reorder`
+
+AI available:
+
+`stock/history -> deterministic baseline -> AI enhancement/review -> human/authorized workflow -> final reorder`
+
+The user must not be forced to manually calculate every item merely because AI providers are unavailable.
 
 ## Current canonicality boundary
 
@@ -154,15 +180,19 @@ The foundational requirement is good stock/history data, not one fixed formula.
 3. add receipt destination/provenance;
 4. add explicit atomic internal transfer representation;
 5. preserve Product/Lot identity independently of location;
-6. ensure Universal CMS Catalogue + Product mapping works cleanly;
-7. ensure actor/audit/idempotency coverage;
-8. take a fresh authorized source snapshot bound to Main Store;
-9. import non-canonically with provenance;
-10. reconcile opening stock, receipts, usage, CMS mapping/price and current balances;
-11. prove per-store balance + all-store Total Stock aggregation;
-12. prove Main Stock and Daily Usage projections from DB;
-13. keep mismatches explicit and PostgreSQL non-canonical.
+6. retain Universal CMS Catalogue versioning;
+7. implement historical/auditable Product-CMS mapping lifecycle and last-accepted-state persistence;
+8. ensure actor/audit/idempotency coverage;
+9. take a fresh authorized source snapshot bound to Main Store;
+10. import non-canonically with provenance;
+11. reconcile opening stock, receipts, usage, CMS mapping/price and current balances;
+12. preserve recycled/discontinued/review-required mapping states rather than forcing matches;
+13. prove per-store balance + all-store Total Stock aggregation;
+14. prove Main Stock and Daily Usage projections from DB;
+15. keep mismatches explicit and PostgreSQL non-canonical.
+
+F6D does not need the final AI semantic matcher or full deterministic reorder engine. It must persist the state needed to add them later without redesign.
 
 ## Immediate boundary
 
-Do not let legacy spreadsheet formulas or report formatting drive the canonical schema. Build the minimal durable inventory foundation first, then add configurable views and dynamic AI/rule-based workflows on top.
+Do not let legacy spreadsheet formulas or report formatting drive the canonical schema. Build the minimal durable inventory foundation first, then add configurable views, deterministic fallback engines and optional AI-assisted workflows on top.
