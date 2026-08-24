@@ -116,7 +116,7 @@ assert.ok(latestRowsRequest.includes('fields=local_item_name%2Creview_reason'));
 
 // CMS Mapping Review is another preset over the exact same renderer/table.
 await page.locator('#inventoryPresetSelect').selectOption('cms-mapping-review');
-await page.getByText('Metformin 500mg').waitFor({ state: 'visible' });
+await page.getByRole('cell', { name: 'Metformin 500mg', exact: true }).waitFor({ state: 'visible' });
 assert.equal(await page.locator('#inventoryViewName').textContent(), 'CMS Mapping Review');
 assert.equal(await page.locator('#inventoryViewTable').count(), 1);
 assert.ok((await page.locator('#inventoryViewTable thead').textContent()).includes('Current Catalogue Price'));
