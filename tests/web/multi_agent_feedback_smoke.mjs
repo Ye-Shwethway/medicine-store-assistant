@@ -106,9 +106,15 @@ assert.equal(await settled.isDisabled(), true);
 const feedbackCallsBeforeMessage = await page.evaluate(() => window.__requests.filter(r => r.url.endsWith('/feedback-pass')).length);
 await page.getByRole('textbox', { name: 'Owner message' }).fill('Please focus on rows 312 and 648.');
 await page.getByRole('button', { name: 'Send Owner message' }).click();
-await page.getByText('Please focus on rows 312 and 648.').waitFor({ state: 'visible' });
+await page.waitForFunction(() => window.__requests.some(r => r.url.endsWith('/owner-messages') && r.method === 'POST'));
+await page.waitForFunction(() => window.__work.artifacts.some(a => a.artifact_type === 'OWNER_MESSAGE'));
 const feedbackCallsAfterMessage = await page.evaluate(() => window.__requests.filter(r => r.url.endsWith('/feedback-pass')).length);
 assert.equal(feedbackCallsAfterMessage, feedbackCallsBeforeMessage);
+
+// Reopen proves the ordinary message and newly actionable review state rehydrate from persisted work detail.
+await page.getByRole('button', { name: /Back to reviews/ }).click();
+await workCard.click();
+await page.getByText('Please focus on rows 312 and 648.').waitFor({ state: 'visible' });
 assert.equal(await page.getByRole('button', { name: 'Send review' }).isEnabled(), true);
 
 // Composer-side exports reuse the exact same endpoints as the top actions.
