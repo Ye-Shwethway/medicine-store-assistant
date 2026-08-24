@@ -45,7 +45,7 @@ NATIVE_AGENT_TEST_ASSET_VERSION = "f72d4d-native-test-1"
 AI_WORKSPACE_ACCESS_ASSET_VERSION = "f72d4-access-1"
 AI_WORKSPACE_ASSET_VERSION = "f72d47b-attachments-1"
 MULTI_AGENT_REVIEW_ASSET_VERSION = "f72d48-review-ui-2"
-MULTI_AGENT_LIVE_EXPORT_ASSET_VERSION = "f72d48-live-export-1"
+MULTI_AGENT_LIVE_EXPORT_ASSET_VERSION = "f72d48-live-export-2"
 AGENT_POLISH_ASSET_VERSION = "f72d31-agentui-1"
 MCP_BINDING_ASSET_VERSION = "f72d4a-mcpbind-1"
 AUDIT_ASSET_VERSION = "f73a-mcpaudit-1"
@@ -326,7 +326,7 @@ def health() -> dict[str, object]:
         "ai_workspace_chat": "f7.2d47b-attachments",
         "native_internal_agent_tools": "f7.2d47b-human-presentation",
         "ai_workspace_attachments": "metadata-and-evidence-persistence-no-model-processing",
-        "multi_agent_review": "f7.2d48-review-ui",
+        "multi_agent_review": "f7.2d48-participant-native-read-tools",
         "nanogpt_detailed_catalog": "enabled",
         "production_inventory_writes": False,
     }
