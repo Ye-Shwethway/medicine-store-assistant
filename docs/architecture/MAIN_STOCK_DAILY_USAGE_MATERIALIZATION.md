@@ -12,6 +12,17 @@ Prevent worksheet mirror rows from becoming duplicate canonical inventory object
 
 The fresh F6D staging batch contains both worksheets as source evidence. Therefore a staging count such as 1,646 means source records, not 1,646 inventory items/lots.
 
+## Live source confirmation — 2026-08-24
+
+A fresh direct read of the live workbook confirms:
+
+- `Main Stock!A1:C824` contains one header row plus **823 populated item rows** (`No.` 1 through 823);
+- `Daily Usage!B1:B824` contains the same **823 item-name rows** in the same visible sequence;
+- Daily Usage retains its own Expiry Date and day/month usage evidence for those rows;
+- therefore the current staged total **1,646 = 823 Main Stock source records + 823 Daily Usage source records**.
+
+The number 823 is current snapshot evidence only. It is not a schema constant or permanent inventory count.
+
 ## Migration ownership
 
 ### Main Stock
