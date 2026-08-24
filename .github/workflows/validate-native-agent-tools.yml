@@ -62,7 +62,7 @@ jobs:
           grep -Fq 'review-delete-action' backend/app/dashboard_assets/dashboard_multi_agent_live_export.js
           grep -Fq 'Tools used' backend/app/conversation_export.py
           grep -Fq 'f7.2d47b-human-presentation' backend/app/main.py
-          grep -Fq 'f72d48-live-export-2' backend/app/main.py
-          grep -Fq 'f7.2d48-participant-native-read-tools' backend/app/main.py
+          grep -Fq 'f72d48-live-export-3' backend/app/main.py
+          grep -Fq 'f7.2d48-review-provenance-delete' backend/app/main.py
           grep -Fq 'metadata-and-evidence-persistence-no-model-processing' backend/app/main.py
           echo 'native_agent_tool_ui_contract=pass'
