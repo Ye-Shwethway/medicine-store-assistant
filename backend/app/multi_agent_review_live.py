@@ -19,10 +19,18 @@ from app.multi_agent_review import (
     _validate_attachment_refs,
     _work_item_detail,
 )
+from app.multi_agent_review_ui_api import review_work_item_cancelled
 from app.native_agent_runtime import NativeAgentInvokeInput, invoke_native_agent
 from app.native_agent_tool_runtime import invoke_native_agent_with_read_tools, native_agent_read_allowed
 
 router = APIRouter(prefix="/dashboard/api/ai-workspace/multi-agent", tags=["multi-agent-review-live"])
+
+RETRIEVAL_FIRST_RULE = (
+    "RUNTIME EVIDENCE RULE: You independently have bounded native MSA READ tools for this turn. "
+    "If the Owner task asks for current MSA/store-specific facts, retrieve the required evidence before evaluating, "
+    "reviewing, or synthesizing those facts. Do not merely tell a later participant to call tools when you can retrieve "
+    "the required evidence yourself. Tool use remains read-only, bounded, non-canonical where flagged, and never authorizes mutation."
+)
 
 
 def _no_store(response: Response) -> None:
@@ -51,17 +59,20 @@ def _configured_context(
 def _participant_provenance(result: dict[str, Any], participant: dict[str, Any]) -> dict[str, Any]:
     provenance = _provenance(result)
     tool_calls = result.get("native_tool_calls") or []
+    executed_tools = [
+        item.get("tool")
+        for item in tool_calls
+        if isinstance(item, dict) and item.get("status") == "SUCCESS" and item.get("tool")
+    ]
     provenance.update(
         {
             "native_store_tools_allowed": native_agent_read_allowed(participant),
             "tool_execution_enabled": bool(result.get("tool_execution_enabled")),
             "native_tools_exposed": result.get("native_tools_exposed", []) or [],
             "native_tool_calls": tool_calls,
-            "native_model_tools_executed": [
-                item.get("tool")
-                for item in tool_calls
-                if isinstance(item, dict) and item.get("status") == "SUCCESS" and item.get("tool")
-            ],
+            "native_model_tools_executed": executed_tools,
+            "native_tool_call_count": len(tool_calls),
+            "native_unique_tools_executed": list(dict.fromkeys(executed_tools)),
         }
     )
     return provenance
@@ -73,9 +84,11 @@ def _invoke_participant(
     message: str,
     owner: dict[str, str],
 ) -> dict[str, Any]:
-    payload = NativeAgentInvokeInput(message=message, temperature=0.2, max_output_tokens=2048)
     response = Response()
-    if native_agent_read_allowed(participant):
+    read_allowed = native_agent_read_allowed(participant)
+    participant_message = f"{RETRIEVAL_FIRST_RULE}\n\n{message}" if read_allowed else message
+    payload = NativeAgentInvokeInput(message=participant_message, temperature=0.2, max_output_tokens=2048)
+    if read_allowed:
         tool_result = invoke_native_agent_with_read_tools(
             participant["agent_id"],
             payload,
@@ -99,6 +112,8 @@ def _mark_failed(
     participant: dict[str, Any] | None,
     reason_code: str,
 ) -> None:
+    if review_work_item_cancelled(work_item_id):
+        return
     engine = _engine()
     try:
         with engine.begin() as connection:
@@ -151,6 +166,9 @@ def _execute_live_review(
     previous_artifact_version = 1
     try:
         for output_version, participant in enumerate(participants, start=1):
+            if review_work_item_cancelled(work_item_id):
+                return
+
             role = participant["orchestration_role"]
             display_label = participant.get("display_label") or participant.get("role_label")
             message = _role_instruction(role, display_label) + "\n\n" + _configured_context(task, participants, prior_outputs)
@@ -171,6 +189,9 @@ def _execute_live_review(
                     participant=participant,
                     reason_code="NATIVE_AGENT_RUNTIME_ERROR",
                 )
+                return
+
+            if review_work_item_cancelled(work_item_id):
                 return
 
             response_text = str(result.get("response") or "").strip()
@@ -229,7 +250,12 @@ def _execute_live_review(
                     "NATIVE_PARTICIPANT_COMPLETED",
                     "INTERNAL_AGENT",
                     participant["agent_id"],
-                    {"role": role, "artifact_id": artifact_id, "artifact_version": output_version, "provenance": provenance},
+                    {
+                        "role": role,
+                        "artifact_id": artifact_id,
+                        "artifact_version": output_version,
+                        "provenance": provenance,
+                    },
                 )
 
             prior_outputs.append(
@@ -241,6 +267,9 @@ def _execute_live_review(
             )
             previous_artifact_id = artifact_id
             previous_artifact_version = output_version
+
+        if review_work_item_cancelled(work_item_id):
+            return
 
         with engine.begin() as connection:
             _set_status(connection, work_item_id, "WAITING_OWNER")
@@ -362,6 +391,7 @@ def start_live_review(
                     "configured_roles": [item["orchestration_role"] for item in participants],
                     "turn_streaming": "PERSISTED_POLLING",
                     "per_participant_native_reads": True,
+                    "retrieval_first_prompting": True,
                 },
             )
             initial = _work_item_detail(connection, work_item_id)
