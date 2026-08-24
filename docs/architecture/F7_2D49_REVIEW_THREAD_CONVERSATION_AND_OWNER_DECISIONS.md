@@ -1,6 +1,8 @@
 # F7.2D4.9 — Review Thread Conversation and Owner Decisions
 
-Status: **ACTIVE BOUNDED SLICE**
+Status: **DEPLOYED / PRODUCTION ACCEPTED**
+
+Production anchor: PR #127 merge/source `c2dc42b38a60a7dc625c0d0748530c74c98ed615`; issue #26 `status=success`; deploy run `32735227026`.
 
 ## Purpose
 
@@ -16,9 +18,9 @@ A normal Owner composer send is not a passive note and is not a structured Revie
 
 The message and reply remain inside the same durable Review Work Item/thread.
 
-Targeting rules for this bounded slice:
+Targeting rules:
 
-- explicit `@call_name` targets that active native participant;
+- explicit participant selection targets that active native participant;
 - if no explicit target is supplied, prefer the configured `SYNTHESIZER`;
 - if there is no Synthesizer, use the last configured active participant;
 - unknown/ambiguous explicit targets fail closed rather than silently routing elsewhere.
@@ -27,23 +29,17 @@ A conversational turn does **not** consume pending external-review feedback and 
 
 ### 2. Send review = structured multi-agent pass
 
-`pending/new feedback or explicit Owner review instruction -> configured REVIEW preset in order -> persisted outputs -> WAITING_OWNER`
+`pending/new structured feedback or direct Owner review instruction -> configured REVIEW preset in order -> persisted outputs -> WAITING_OWNER`
 
-`Send review` remains the explicit operation for running the full configured Review team. It must not be triggered by ordinary conversation sends.
+`Send review` remains the explicit operation for running the full configured Review team. It is not triggered by ordinary conversation sends.
 
-The Review composer may submit its current text directly as the structured Owner instruction; ordinary discussion messages do not need to be staged merely to make Review actionable.
+The Review composer can submit its current text directly as the structured Owner instruction; ordinary discussion messages do not need to be staged merely to make Review actionable.
 
 ### 3. Owner Decision = durable authority-bearing evidence, not mutation
 
 The Owner can record a final/intermediate decision as a dedicated `OWNER_DECISION` artifact plus immutable event.
 
-Examples:
-
-- accept option B;
-- keep a row unresolved;
-- require manual mapping;
-- reject a recommendation;
-- approve a future execution plan subject to later confirmation.
+Examples include accepting an option, keeping an item unresolved, requiring manual mapping, rejecting a recommendation, or approving a future execution plan subject to later confirmation.
 
 Recording a decision does **not** mutate inventory, does not make PostgreSQL canonical, and does not by itself grant an agent write authority.
 
@@ -53,18 +49,18 @@ The intended later chain is:
 
 `evidence -> agent discussion/review -> Owner decision -> executor agent prepares typed mutation proposal -> required Owner confirmation -> authorized typed backend operation -> read-back -> audit`
 
-Agents must never receive arbitrary SQL/direct DB mutation merely because they are selected as executor. Provider/model choice never grants authority. Future execution must remain inside typed operation + authority-intersection + confirmation policy.
+Agents must never receive arbitrary SQL/direct DB mutation merely because they are selected as executor. Provider/model choice never grants authority. Future execution remains inside typed operation + authority-intersection + confirmation policy.
 
 ## Persistence contract
 
-Use the existing Work/Artifact/Event substrate.
+Use the existing Work/Artifact/Event substrate; D4.9 required no schema migration.
 
 - `OWNER_MESSAGE`: ordinary conversational Owner turn; `staged_for_review=false` for direct discussion.
-- `PARTICIPANT_OUTPUT`: native participant discussion reply; payload marks `discussion_turn=true`, target identity and provenance.
-- `OWNER_DECISION`: durable Owner decision; payload contains decision text and optional status metadata.
-- Events: `OWNER_DISCUSSION_MESSAGE_SENT`, `NATIVE_DISCUSSION_TURN_COMPLETED`, `OWNER_DECISION_RECORDED`.
+- `PARTICIPANT_OUTPUT`: native participant discussion reply; payload marks `discussion_turn=true`, reply linkage and provenance.
+- `OWNER_DECISION`: durable Owner decision; payload records the decision and explicit no-mutation state.
+- Events: `OWNER_DISCUSSION_MESSAGE_SENT`, `NATIVE_DISCUSSION_TURN_COMPLETED`, `NATIVE_DISCUSSION_TURN_FAILED`, `OWNER_DECISION_RECORDED`.
 
-No new inventory mutation primitive is introduced in this slice.
+No new inventory mutation primitive is introduced.
 
 ## Context contract
 
@@ -76,25 +72,38 @@ External MCP reviews remain evidence only. They never grant authority.
 
 Within the existing authoritative Multi-Agent Review renderer:
 
-- normal Send invokes the conversational continuation endpoint;
-- composer gives a concise targeting hint (`@call_name`; no mention -> Synthesizer/default participant);
+- normal Send invokes the one-participant conversational continuation endpoint;
+- the composer exposes deterministic participant targeting/default routing;
 - `Send review` stays separate and runs the configured full Review pass;
-- provide a distinct `Record decision` action for durable Owner decisions;
-- persist and rehydrate Owner messages, participant discussion replies, and Owner decisions in chronological thread order;
-- do not add a second renderer or DOM owner.
+- `Record decision` persists durable Owner decisions;
+- Owner messages, discussion replies and Owner decisions rehydrate chronologically;
+- discussion replies are not promoted to the latest structured Review artifact for external-review freezing;
+- no second renderer or DOM owner is introduced.
 
-## Acceptance
+## Production implementation
 
-Bounded tests must prove:
+Backend module: `backend/app/multi_agent_review_discussion.py`.
 
-1. normal Send invokes exactly one targeted/default native participant and persists both turns;
-2. normal Send does not call/start `feedback-pass`;
-3. explicit valid `@call_name` routes to that participant;
-4. invalid explicit target fails closed;
-5. `Send review` remains a separate full-preset operation and can use direct Owner instruction text;
-6. `Record decision` creates durable `OWNER_DECISION` + event and no inventory mutation;
-7. refresh/reopen rehydrates discussion replies and decisions;
-8. existing external-review, Review-send-state, export, delete and Web reliability behavior remains intact.
+Endpoints:
+
+- `GET /dashboard/api/ai-workspace/multi-agent/work-items/{work_item_id}/discussion-targets`
+- `POST /dashboard/api/ai-workspace/multi-agent/work-items/{work_item_id}/discussion-turn`
+- `POST /dashboard/api/ai-workspace/multi-agent/work-items/{work_item_id}/decisions`
+
+The discussion endpoint invokes exactly one target through the existing native participant runtime/tool-authority path and persists both Owner and participant evidence. Participant invocation failure is logged as a discussion failure without falsely converting the whole Review Work Item into a completed full-preset pass.
+
+## Acceptance evidence
+
+PR-head relevant workflows were 7/7 green. The Playwright Chromium 390×844 behavior smoke proves:
+
+1. structured external feedback is consumed by `Send review` and settles correctly;
+2. normal Send targets exactly one selected participant and does not call `feedback-pass`;
+3. discussion reply persists visibly in-thread;
+4. Owner Decision persists without calling `feedback-pass` or mutating inventory;
+5. direct typed Owner instruction independently enables the structured full Review pass;
+6. composer-side exports continue to reuse the existing export endpoints.
+
+The first browser run also found a real target-selector re-render bug: a Work Item-level target-load cache outlived the replaced select DOM node. The accepted implementation binds hydration state to the live select node, so re-render/reopen produces a fresh deterministic target list.
 
 ## Boundaries
 
@@ -103,4 +112,4 @@ Bounded tests must prove:
 - No production inventory writes.
 - No PostgreSQL canonical promotion.
 - No raw DB/SQL authority to agents.
-- Telegram attention delivery moves behind this collaboration-semantic slice.
+- Telegram Attention delivery follows as a separate bounded slice.
