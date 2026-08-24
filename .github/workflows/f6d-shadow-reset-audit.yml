@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 concurrency:
   group: msa-f6d-shadow-maintenance
@@ -27,6 +28,9 @@ jobs:
       - name: Read-only inventory shadow audit
         shell: bash
         working-directory: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVIDENCE_ISSUE: '138'
         run: |
           set -euo pipefail
           ENV_FILE=/opt/medicine-store-assistant/secrets/runtime.env
@@ -34,4 +38,37 @@ jobs:
           test -r "$ENV_FILE"
           export COMPOSE_PROJECT_NAME="${MSA_COMPOSE_PROJECT_NAME:-deploy}"
           docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" build api
-          docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm api python -m app.f6d_shadow_reset_audit
+          AUDIT_FILE="${RUNNER_TEMP}/f6d-shadow-audit.txt"
+          docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm api \
+            python -m app.f6d_shadow_reset_audit | tee "$AUDIT_FILE"
+
+          export AUDIT_FILE
+          BODY_FILE="${RUNNER_TEMP}/f6d-shadow-audit-body.json"
+          python3 - <<'PY' > "$BODY_FILE"
+          import json, os
+          from pathlib import Path
+          audit = Path(os.environ['AUDIT_FILE']).read_text(encoding='utf-8').strip()
+          body = "\n".join([
+              "Machine-readable read-only F6D shadow reset audit evidence.",
+              "",
+              "status=success",
+              f"source_sha={os.environ['GITHUB_SHA']}",
+              f"workflow_run_id={os.environ['GITHUB_RUN_ID']}",
+              "mutation=false",
+              "database_canonical=false",
+              "migration_baseline_accepted=false",
+              "",
+              "```text",
+              audit,
+              "```",
+          ])
+          print(json.dumps({"body": body}))
+          PY
+          curl --fail-with-body --silent --show-error \
+            --request PATCH \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/${EVIDENCE_ISSUE}" \
+            --data-binary "@${BODY_FILE}" >/dev/null
+          echo "f6d_shadow_audit_evidence_issue=${EVIDENCE_ISSUE}"
