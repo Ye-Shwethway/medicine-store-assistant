@@ -39,19 +39,22 @@ jobs:
           docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" build api
       - name: Generate read-only materialization plan
         id: plan
+        continue-on-error: true
         shell: bash
         working-directory: source
         run: |
-          set -euo pipefail
+          set -o pipefail
           ENV_FILE=/opt/medicine-store-assistant/secrets/runtime.env
           COMPOSE_FILE="$PWD/deploy/docker-compose.yml"
           export COMPOSE_PROJECT_NAME="${MSA_COMPOSE_PROJECT_NAME:-deploy}"
-          docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm api python -m app.f6d_materialization_plan | tee /tmp/f6d-plan.txt
+          docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm api python -m app.f6d_materialization_plan 2>&1 | tee /tmp/f6d-plan.txt
       - name: Publish evidence to issue 138
+        if: always()
         shell: bash
         working-directory: source
         env:
           GH_TOKEN: ${{ github.token }}
+          PLAN_OUTCOME: ${{ steps.plan.outcome }}
         run: |
           set -euo pipefail
           {
@@ -59,11 +62,16 @@ jobs:
             echo
             echo "source_sha=${GITHUB_SHA}"
             echo "workflow_run_id=${GITHUB_RUN_ID}"
+            echo "planner_outcome=${PLAN_OUTCOME}"
             echo 'database_canonical=false'
             echo 'migration_baseline_accepted=false'
             echo
             echo '```text'
-            cat /tmp/f6d-plan.txt
+            if [[ -f /tmp/f6d-plan.txt ]]; then cat /tmp/f6d-plan.txt; else echo 'planner produced no output'; fi
             echo '```'
           } > /tmp/f6d-plan-comment.md
           gh issue comment 138 --repo "$GITHUB_REPOSITORY" --body-file /tmp/f6d-plan-comment.md
+      - name: Fail when planner failed
+        if: steps.plan.outcome != 'success'
+        shell: bash
+        run: exit 1
