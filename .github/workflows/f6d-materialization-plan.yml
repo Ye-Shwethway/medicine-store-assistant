@@ -1,6 +1,7 @@
 name: F6D materialization plan
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
