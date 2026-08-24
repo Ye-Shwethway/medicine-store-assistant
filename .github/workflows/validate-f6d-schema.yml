@@ -205,7 +205,22 @@ jobs:
               assert accepted.cms_code_snapshot == "CI001"
               assert accepted.accepted_operational_price == Decimal("12.500")
 
-          print("f6d_schema=pass location_balance=pass total_stock=pass transfer_link=pass cms_last_accepted_state=pass")
+              # The assertions above prove F6D-only business semantics. Remove only
+              # this synthetic fixture before testing schema downgrade. A real
+              # downgrade with committed TRANSFER_IN/TRANSFER_OUT history requires
+              # an explicit data-migration decision and must never silently coerce
+              # transfer history into older movement semantics.
+              conn.execute(text("DELETE FROM inventory_transfer_lines WHERE transfer_id=:transfer_id"), {"transfer_id": transfer_id})
+              conn.execute(text("DELETE FROM inventory_transfers WHERE transfer_id=:transfer_id"), {"transfer_id": transfer_id})
+              conn.execute(text("DELETE FROM inventory_transactions WHERE lot_id=:lot_id"), {"lot_id": lot_id})
+              conn.execute(text("DELETE FROM product_cms_mappings WHERE product_id=:product_id"), {"product_id": product_id})
+              conn.execute(text("DELETE FROM cms_catalogue_items WHERE catalogue_version_id=:version_id"), {"version_id": version_id})
+              conn.execute(text("DELETE FROM cms_catalogue_versions WHERE catalogue_version_id=:version_id"), {"version_id": version_id})
+              conn.execute(text("DELETE FROM product_lots WHERE lot_id=:lot_id"), {"lot_id": lot_id})
+              conn.execute(text("DELETE FROM products WHERE product_id=:product_id"), {"product_id": product_id})
+              conn.execute(text("DELETE FROM stores WHERE store_id=:store_id"), {"store_id": sub_store_id})
+
+          print("f6d_schema=pass location_balance=pass total_stock=pass transfer_link=pass cms_last_accepted_state=pass synthetic_cleanup=pass")
           PY
 
       - name: Prove downgrade and re-upgrade
