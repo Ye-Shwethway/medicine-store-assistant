@@ -46,6 +46,7 @@ await page.evaluate(() => {
     if (url === '/dashboard/api/ai-workspace/multi-agent/work-items/work-1' && method === 'GET') return response(window.__work);
     if (url === '/dashboard/api/ai-workspace/multi-agent/work-items/work-1/discussion-targets' && method === 'GET') {
       return response({ default_call_name: 'synth', items: [
+        { agent_id: '', display_name: 'All agents', call_name: '__all_agents__', orchestration_role: 'BROADCAST' },
         { agent_id: 'reviewer-agent', display_name: 'Reviewer', call_name: 'reviewer', orchestration_role: 'REVIEWER' },
         { agent_id: 'synth-agent', display_name: 'Synthesizer', call_name: 'synth', orchestration_role: 'SYNTHESIZER' },
       ] });
@@ -53,9 +54,20 @@ await page.evaluate(() => {
     if (url === '/dashboard/api/ai-workspace/multi-agent/work-items/work-1/discussion-turn' && method === 'POST') {
       const body = JSON.parse(options.body || '{}');
       const target = body.target_call_name || 'synth';
-      const ownerMessage = { artifact_id: 'owner-message-1', artifact_type: 'OWNER_MESSAGE', version: 1, created_at: new Date().toISOString(), payload: { message: body.message, staged_for_review: false, discussion_turn: true, target_call_name: target } };
-      const reply = { artifact_id: 'discussion-1', artifact_type: 'PARTICIPANT_OUTPUT', version: 3, created_at: new Date().toISOString(), payload: { role: target === 'reviewer' ? 'REVIEWER' : 'SYNTHESIZER', response: 'Targeted discussion reply.', discussion_turn: true, provenance: { agent_display_name: target === 'reviewer' ? 'Reviewer' : 'Synthesizer', selected_provider_name: 'Test', selected_model_name: 'Model' } } };
-      window.__work = { ...window.__work, artifacts: [...window.__work.artifacts, ownerMessage, reply], updated_at: new Date().toISOString() };
+      const broadcast = target === '__all_agents__';
+      const ownerMessage = {
+        artifact_id: 'owner-message-' + (window.__work.artifacts.filter(a => a.artifact_type === 'OWNER_MESSAGE').length + 1),
+        artifact_type: 'OWNER_MESSAGE', version: 1, created_at: new Date().toISOString(),
+        payload: { message: body.message, staged_for_review: false, discussion_turn: true, broadcast, target_call_name: broadcast ? 'all agents' : target },
+      };
+      const nextVersion = window.__work.artifacts.filter(a => a.artifact_type === 'PARTICIPANT_OUTPUT').length + 1;
+      const replies = broadcast ? [
+        { artifact_id: 'discussion-reviewer', artifact_type: 'PARTICIPANT_OUTPUT', version: nextVersion, created_at: new Date().toISOString(), payload: { role: 'REVIEWER', response: 'Reviewer broadcast reply.', discussion_turn: true, broadcast: true, provenance: { agent_display_name: 'Reviewer', selected_provider_name: 'Test', selected_model_name: 'Model' } } },
+        { artifact_id: 'discussion-synth', artifact_type: 'PARTICIPANT_OUTPUT', version: nextVersion + 1, created_at: new Date().toISOString(), payload: { role: 'SYNTHESIZER', response: 'Synthesizer broadcast reply.', discussion_turn: true, broadcast: true, provenance: { agent_display_name: 'Synthesizer', selected_provider_name: 'Test', selected_model_name: 'Model' } } },
+      ] : [
+        { artifact_id: 'discussion-' + nextVersion, artifact_type: 'PARTICIPANT_OUTPUT', version: nextVersion, created_at: new Date().toISOString(), payload: { role: target === 'reviewer' ? 'REVIEWER' : 'SYNTHESIZER', response: 'Targeted discussion reply.', discussion_turn: true, provenance: { agent_display_name: target === 'reviewer' ? 'Reviewer' : 'Synthesizer', selected_provider_name: 'Test', selected_model_name: 'Model' } } },
+      ];
+      window.__work = { ...window.__work, artifacts: [...window.__work.artifacts, ownerMessage, ...replies], updated_at: new Date().toISOString() };
       return response(window.__work);
     }
     if (url === '/dashboard/api/ai-workspace/multi-agent/work-items/work-1/decisions' && method === 'POST') {
@@ -95,7 +107,6 @@ assert.equal(await page.locator('#aiMultiMode').evaluate(el => el.classList.cont
 await workCard.click();
 await page.getByText('External evidence review.').waitFor({ state: 'visible' });
 
-// Existing external feedback is actionable exactly once as a structured Review pass.
 const reviewSend = page.getByRole('button', { name: 'Send review' });
 await reviewSend.waitFor({ state: 'visible' });
 assert.equal(await reviewSend.isEnabled(), true);
@@ -110,30 +121,46 @@ const settled = page.getByRole('button', { name: 'Review sent' });
 await settled.waitFor({ state: 'visible' });
 assert.equal(await settled.isDisabled(), true);
 
-// Normal Send talks to exactly one selected native participant and does not start feedback-pass.
+// Normal Send to one selected participant stays separate from full Review.
 await page.getByLabel('Talk to').selectOption('reviewer');
 const feedbackCallsBeforeDiscussion = await page.evaluate(() => window.__requests.filter(r => r.url.endsWith('/feedback-pass')).length);
 await page.getByRole('textbox', { name: /Owner message/ }).fill('Explain row 312 again.');
 await page.getByRole('button', { name: 'Send Owner message' }).click();
 await page.waitForFunction(() => window.__requests.some(r => r.url.endsWith('/discussion-turn') && r.method === 'POST'));
-const discussionRequest = await page.evaluate(() => window.__requests.find(r => r.url.endsWith('/discussion-turn') && r.method === 'POST'));
-assert.deepEqual(JSON.parse(discussionRequest.body), { message: 'Explain row 312 again.', target_call_name: 'reviewer' });
+const discussionRequests = await page.evaluate(() => window.__requests.filter(r => r.url.endsWith('/discussion-turn') && r.method === 'POST'));
+assert.deepEqual(JSON.parse(discussionRequests.at(-1).body), { message: 'Explain row 312 again.', target_call_name: 'reviewer' });
 await page.getByText('Targeted discussion reply.').waitFor({ state: 'visible' });
-const feedbackCallsAfterDiscussion = await page.evaluate(() => window.__requests.filter(r => r.url.endsWith('/feedback-pass')).length);
-assert.equal(feedbackCallsAfterDiscussion, feedbackCallsBeforeDiscussion);
+assert.equal(await page.evaluate(() => window.__requests.filter(r => r.url.endsWith('/feedback-pass')).length), feedbackCallsBeforeDiscussion);
 assert.equal(await page.getByRole('button', { name: 'Review sent' }).isDisabled(), true);
 
-// Owner Decision is durable evidence and is visually distinct from a Review pass.
-await page.getByRole('textbox', { name: /Owner message/ }).fill('Keep row 312 unresolved pending manual mapping.');
+// Talk to -> All agents broadcasts one Owner message and renders independent replies.
+await page.getByLabel('Talk to').selectOption('__all_agents__');
+await page.getByRole('textbox', { name: /Owner message/ }).fill('All agents: give your own view.');
+await page.getByRole('button', { name: 'Send Owner message' }).click();
+await page.waitForFunction(() => window.__requests.filter(r => r.url.endsWith('/discussion-turn') && r.method === 'POST').length >= 2);
+const broadcastRequest = await page.evaluate(() => window.__requests.filter(r => r.url.endsWith('/discussion-turn') && r.method === 'POST').at(-1));
+assert.deepEqual(JSON.parse(broadcastRequest.body), { message: 'All agents: give your own view.', target_call_name: '__all_agents__' });
+await page.getByText('Reviewer broadcast reply.').waitFor({ state: 'visible' });
+await page.getByText('Synthesizer broadcast reply.').waitFor({ state: 'visible' });
+assert.equal(await page.evaluate(() => window.__requests.filter(r => r.url.endsWith('/feedback-pass')).length), feedbackCallsBeforeDiscussion);
+
+// Empty Record decision must respond with explicit validation and must not hit the API.
+const composer = page.getByRole('textbox', { name: /Owner message/ });
+await composer.fill('');
+const decisionCallsBeforeBlank = await page.evaluate(() => window.__requests.filter(r => r.url.endsWith('/decisions')).length);
+await page.getByRole('button', { name: 'Record decision' }).click();
+await page.getByRole('status').getByText('Write the Owner decision before recording it.').waitFor({ state: 'attached' });
+assert.equal(await page.evaluate(() => window.__requests.filter(r => r.url.endsWith('/decisions')).length), decisionCallsBeforeBlank);
+
+// Owner Decision persists as a distinct decision bubble and does not run Review.
+await composer.fill('Keep row 312 unresolved pending manual mapping.');
 await page.getByRole('button', { name: 'Record decision' }).click();
 await page.waitForFunction(() => window.__requests.some(r => r.url.endsWith('/decisions') && r.method === 'POST'));
 await page.getByText('Keep row 312 unresolved pending manual mapping.').waitFor({ state: 'visible' });
-const feedbackCallsAfterDecision = await page.evaluate(() => window.__requests.filter(r => r.url.endsWith('/feedback-pass')).length);
-assert.equal(feedbackCallsAfterDecision, feedbackCallsBeforeDiscussion);
+assert.equal(await page.evaluate(() => window.__requests.filter(r => r.url.endsWith('/feedback-pass')).length), feedbackCallsBeforeDiscussion);
 
-// Typing a direct structured instruction enables Send review even with no staged Owner message.
-const composer = page.getByRole('textbox', { name: /Owner message/ });
-await composer.fill('Synthesize the discussion and decision into a final recommendation.');
+// Direct structured instruction remains the explicit full-preset action.
+await page.getByRole('textbox', { name: /Owner message/ }).fill('Synthesize the discussion and decision into a final recommendation.');
 const directReview = page.getByRole('button', { name: 'Send review' });
 assert.equal(await directReview.isEnabled(), true);
 await directReview.click();
@@ -141,7 +168,6 @@ await page.waitForFunction(() => window.__requests.filter(r => r.url.endsWith('/
 const feedbackBodies = await page.evaluate(() => window.__requests.filter(r => r.url.endsWith('/feedback-pass') && r.method === 'POST').map(r => JSON.parse(r.body)));
 assert.equal(feedbackBodies.at(-1).instruction, 'Synthesize the discussion and decision into a final recommendation.');
 
-// Composer-side exports still reuse the same top export endpoints.
 await page.waitForFunction(() => window.__work.status === 'WAITING_OWNER');
 await page.waitForTimeout(1200);
 const reviewDocxHrefs = await page.locator('a[href$="/export?format=docx"]').evaluateAll(nodes => nodes.map(n => n.getAttribute('href')));
