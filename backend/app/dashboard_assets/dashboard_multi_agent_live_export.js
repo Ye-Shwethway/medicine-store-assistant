@@ -56,6 +56,11 @@
     el.textContent=text||'';el.dataset.kind=kind;el.hidden=!text;
   }
 
+  function reviewActionsHtml(workItemId){
+    const id=encodeURIComponent(workItemId);
+    return '<div class="review-export-actions" data-review-export-for="'+esc(workItemId)+'"><a href="/dashboard/api/ai-workspace/multi-agent/work-items/'+id+'/export?format=docx">DOCX</a><a href="/dashboard/api/ai-workspace/multi-agent/work-items/'+id+'/export?format=json">JSON</a><button class="review-delete-action" type="button" data-review-delete-for="'+esc(workItemId)+'">Delete</button></div>';
+  }
+
   function renderLive(item){
     const detail=document.querySelector('#aiMultiMode #reviewWorkDetail');
     if(!detail)return;
@@ -71,18 +76,27 @@
       const payload=a.payload||{};const prov=payload.provenance||{};const text=cleanDisplayText(payload.response||'');
       const related=reviews.find(r=>r.findings?.review_output_artifact_id===a.artifact_id);
       const verdict=related?'<span class="review-verdict">'+esc(related.verdict)+'</span>':'';
-      const tools=Array.isArray(prov.native_model_tools_executed)?prov.native_model_tools_executed.filter(Boolean):[];
-      const toolCalls=Array.isArray(prov.native_tool_calls)?prov.native_tool_calls.length:0;
-      const toolInfo=tools.length?'<span>Tools: '+esc([...new Set(tools)].join(', '))+' · '+toolCalls+' call'+(toolCalls===1?'':'s')+'</span>':'';
+      const uniqueTools=Array.isArray(prov.native_unique_tools_executed)?prov.native_unique_tools_executed:(Array.isArray(prov.native_model_tools_executed)?prov.native_model_tools_executed:[]);
+      const tools=[...new Set(uniqueTools.filter(Boolean))];
+      const rawCount=Number(prov.native_tool_call_count);
+      const toolCalls=Number.isFinite(rawCount)?rawCount:(Array.isArray(prov.native_tool_calls)?prov.native_tool_calls.length:0);
+      const toolInfo=tools.length?'<span>Tools: '+esc(tools.join(', '))+' · '+toolCalls+' call'+(toolCalls===1?'':'s')+'</span>':(prov.native_store_tools_allowed?'<span>Tools: none · 0 calls</span>':'');
       turns.push('<article class="review-chat-turn review-chat-agent"><div class="review-chat-meta"><div><strong>'+esc(prov.agent_display_name||payload.display_label||'Internal agent')+'</strong><span>'+esc(payload.role||'PARTICIPANT')+'</span></div>'+verdict+'</div><div class="review-chat-bubble" data-review-copy-text="'+esc(text)+'">'+esc(text)+'</div><div class="review-chat-provenance"><span>'+esc((prov.selected_provider_name||'Provider')+' · '+(prov.selected_model_name||prov.selected_model_id||'Model'))+'</span>'+(prov.fallback_used?'<span>fallback</span>':'')+(prov.latency_ms!=null?'<span>'+esc(prov.latency_ms+' ms')+'</span>':'')+toolInfo+'</div><button class="review-message-copy" type="button">Copy</button></article>');
     });
     const running=item.status==='REVIEWING'?'<div class="review-live-wait"><span class="review-live-dot"></span>Waiting for the next configured participant…</div>':'';
-    detail.innerHTML='<div class="review-chatbox-head"><div><div class="review-detail-title"><h3>'+esc(item.title)+'</h3><span class="review-status review-status-'+esc(String(item.status||'').toLowerCase())+'">'+esc(item.status)+'</span></div><span class="review-id">'+esc(item.work_item_id)+'</span></div><div class="review-export-actions" data-review-export-for="'+esc(item.work_item_id)+'"><a href="/dashboard/api/ai-workspace/multi-agent/work-items/'+encodeURIComponent(item.work_item_id)+'/export?format=docx">DOCX</a><a href="/dashboard/api/ai-workspace/multi-agent/work-items/'+encodeURIComponent(item.work_item_id)+'/export?format=json">JSON</a></div><div class="review-safety-line"><strong>Production mutation: NO</strong><span>Database canonical: NO</span></div></div><div class="review-chat-stream">'+turns.join('')+running+'</div>';
+    detail.innerHTML='<div class="review-chatbox-head"><div><div class="review-detail-title"><h3>'+esc(item.title)+'</h3><span class="review-status review-status-'+esc(String(item.status||'').toLowerCase())+'">'+esc(item.status)+'</span></div><span class="review-id">'+esc(item.work_item_id)+'</span></div>'+reviewActionsHtml(item.work_item_id)+'<div class="review-safety-line"><strong>Production mutation: NO</strong><span>Database canonical: NO</span></div></div><div class="review-chat-stream">'+turns.join('')+running+'</div>';
     const stream=detail.querySelector('.review-chat-stream');if(stream)stream.scrollTop=stream.scrollHeight;
   }
 
   function signature(item){
     return [item.status,(item.artifacts||[]).length,(item.reviews||[]).length,(item.events||[]).length].join(':');
+  }
+
+  function stopLivePolling(){
+    if(livePollTimer){clearTimeout(livePollTimer);livePollTimer=null}
+    liveRunning=false;
+    liveWorkId=null;
+    liveLastSignature='';
   }
 
   async function pollLive(){
@@ -91,14 +105,14 @@
       const item=await api('/dashboard/api/ai-workspace/multi-agent/work-items/'+encodeURIComponent(liveWorkId));
       const nextSignature=signature(item);
       if(nextSignature!==liveLastSignature){liveLastSignature=nextSignature;renderLive(item)}
-      if(item.status==='WAITING_OWNER'||item.status==='FAILED'){
-        liveRunning=false;
-        livePollTimer=null;
-        statusNotice(item.status==='WAITING_OWNER'?'Review completed and is waiting for Owner attention.':'Review failed. Open the Work Item timeline for details.',item.status==='WAITING_OWNER'?'success':'error');
+      if(item.status==='WAITING_OWNER'||item.status==='FAILED'||item.status==='CANCELLED'){
+        const terminalStatus=item.status;
+        stopLivePolling();
+        statusNotice(terminalStatus==='WAITING_OWNER'?'Review completed and is waiting for Owner attention.':terminalStatus==='CANCELLED'?'Review deleted from workspace history.':'Review failed. Open the Work Item timeline for details.',terminalStatus==='WAITING_OWNER'?'success':terminalStatus==='CANCELLED'?'success':'error');
         setTimeout(()=>document.querySelector('#aiMultiMode #reviewRefresh')?.click(),700);
         return;
       }
-    }catch(err){statusNotice(err.message,'error');liveRunning=false;livePollTimer=null;return}
+    }catch(err){statusNotice(err.message,'error');stopLivePolling();return}
     livePollTimer=setTimeout(pollLive,1000);
   }
 
@@ -120,6 +134,21 @@
     }catch(err){liveRunning=false;statusNotice(err.message,'error');if(run){run.disabled=false;run.textContent='Run native review'}}
   }
 
+  async function deleteReview(workItemId,button){
+    if(!workItemId)return;
+    const confirmed=window.confirm('Delete this Review from workspace history? Audit evidence will be preserved.');
+    if(!confirmed)return;
+    if(button){button.disabled=true;button.textContent='Deleting…'}
+    try{
+      await api('/dashboard/api/ai-workspace/multi-agent/work-items/'+encodeURIComponent(workItemId),{method:'DELETE'});
+      if(liveWorkId===workItemId)stopLivePolling();
+      const detail=document.querySelector('#aiMultiMode #reviewWorkDetail');
+      if(detail)detail.innerHTML='<div class="review-empty"><strong>Review deleted</strong><p>Removed from Recent Review work. Audit evidence remains preserved.</p></div>';
+      statusNotice('Review deleted from workspace history. Audit evidence was preserved.','success');
+      setTimeout(()=>document.querySelector('#aiMultiMode #reviewRefresh')?.click(),250);
+    }catch(err){statusNotice(err.message,'error');if(button){button.disabled=false;button.textContent='Delete'}}
+  }
+
   function polishReviewDom(scope=document){
     scope.querySelectorAll?.('.review-chat-bubble:not([data-review-polished])').forEach(bubble=>{
       const clean=cleanDisplayText(bubble.textContent||'');bubble.textContent=clean;bubble.dataset.reviewCopyText=clean;bubble.dataset.reviewPolished='1';
@@ -131,7 +160,12 @@
     const id=detail?.querySelector('.review-id')?.textContent?.trim();
     const head=detail?.querySelector('.review-chatbox-head');
     if(id&&head&&!head.querySelector('.review-export-actions')){
-      const actions=document.createElement('div');actions.className='review-export-actions';actions.innerHTML='<a href="/dashboard/api/ai-workspace/multi-agent/work-items/'+encodeURIComponent(id)+'/export?format=docx">DOCX</a><a href="/dashboard/api/ai-workspace/multi-agent/work-items/'+encodeURIComponent(id)+'/export?format=json">JSON</a>';head.appendChild(actions);
+      const wrapper=document.createElement('div');wrapper.innerHTML=reviewActionsHtml(id);const actions=wrapper.firstElementChild;if(actions)head.appendChild(actions);
+    }else if(id&&head){
+      const actions=head.querySelector('.review-export-actions');
+      if(actions&&!actions.querySelector('.review-delete-action')){
+        const button=document.createElement('button');button.type='button';button.className='review-delete-action';button.dataset.reviewDeleteFor=id;button.textContent='Delete';actions.appendChild(button);
+      }
     }
   }
 
@@ -170,6 +204,8 @@
     if(run){event.preventDefault();event.stopPropagation();startLiveReview();return}
     const copy=event.target.closest('.review-message-copy');
     if(copy){const text=copy.closest('.review-chat-turn')?.querySelector('.review-chat-bubble')?.dataset.reviewCopyText||'';copyText(text,copy);return}
+    const deleteButton=event.target.closest('.review-delete-action');
+    if(deleteButton){event.preventDefault();event.stopPropagation();deleteReview(deleteButton.dataset.reviewDeleteFor,deleteButton);return}
     if(event.target.closest('[data-ai-conversation],#aiNewConversation,#aiWorkspaceNav,[data-ai-tab]'))scheduleReconcile();
   },true);
 
