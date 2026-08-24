@@ -27,9 +27,25 @@ class FeedbackPassInput(BaseModel):
     instruction: str | None = Field(default=None, max_length=5000)
 
 
+class OwnerMessageInput(BaseModel):
+    message: str = Field(min_length=1, max_length=5000)
+
+
 def _no_store(response: Response) -> None:
     response.headers["Cache-Control"] = "no-store"
     response.headers["Pragma"] = "no-cache"
+
+
+def _consumed_ids(events: list[dict[str, Any]], key: str) -> set[str]:
+    consumed: set[str] = set()
+    for event in events:
+        if event.get("event_type") != "OWNER_STARTED_FEEDBACK_PASS":
+            continue
+        payload = event.get("payload") or {}
+        for artifact_id in payload.get(key) or []:
+            if artifact_id:
+                consumed.add(str(artifact_id))
+    return consumed
 
 
 def _history_context(task: str, history: list[dict[str, Any]], participants: list[dict[str, Any]]) -> str:
@@ -197,6 +213,61 @@ def _execute_feedback_pass(
 
 
 @router.post(
+    "/work-items/{work_item_id}/owner-messages",
+    summary="Persist an Owner chat message without starting a Review pass",
+)
+def create_owner_message(
+    work_item_id: str,
+    payload: OwnerMessageInput,
+    response: Response,
+    owner: dict[str, str] = Depends(require_owner_session),
+) -> dict[str, Any]:
+    _no_store(response)
+    message = payload.message.strip()
+    if not message:
+        raise HTTPException(status_code=422, detail="Owner message cannot be blank")
+    engine = _engine()
+    try:
+        with engine.begin() as connection:
+            item = _work_item_detail(connection, work_item_id)
+            if item["created_by_actor_type"] == "OWNER" and item["created_by_actor_id"] != owner["user_id"]:
+                raise HTTPException(status_code=404, detail="Work item not found")
+            if item["status"] != "WAITING_OWNER":
+                raise HTTPException(status_code=409, detail="Owner messages can be added only while Review is WAITING_OWNER")
+            version = int(
+                connection.execute(
+                    text(
+                        """
+                        SELECT COALESCE(MAX(version),0)+1 FROM workflow_artifacts
+                        WHERE work_item_id=CAST(:work_item_id AS uuid) AND artifact_type='OWNER_MESSAGE'
+                        """
+                    ),
+                    {"work_item_id": work_item_id},
+                ).scalar_one()
+            )
+            artifact_id = _insert_artifact(
+                connection,
+                work_item_id=work_item_id,
+                artifact_type="OWNER_MESSAGE",
+                version=version,
+                actor_type="OWNER",
+                actor_id=owner["user_id"],
+                payload={"message": message, "staged_for_review": True},
+            )
+            _event(
+                connection,
+                work_item_id,
+                "OWNER_MESSAGE_STAGED",
+                "OWNER",
+                owner["user_id"],
+                {"owner_message_artifact_id": artifact_id, "artifact_version": version},
+            )
+            return _work_item_detail(connection, work_item_id)
+    finally:
+        engine.dispose()
+
+
+@router.post(
     "/work-items/{work_item_id}/feedback-pass",
     status_code=status.HTTP_202_ACCEPTED,
     summary="Run a new native REVIEW pass using persisted external/Owner feedback",
@@ -224,9 +295,15 @@ def start_feedback_pass(
             _, participants = _session_participants(connection, session_id)
 
             artifacts = item.get("artifacts") or []
+            events = item.get("events") or []
+            consumed_external_ids = _consumed_ids(events, "external_review_artifact_ids")
+            consumed_owner_message_ids = _consumed_ids(events, "owner_message_artifact_ids")
             external = [a for a in artifacts if a.get("artifact_type") == "EXTERNAL_REVIEW_SUBMISSION"]
-            if not external and not instruction:
-                raise HTTPException(status_code=422, detail="Enter Owner feedback or obtain an external review first")
+            owner_messages = [a for a in artifacts if a.get("artifact_type") == "OWNER_MESSAGE"]
+            pending_external = [a for a in external if str(a.get("artifact_id")) not in consumed_external_ids]
+            pending_owner_messages = [a for a in owner_messages if str(a.get("artifact_id")) not in consumed_owner_message_ids]
+            if not pending_external and not pending_owner_messages and not instruction:
+                raise HTTPException(status_code=422, detail="No unsent Owner message or new external review is available")
 
             history: list[dict[str, Any]] = []
             for artifact in artifacts:
@@ -244,12 +321,14 @@ def start_feedback_pass(
                         "name": str(payload_data.get("external_agent_display_name") or payload_data.get("external_agent_call_name") or "External MCP reviewer"),
                         "text": str(payload_data.get("notes") or ""),
                     })
+                elif kind == "OWNER_MESSAGE":
+                    history.append({"kind": "OWNER_MESSAGE", "name": "Owner", "text": str(payload_data.get("message") or "")})
                 elif kind == "OWNER_REVISION":
                     history.append({"kind": "OWNER_REVISION", "name": "Owner", "text": str(payload_data.get("instruction") or "")})
 
             revision_artifact_id = None
-            if not instruction and external:
-                instruction = 'Use the external review as feedback for the next pass.'
+            if not instruction and pending_external and not pending_owner_messages:
+                instruction = "Use the new external review as feedback for the next pass."
             if instruction:
                 revision_version = connection.execute(
                     text(
@@ -306,7 +385,8 @@ def start_feedback_pass(
                 owner["user_id"],
                 {
                     "owner_revision_artifact_id": revision_artifact_id,
-                    "external_review_artifact_ids": [a["artifact_id"] for a in external],
+                    "owner_message_artifact_ids": [a["artifact_id"] for a in pending_owner_messages],
+                    "external_review_artifact_ids": [a["artifact_id"] for a in pending_external],
                     "participant_count": len(participants),
                 },
             )
