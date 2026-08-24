@@ -4,8 +4,7 @@ from pathlib import Path
 
 from app.conversation_export import SNAPSHOT_SCHEMA_VERSION, _tool_summary
 from app.multi_agent_review_live import RETRIEVAL_FIRST_RULE
-from app.native_agent_runtime import router as native_agent_runtime_router
-import app.multi_agent_review_registration  # noqa: F401
+from app.multi_agent_review_ui_api import router as multi_agent_review_ui_router
 
 
 ROOT = Path(__file__).resolve().parent
@@ -26,13 +25,16 @@ def main() -> None:
     assert SNAPSHOT_SCHEMA_VERSION == "2026-08-24.v2"
 
     delete_route = None
-    for route in native_agent_runtime_router.routes:
+    for route in multi_agent_review_ui_router.routes:
         if getattr(route, "path", "") == "/dashboard/api/ai-workspace/multi-agent/work-items/{work_item_id}":
             methods = set(getattr(route, "methods", set()) or set())
             if "DELETE" in methods:
                 delete_route = route
                 break
-    assert delete_route is not None, "Owner Review DELETE route must be registered"
+    assert delete_route is not None, "Owner Review DELETE route must exist on the Review UI router"
+
+    registration_source = (ROOT / "multi_agent_review_registration.py").read_text(encoding="utf-8")
+    assert "native_agent_runtime_router.include_router(multi_agent_review_ui_router)" in registration_source
 
     ui_source = (ROOT / "multi_agent_review_ui_api.py").read_text(encoding="utf-8")
     assert "w.status <> 'CANCELLED'" in ui_source
