@@ -1,278 +1,377 @@
 # Inventory Data Model
 
-Status: **design contract — implementation pending**
+Status: **canonical foundation design contract — implementation pending**
+
+Canonical companion: `CANONICAL_INVENTORY_FOUNDATION.md`.
 
 ## Goal
 
-Represent medicine-store inventory in a way that remains correct when spreadsheet rows are inserted, removed, reordered, renamed, split by expiry lot, or hidden from the operational view.
+Represent medicine-store inventory so the database remains correct regardless of spreadsheet row order, workbook formulas, client UI, store count, catalogue changes, or future AI workflow design.
 
-The model must preserve source truth, lot-level history, monthly history, catalogue history, and auditability without making spreadsheet row numbers canonical identifiers.
+Primary chain:
 
-The database must also avoid turning convenient Excel/Google display sheets into unnecessary canonical tables. Human-facing worksheets may be generated projections over normalized canonical records.
+`Product -> Lot -> Store -> Movement -> Balance -> Transfer -> CMS Mapping -> Actor/Audit`
 
-## Identity layers
+The database must preserve source truth, lot-level history, location-level stock, catalogue history and auditability without making spreadsheet rows or derived Excel cells canonical identifiers.
 
-MSA already distinguishes three operational concepts. The database keeps them explicit.
+## Product
 
-### Product
+Stable local operational identity.
 
-A stable local operational identity, independent of any one expiry lot or current CMS catalogue row.
-
-Candidate fields:
+Minimum fields:
 
 - `product_id` — immutable internal identifier.
-- `local_name` — current preferred store-facing name.
+- `local_name` — preferred local item name.
+- `type` — optional operational type/category.
 - `default_unit` — established operational unit.
-- `active` — whether the product should normally appear in current operational views.
-- `display_order` — optional human-facing ordering aid; never identity.
-- `created_at`, `updated_at`.
+- `active`.
+- optional `display_order` for human views.
+- timestamps.
 
-Product renaming must not create a new product unless the actual operational identity changed.
+`No.` from Main Stock is not canonical identity.
 
-### Product lot
+Renaming does not create a new Product unless the real operational identity changes.
 
-A physical/operational stock lot belonging to one product.
+## Product Lot
 
-Candidate fields:
+Expiry-specific physical/operational identity belonging to one Product.
 
-- `lot_id` — immutable internal identifier.
-- `product_id` — parent product.
-- `expiry_date` — structured expiry when known.
-- `lot_status` — active, depleted, expired, closed, review, or future approved status set.
-- `received_identity_snapshot_id` or equivalent — the CMS/source identity context at receipt where needed.
-- `created_at`, `closed_at`.
+Minimum fields:
 
-Two otherwise identical products with distinct expiry dates remain distinct lots.
+- `lot_id`.
+- `product_id`.
+- `expiry_date` when known.
+- lifecycle/status metadata.
+- optional receipt/source identity snapshot reference.
+- timestamps.
 
-A terminal item-name expiry suffix in the spreadsheet is a presentation aid and compatibility field, not the database primary key.
+Normal v1 lot boundary remains Product + Expiry Date.
 
-### CMS catalogue identity
+A terminal expiry suffix in a spreadsheet item name is presentation metadata, not the database key.
 
-A versioned external catalogue identity, not the local product primary key.
+Location does not belong in Lot identity. The same Lot may hold quantity in Main Store and multiple Sub Stores.
 
-Catalogue codes may change, disappear, or be reused. Therefore no local product or lot should use a CMS code as its immutable primary key.
+## Store / Location
 
-Mappings between local products/lots and catalogue identities must be version-aware and auditable.
+Canonical location entity:
 
-## Transaction ledger
+- `store_id`.
+- unique operational `code`.
+- `name`.
+- `store_type = MAIN | SUB` for v1.
+- `active`.
+- optional display metadata.
+- timestamps.
 
-Canonical stock movement is represented by immutable or correction-safe transactions rather than direct mutation of a balance cell.
+V1 has exactly one configured Main Store and unlimited Sub Stores.
 
-A general transaction abstraction may contain:
+Do not duplicate Product/Lot/Ledger tables per store.
+
+## Canonical movement ledger
+
+Quantity truth is movement-based rather than balance-cell mutation.
+
+A canonical movement contains at least:
 
 - `transaction_id`.
+- `store_id`.
 - `lot_id`.
 - `transaction_type`.
-- `quantity` using a documented sign convention or positive quantity plus type semantics.
-- `effective_date`.
-- `source_type`.
-- `source_id` / `source_line_id` where applicable.
-- `operation_id` / idempotency key.
-- `created_at`.
-- `created_by_actor`.
-- `reason` / `note` for adjustments.
-- `reversal_of_transaction_id` where corrections use explicit reversal.
+- `quantity NUMERIC(18,3)` under the F2 quantity policy.
+- effective date/time.
+- source/provenance type and ID/line ID where available.
+- operation/idempotency ID.
+- actor identity/context.
+- reason/note where relevant.
+- reversal/correction link where required.
+- created timestamp.
 
-Initial movement types should remain minimal:
+Required semantic types for the foundation:
 
-- `OPENING_BALANCE`
-- `RECEIPT`
-- `USAGE`
-- `ADJUSTMENT_POSITIVE`
-- `ADJUSTMENT_NEGATIVE`
+- `OPENING_BALANCE` / migration opening;
+- `RECEIPT`;
+- `USAGE`;
+- `ADJUSTMENT_POSITIVE`;
+- `ADJUSTMENT_NEGATIVE`;
+- `TRANSFER_OUT`;
+- `TRANSFER_IN`.
 
-Do not add speculative movement types before a real workflow requires them.
+The exact table shape may use one general ledger plus source-specific detail tables. Do not add movement types merely for report formatting.
 
-## Receipts
+## Quantity and balance semantics
+
+Operational inventory views may expose:
+
+- Original / Opening Qty;
+- Received Qty;
+- Deducted / Used Qty;
+- Current Qty;
+- Total Store Stock.
+
+These are not separate mutable sources of truth.
+
+For one Store + Lot:
+
+```text
+Current Qty
+  = Opening
+  + Receipts
+  + Transfer In
+  + Positive Adjustments
+  - Usage
+  - Transfer Out
+  - Negative Adjustments
+```
+
+`Received Qty` and `Deducted Qty` are aggregates for a selected period/filter.
+
+`Current Qty` is ledger-derived. A cached/materialized balance may exist later for performance only if deterministic reconciliation against movements remains available.
+
+For a Lot:
+
+```text
+Total Store Stock = SUM(Current Qty across all managed stores)
+```
+
+For a Product, total stock is the sum across its Lots and Stores.
+
+Never maintain a second manually editable total-stock truth.
+
+## External receipts
+
+External receipt introduces stock into the managed system and is distinct from internal transfer.
 
 ### Receipt batch
-
-Represents one source transfer/intake event.
 
 Candidate fields:
 
 - `receipt_batch_id`.
-- `transfer_no`.
-- `transfer_date`.
-- `from_store`.
-- `to_store`.
-- `source_document_hash` where available and appropriate.
-- `status` — staged, reviewed, committed, reconciled, rejected, etc.
-- `created_at`.
+- external/source transfer/document number.
+- source/effective date.
+- destination `store_id`.
+- external source label/reference.
+- source document hash when available.
+- status.
+- timestamps/actor context.
+
+Do not force external suppliers into the internal `stores` table merely because source documents use the word transfer/store.
 
 ### Receipt line
-
-Represents one source line in a batch.
 
 Candidate fields:
 
 - `receipt_line_id`.
 - `receipt_batch_id`.
-- `source_line_no`.
-- `lot_id` after confirmed mapping.
-- `quantity_received`.
-- `source_unit`.
-- `source_price`.
-- `source_code`.
-- `source_description`.
-- `source_expiry_date`.
-- mapping decision/status.
+- source line number.
+- resolved `lot_id`.
+- quantity.
+- source unit.
+- source price.
+- source CMS code/description.
+- source expiry.
+- mapping/review status.
 
-For a known transfer format, a uniqueness rule such as `(receipt_batch_id, source_line_no)` should prevent the same source line from being committed twice.
+Idempotency must prevent one source line being committed twice.
 
-A committed receipt line produces or links to the corresponding canonical `RECEIPT` stock transaction.
+A committed receipt line links to the corresponding `RECEIPT` ledger movement.
 
-### This Month Received projection
+Historical receipt/source price remains transaction truth and is not overwritten by future catalogue updates.
 
-`This Month Received` does **not** require a separate canonical table simply because it exists as a worksheet.
+## Internal transfers
 
-It is a filtered/display projection over current-month receipt activity and the relevant lot/product state.
+Internal transfer moves quantity between two MSA-managed locations and must not change total system stock.
 
-The legacy human-facing view may show fields such as:
+Preferred bounded structure:
 
-- No.
-- Items
-- Sub Store Qty
-- Received Qty
-- Unit
-- Expiry Date
-- Remark
+### Transfer header
 
-Those values should be generated from canonical receipt, lot, product, and monthly-state data. If a future requirement adds independent user-authored data to this view, model only that new information explicitly rather than duplicating the entire worksheet as a table.
+- `transfer_id`.
+- source `store_id`.
+- destination `store_id`.
+- effective date.
+- status.
+- operation/idempotency identity.
+- source/note.
+- actor/proposal/approval context where applicable.
 
-## Usage
+### Transfer line
 
-Daily Usage is normalized in the database.
-
-Candidate usage record:
-
-- `usage_id`.
+- `transfer_line_id`.
+- `transfer_id`.
 - `lot_id`.
-- `usage_date`.
-- `quantity`.
-- `source` — paper form, manual app entry, imported sheet history, etc.
-- `operation_id`.
-- `created_at`.
-- `created_by_actor`.
+- quantity.
 
-The spreadsheet's Day 1–31 cells are a monthly projection of these records.
+Commit creates linked atomic effects:
 
-Multiple usage events on the same date and lot may remain separate canonical records while the spreadsheet displays their sum.
+- source `TRANSFER_OUT`;
+- destination `TRANSFER_IN`.
 
-## Adjustments
+Product/Lot identity is preserved.
 
-Physical count corrections and other exceptional stock corrections must not silently edit prior receipt or usage history.
+Both effects succeed or fail together, share transfer provenance, and remain idempotent on retry.
 
-Use an explicit adjustment transaction with:
+Do not model a real internal transfer as unrelated manual adjustments.
 
-- signed direction/type,
-- quantity,
-- reason,
-- actor,
-- timestamp,
-- optional approval/reference evidence.
+## Usage / deduction
 
-A correction to an erroneous prior transaction should preferably use a documented reversal/correction pattern rather than destructive deletion once the transaction has become operational history.
+Usage is a dated movement from the actual issuing Store + Lot.
 
-## Derived balance
+Conceptual operation:
 
-For a lot and applicable period/state, the backend derives balance from canonical movements.
+`record_usage(store_id, lot_id, effective_date, quantity, source, operation_id, actor)`
 
-Conceptually:
+Daily Usage Day 1-31 is a monthly pivot/edit representation of these records.
 
-```text
-balance = opening
-        + receipts
-        + positive adjustments
-        - usage
-        - negative adjustments
-```
+Multiple same-day events may remain separate canonical events while a view displays their sum.
 
-Exact period carry-forward semantics are defined in `MONTHLY_LIFECYCLE.md`.
+Actual historical movement is preserved even when FIFO/FEFO advice would have preferred another Lot.
 
-If a current-balance snapshot/materialized value is stored, the backend must be able to verify it against the ledger.
+## Adjustments and corrections
 
-## Reorder domain semantics
+Physical count corrections and exceptional changes use explicit adjustment movements with reason, actor, timestamp and source/approval evidence where applicable.
 
-Do not model the legacy `Reorder` and `Final Reorder` worksheets as independent inventory truth tables merely to reproduce the workbook layout.
+Do not silently rewrite prior receipt/usage history.
 
-Distinguish three concepts:
+Committed historical mistakes should use reversal/corrective patterns under the locked F2 correction policy.
 
-1. **calculated reorder recommendation** — derived from canonical inventory state and approved reorder configuration/formula,
-2. **working Reorder projection** — a display/workflow view of the calculated recommendation,
-3. **final reorder submission** — the user-approved result, potentially including authorized manual edits before submission to CMS.
+## Universal CMS Catalogue
 
-The working projection does not need canonical persistence beyond what is required for computation/audit.
+The CMS catalogue is a separate global/versioned external reference domain.
 
-The final approved/submitted reorder is a historical business record and should be preserved with the monthly snapshot when applicable. It must remain distinguishable from the underlying deterministic recommendation so later review can see whether manual changes were made.
+### Catalogue version
 
-The exact reorder formula is a compatibility contract to be documented from the current Main Stock/Excel workflow before backend implementation.
+Candidate fields:
 
-## Monthly snapshot entities
+- `catalogue_version_id`.
+- effective date/period.
+- source label/hash.
+- import timestamp.
 
-Closed-month history should include immutable snapshots sufficient to reproduce the established operational reports even if later product names, catalogue mappings, or display order change.
+### Catalogue item
 
-Candidate snapshot data includes:
+Candidate fields include:
 
-- month identifier.
-- lot identifier.
-- product-name snapshot.
-- expiry snapshot.
-- opening balance.
-- received total.
-- daily or monthly usage summary as required for export.
-- closing balance.
-- reorder configuration snapshot.
-- calculated reorder recommendation where required for audit/reproduction.
-- final approved reorder result when one exists.
-- catalogue/current-price snapshot where required by the report contract.
+- `catalogue_item_id`.
+- `catalogue_version_id`.
+- `cms_code`.
+- CMS/brand name.
+- description.
+- form/type/class.
+- selling price.
 
-The snapshot supplements the ledger for convenient historical reporting; it does not replace canonical source transactions.
+### Product-CMS mapping
 
-## Product lifecycle and deletion semantics
+Use an auditable/version-aware mapping entity between local Product and CMS catalogue identity.
 
-### New row in spreadsheet
+CMS code alone never becomes stable local identity because codes can change, disappear, retire or be reused.
 
-A new spreadsheet row may represent:
+Store location does not duplicate the mapping. All stores use the same accepted local Product -> CMS mapping.
 
-- a new product,
-- a new expiry lot of an existing product,
-- a projection/order change only.
+### Price separation
 
-The backend must classify which domain change occurred rather than treating every inserted row as a new identity.
+Keep distinct:
 
-### Removed row in spreadsheet
+- current catalogue selling price;
+- historical receipt/source price;
+- any compatibility/display-derived price.
 
-A row disappearing from a current operational view must not automatically delete canonical history.
+Updating a catalogue must not rewrite genuine historical transaction price.
 
-Prefer lifecycle changes such as:
+## Main Stock / operational inventory view
 
-- product `active = false`,
-- lot `status = depleted/closed`,
-- view/filter exclusion.
+The future default inventory view can expose a compact set such as:
 
-Hard deletion should be limited to records that are provably non-operational setup errors and have no dependent history, with explicit authorization and audit.
+`Local Item Name | CMS Name | Type | Unit | CMS Code | Expiry Date | Original/Opening Qty | Received Qty | Deducted Qty | Current Qty | CMS Price`
 
-## Display order
+with Store/Location provided by view context or an explicit column.
 
-Operational ordering is presentation metadata.
+These columns map to canonical Product/Lot/CMS fields or movement aggregates. They are not a requirement to store a same-shaped `main_stock` table.
 
-Store a `display_order`, grouping key, or equivalent only if needed to reproduce the preferred Main Stock sequence.
+## This Month Received
 
-Changing display order must not alter product, lot, receipt, usage, or catalogue identity.
+Derived view over current-period receipt movements plus Product/Lot/Store information.
+
+Do not create a second receipt truth table merely to reproduce the worksheet.
+
+## Reorder / planning domain
+
+Exact legacy Estimated Reorder Qty formula is not part of the canonical inventory schema requirement.
+
+Future reorder/planning is a dynamic workflow layer over the canonical foundation and may use:
+
+- current location and total stock;
+- historical usage/trends;
+- expiry risk;
+- incoming stock/transfers;
+- safety stock and lead time;
+- seasonality or unusual demand;
+- deterministic calculation modules;
+- AI proposal;
+- single/multi-agent review;
+- human adjustment/approval.
+
+The database foundation must preserve the data needed for these approaches without locking the project to one Excel formula.
+
+A final approved reorder may be stored as a durable business artifact/snapshot with proposal/review/approval provenance.
+
+## Monthly reporting / snapshots
+
+Monthly snapshots are useful for reporting and archive reconstruction but do not replace the lifetime movement ledger.
+
+Snapshot rows, when implemented, should be Store + Lot scoped and may include opening, receipt total, usage summary, closing balance and report-context metadata.
+
+Exact legacy Excel reset/archive formula parity is deferred unless a specific behavior changes canonical quantity/provenance truth.
+
+Migration opening balances remain explicit provenance-bearing movements under the F2 decision.
+
+## Actors and audit
+
+Every protected inventory operation is attributable to stable human and/or authorized non-human actor context.
+
+Use existing canonical concepts:
+
+- users / user IDs;
+- service principals / AI agent identities as appropriate;
+- client/channel;
+- operation/idempotency ID;
+- timestamps;
+- reason/source/evidence;
+- proposal/review/approval relationships when applicable;
+- audit event outcome/read-back.
+
+Human UI and AI workflows use the same typed backend operation layer. AI reasoning does not imply mutation authority.
+
+## Product lifecycle and view order
+
+A spreadsheet row insertion may mean a new Product, new Lot, or only a view/order change. The backend must classify the semantic change.
+
+A row disappearing from a current view does not delete historical Product/Lot/transactions.
+
+Display order is presentation metadata only.
 
 ## Fixed assets
 
-Fixed Assets remain a separate domain and must not be forced into medicine stock transaction tables merely because they share source transfer documents.
+Fixed Assets remain a separate domain and must not be forced into medicine/consumable stock transactions simply because the same source documents contain them.
 
-The existing skill's Fixed Assets boundary remains authoritative until a separate asset data model is explicitly designed.
+## F6D schema gap from current shadow migrations
 
-## Constraints to preserve from the current skill
+Current shadow schema already contains Products, Product Lots, CMS version/items, identities/audit and a lot-only transaction ledger, but it does not yet satisfy this foundation because:
 
-- Preserve local operational names unless an authorized rename is requested.
-- Preserve distinct expiry lots.
-- Never use CMS code alone as identity.
-- Preserve actual historical movement even when it violates ideal FIFO/FEFO.
-- Preserve structured expiry truth and surface suffix/expiry mismatches for review.
-- Keep derived values derivable from canonical inputs.
-- Treat display-only/report worksheets as projections unless they introduce genuinely independent business data.
+- there is no canonical Store/Location entity;
+- inventory transactions are not location-aware;
+- transfer semantics are absent;
+- receipt provenance/destination structures are incomplete for the target model;
+- Product-CMS mapping must be sufficient for current/versioned accepted mapping;
+- total-stock/location-balance projection proof has not been performed against a fresh real source snapshot.
+
+## Constraints to preserve
+
+- preserve local operational identity and names unless authorized change occurs;
+- preserve distinct expiry Lots;
+- never use CMS code alone as identity;
+- preserve actual historical movement;
+- keep source provenance and idempotency;
+- keep quantities fixed-point under the F2 policy;
+- prevent silent negative stock under the locked F2 policy;
+- keep derived values derivable from canonical inputs;
+- treat worksheet/report layouts as projections unless they contain genuinely independent business data.
