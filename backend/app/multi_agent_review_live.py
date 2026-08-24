@@ -20,6 +20,7 @@ from app.multi_agent_review import (
     _work_item_detail,
 )
 from app.native_agent_runtime import NativeAgentInvokeInput, invoke_native_agent
+from app.native_agent_tool_runtime import invoke_native_agent_with_read_tools, native_agent_read_allowed
 
 router = APIRouter(prefix="/dashboard/api/ai-workspace/multi-agent", tags=["multi-agent-review-live"])
 
@@ -45,6 +46,50 @@ def _configured_context(
             f"PRIOR PARTICIPANT {index} — {item['role']} / {item['agent_display_name']}:\n{item['response']}"
         )
     return "\n\n".join(parts)
+
+
+def _participant_provenance(result: dict[str, Any], participant: dict[str, Any]) -> dict[str, Any]:
+    provenance = _provenance(result)
+    tool_calls = result.get("native_tool_calls") or []
+    provenance.update(
+        {
+            "native_store_tools_allowed": native_agent_read_allowed(participant),
+            "tool_execution_enabled": bool(result.get("tool_execution_enabled")),
+            "native_tools_exposed": result.get("native_tools_exposed", []) or [],
+            "native_tool_calls": tool_calls,
+            "native_model_tools_executed": [
+                item.get("tool")
+                for item in tool_calls
+                if isinstance(item, dict) and item.get("status") == "SUCCESS" and item.get("tool")
+            ],
+        }
+    )
+    return provenance
+
+
+def _invoke_participant(
+    participant: dict[str, Any],
+    *,
+    message: str,
+    owner: dict[str, str],
+) -> dict[str, Any]:
+    payload = NativeAgentInvokeInput(message=message, temperature=0.2, max_output_tokens=2048)
+    response = Response()
+    if native_agent_read_allowed(participant):
+        tool_result = invoke_native_agent_with_read_tools(
+            participant["agent_id"],
+            payload,
+            response,
+            owner=owner,
+        )
+        if tool_result is not None:
+            return tool_result
+    return invoke_native_agent(
+        participant["agent_id"],
+        payload,
+        response,
+        owner=owner,
+    )
 
 
 def _mark_failed(
@@ -110,12 +155,7 @@ def _execute_live_review(
             display_label = participant.get("display_label") or participant.get("role_label")
             message = _role_instruction(role, display_label) + "\n\n" + _configured_context(task, participants, prior_outputs)
             try:
-                result = invoke_native_agent(
-                    participant["agent_id"],
-                    NativeAgentInvokeInput(message=message, temperature=0.2, max_output_tokens=2048),
-                    Response(),
-                    owner=owner,
-                )
+                result = _invoke_participant(participant, message=message, owner=owner)
             except HTTPException:
                 _mark_failed(
                     work_item_id=work_item_id,
@@ -143,7 +183,7 @@ def _execute_live_review(
                 )
                 return
 
-            provenance = _provenance(result)
+            provenance = _participant_provenance(result, participant)
             with engine.begin() as connection:
                 artifact_id = _insert_artifact(
                     connection,
@@ -321,6 +361,7 @@ def start_live_review(
                     "participant_count": len(participants),
                     "configured_roles": [item["orchestration_role"] for item in participants],
                     "turn_streaming": "PERSISTED_POLLING",
+                    "per_participant_native_reads": True,
                 },
             )
             initial = _work_item_detail(connection, work_item_id)
