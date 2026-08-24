@@ -1,0 +1,34 @@
+name: One-shot federated feedback loop patcher
+
+on:
+  pull_request_target:
+    branches: [main]
+    paths:
+      - 'docs/checkpoints/federated-feedback-loop-trigger.txt'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'fix/federated-review-feedback-loop'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: fix/federated-review-feedback-loop
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Apply federated feedback patch
+        run: |
+          set -euo pipefail
+          python scripts/patch_federated_feedback_loop.py
+          python -m compileall -q backend/app
+          node --check backend/app/dashboard_assets/dashboard_multi_agent_review.js
+          node --check backend/app/dashboard_assets/dashboard_multi_agent_live_export.js
+          git diff --check
+          git config user.name 'MSA Federated Feedback Fix'
+          git config user.email 'actions@users.noreply.github.com'
+          git add backend/app/dashboard_assets/dashboard_multi_agent_review.js backend/app/dashboard_assets/dashboard_multi_agent_live_export.js
+          git commit -m 'Make federated review feedback reusable in native passes'
+          git push origin HEAD:fix/federated-review-feedback-loop
