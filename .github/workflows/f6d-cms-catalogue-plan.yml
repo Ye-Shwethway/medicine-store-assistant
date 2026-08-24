@@ -1,0 +1,97 @@
+name: F6D live CMS catalogue plan
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/app/live_catalogue_import.py'
+      - '.github/workflows/f6d-cms-catalogue-plan.yml'
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: msa-f6d-shadow-maintenance
+  cancel-in-progress: false
+
+jobs:
+  plan-live-catalogue:
+    runs-on: [self-hosted, linux, msa-vps]
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          path: source
+          persist-credentials: false
+
+      - name: Read-only live CMS catalogue plan
+        id: plan
+        continue-on-error: true
+        shell: bash
+        working-directory: source
+        run: |
+          set -o pipefail
+          ENV_FILE=/opt/medicine-store-assistant/secrets/runtime.env
+          COMPOSE_FILE="$PWD/deploy/docker-compose.yml"
+          test -r "$ENV_FILE"
+          export COMPOSE_PROJECT_NAME="${MSA_COMPOSE_PROJECT_NAME:-deploy}"
+          docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" build api
+
+          set -a
+          source "$ENV_FILE"
+          set +a
+          : "${MSA_GOOGLE_SPREADSHEET_ID:?MSA_GOOGLE_SPREADSHEET_ID is required}"
+          : "${MSA_GOOGLE_SERVICE_ACCOUNT_FILE:?MSA_GOOGLE_SERVICE_ACCOUNT_FILE is required}"
+          test -r "$MSA_GOOGLE_SERVICE_ACCOUNT_FILE"
+
+          docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm \
+            -e MSA_GOOGLE_SPREADSHEET_ID="$MSA_GOOGLE_SPREADSHEET_ID" \
+            -e MSA_GOOGLE_SERVICE_ACCOUNT_FILE=/run/secrets/google-service-account.json \
+            -e MSA_CMS_CATALOGUE_SHEET=CMS_Price_List_202608 \
+            -v "$MSA_GOOGLE_SERVICE_ACCOUNT_FILE:/run/secrets/google-service-account.json:ro" \
+            api python -m app.live_catalogue_import 2>&1 | tee "${RUNNER_TEMP}/f6d-cms-plan.txt"
+
+      - name: Publish catalogue plan evidence
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVIDENCE_ISSUE: '152'
+          PLAN_OUTCOME: ${{ steps.plan.outcome }}
+        run: |
+          set -euo pipefail
+          export PLAN_FILE="${RUNNER_TEMP}/f6d-cms-plan.txt"
+          BODY_FILE="${RUNNER_TEMP}/f6d-cms-plan-body.json"
+          python3 - <<'PY' > "$BODY_FILE"
+          import json, os
+          from pathlib import Path
+          path = Path(os.environ['PLAN_FILE'])
+          plan = path.read_text(encoding='utf-8').strip() if path.exists() else '(not produced)'
+          body = "\n".join([
+              "F6D live CMS catalogue read-only planning evidence.",
+              "",
+              f"status={os.environ['PLAN_OUTCOME']}",
+              f"source_sha={os.environ['GITHUB_SHA']}",
+              f"workflow_run_id={os.environ['GITHUB_RUN_ID']}",
+              "mutation=false",
+              "mapping_mutation=false",
+              "inventory_mutation=false",
+              "database_canonical=false",
+              "migration_baseline_accepted=false",
+              "",
+              "```text",
+              plan,
+              "```",
+          ])
+          print(json.dumps({'body': body}))
+          PY
+          curl --fail-with-body --silent --show-error \
+            --request PATCH \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/${EVIDENCE_ISSUE}" \
+            --data-binary "@${BODY_FILE}" >/dev/null
+          test "$PLAN_OUTCOME" = success
