@@ -1,138 +1,98 @@
 # Medicine Store Assistant — Implementation Plan
 
-Status: **D4.8 Review/federation, PR #125 Review/composer UX, and D4.9 Review Thread Conversation + Owner Decisions are deployed and production-verified. F6B remains test-only; PostgreSQL remains non-canonical. Current bounded slice: Telegram notification/Attention delivery over persisted Attention/Event state.**
-
-This file is the execution contract for current MSA implementation order and boundaries.
+Status: **AI Workspace / D4.8-D4.9 is accepted. F6B remains test-only; PostgreSQL remains non-canonical. Current bounded slice: F6C Workbook Parity Lock. Next: F6D Canonical Inventory Schema Parity + Fresh Shadow Import.**
 
 ## 1. Global rules
 
-- Google Sheets/source documents remain operationally authoritative until explicit F11 promotion.
+- Google Sheets/source documents remain operationally authoritative until explicit canonical DB promotion.
 - PostgreSQL being deployed does **not** make it canonical.
-- F6B remains test-only and must never be silently promoted.
+- F6B is test-only and must never be silently promoted.
 - All humans, AI agents, integrations, and jobs use typed backend operations.
 - Never expose arbitrary SQL, DB credentials, VPS shell/filesystem, Sheet credentials, plaintext provider keys, passwords/tokens/recovery secrets, or unrestricted HTTP proxying to AI/client runtimes.
-- Deterministic backend code owns identity, authorization, capability/location policy, constraints, idempotency, transactions, read-back, confirmation and audit semantics.
+- Deterministic backend code owns identity, authorization, constraints, idempotency, transactions, confirmation, read-back and audit semantics.
 - Provider/model choice never grants authority; participant privileges never union.
 - Significant implementation/deploy/next-work changes update `ROADMAP.md`, `NEW_CHAT_BOOTSTRAP.md`, this file, and relevant canonical docs.
-- Web changes obey the canonical Web implementation/ownership/release standards and bounded behavior-level browser gates.
 
-## 2. Canonical execution paths — LOCKED
+## 2. Accepted supporting foundation
 
-External MCP:
+Accepted work includes Provider Registry, named agents, native inference, Single Chat, bounded read tools, D4.8 Work/Artifact/Review/Event/Attention substrate, external MCP federation, feedback passes, Review export/delete/navigation, Web Production Reliability Hardening, D4.9 discussion/Owner Decisions, and PR #129 `Talk to -> All agents` ordinary discussion broadcast.
 
-`ChatGPT/SOL -> existing MSA MCP -> MCP authority intersection -> typed MSA backend -> result`
+PR #129 production evidence:
 
-Native internal agent:
+- source SHA `75bfb89eb83b5cedfffa9148db454b1245269593`
+- deploy run `32736647711`
+- issue #26 `status=success`
 
-`MSA Web / future Telegram / Flutter / automation -> INTERNAL_MODEL runtime -> assigned provider/model -> native typed-tool adapter -> typed MSA backend -> response`
-
-These are peer paths. Direct authorized MCP actions do not require an internal-agent hop. Internal agents do not normally use public MCP.
+Small AI/Review cosmetic fixes may be folded into future Web touches; do not create another AI-only implementation branch unless required for correctness.
 
 ## 3. Canonicality / write boundary
 
 - `database_canonical=false`.
 - `migration_baseline_accepted=false`.
-- F6B snapshot: rows 1,646; SAFE 1,417; REVIEW 222; CONFLICT 0; NEW_UNMAPPED 7.
-- No production inventory writes, transfers, Calculator deductions, Telegram/Flutter stock mutations, automatic OCR/vision commit, arbitrary agent DB/SQL mutation, or DB canonical promotion are authorized.
+- Existing F6B shadow data is test evidence only.
+- No production inventory write, transfer, Calculator deduction, Telegram/Flutter stock mutation, automatic OCR/vision commit, arbitrary agent DB/SQL mutation, or DB canonical promotion is authorized.
 
-## 4. Accepted AI Workspace foundation
+## 4. CURRENT — F6C Workbook Parity Lock
 
-Accepted foundation includes named agents, Provider Registry/saved models, PRIMARY + ordered FALLBACK configuration, native inference, durable Single Chat, bounded native reads, D4.8 Work/Artifact/Review/Event/Attention substrate, per-participant native authority, external MCP federation, feedback passes, export/delete UX, single-surface navigation, Web Production Reliability Hardening, PR #125 composer state hardening, and D4.9 threaded one-agent discussion + Owner Decisions.
+Canonical docs:
 
-## 5. D4.9 — DEPLOYED / ACCEPTED
+- `docs/architecture/F6C_WORKBOOK_PARITY_LOCK.md`
+- `docs/architecture/WORKBOOK_PARITY_MATRIX.md`
+- `docs/architecture/WORKBOOK_FUNCTION_CONTRACT.md`
 
-Canonical architecture: `docs/architecture/F7_2D49_REVIEW_THREAD_CONVERSATION_AND_OWNER_DECISIONS.md`.
+### 4.1 Source inspection order
 
-PR #127 merge/source SHA:
+1. Main Stock exact structure and formulas/functions.
+2. Daily Usage exact structure and month behavior.
+3. This Month Received projection/filter behavior.
+4. Reorder exact calculation algorithm.
+5. Final Reorder copy/edit/submission/archive behavior.
+6. CMS catalogue/price-list identity and retention behavior.
+7. Transfer/receipt intake structure and mapping flow.
+8. Monthly close / Excel Master copy-reset-archive behavior.
 
-`c2dc42b38a60a7dc625c0d0748530c74c98ed615`
+### 4.2 Required output for each source surface
 
-Production issue #26:
+- exact source fields/columns;
+- editable vs formula/lookup/integration-managed fields;
+- business meaning;
+- identity implications;
+- formula/macro/workflow behavior;
+- future domain entity or projection mapping;
+- unresolved gaps requiring Owner review.
 
-- `status=success`
-- source SHA `c2dc42b38a60a7dc625c0d0748530c74c98ed615`
-- deploy run `32735227026`
+### 4.3 F6C completion gate
 
-Accepted semantics:
+Do not mark F6C complete until every operational workbook surface is accounted for and no required formula/macro/business behavior is silently omitted or guessed.
 
-### Normal Send
+No schema migration, fresh real import, production write, or canonical promotion is authorized merely by starting F6C.
 
-`Owner message -> deterministic target resolution -> exactly one authorized native participant -> persisted discussion reply`
+## 5. NEXT — F6D Canonical Inventory Schema Parity + Fresh Shadow Import
 
-- explicit selected target routes to that participant;
-- otherwise default prefers Synthesizer, then last configured participant;
-- invalid explicit target fails closed;
-- direct discussion `OWNER_MESSAGE` has `staged_for_review=false`;
-- normal Send does not start `feedback-pass`, consume external Review evidence, or run the whole preset.
+After F6C acceptance:
 
-### Send review
+1. compare the locked workbook contract with `INVENTORY_DATA_MODEL.md`, `F2_SCHEMA_DECISION_PROPOSAL.md`, `MONTHLY_LIFECYCLE.md`, `CMS_CATALOGUE_VERSIONING.md`, and `SHEET_MIRROR_AND_COMPATIBILITY.md`;
+2. change only domain/schema elements that parity evidence requires;
+3. create versioned migrations and repeatable import tooling;
+4. use a fresh authorized current source snapshot;
+5. import non-canonically with provenance;
+6. reconcile product/lot identity, expiry separation, balances, receipts, usage, CMS mapping/price and relevant workbook projections;
+7. classify every mismatch instead of forcing either side to match;
+8. keep PostgreSQL non-canonical until explicit acceptance.
 
-`new structured feedback OR direct Owner review instruction -> full configured REVIEW participant sequence -> WAITING_OWNER`
+## 6. Subsequent implementation sequence
 
-It remains a separate workflow action from normal conversation.
+1. F6C workbook parity lock.
+2. F6D schema parity + fresh shadow import.
+3. Historical bootstrap from strongest available evidence.
+4. Shadow calculation parity.
+5. Dual verification of real operational events.
+6. Read-path promotion.
+7. Controlled write promotion per operation class.
+8. Explicit database canonicality promotion.
+9. Sheet mirror mode and rebuild/recovery proof.
+10. Resume deferred Telegram/AI collaboration expansions as useful.
 
-### Owner Decision
+## 7. Immediate boundary
 
-`Record decision` persists `OWNER_DECISION` + immutable `OWNER_DECISION_RECORDED`, with no inventory mutation and no DB promotion.
-
-### Future execution boundary
-
-`evidence -> discussion/review -> Owner decision -> executor agent typed mutation proposal -> required Owner confirmation -> authorized backend operation -> read-back -> audit`
-
-Executor selection never grants arbitrary SQL/direct DB authority.
-
-### Acceptance evidence
-
-- relevant PR-head workflows: 7/7 green;
-- Playwright Chromium 390×844 proves structured Review consumption/settled state, targeted one-agent discussion without feedback-pass, Owner Decision persistence, direct structured Review instruction, and export endpoint reuse;
-- browser test found a real re-render target hydration cache bug; implementation was fixed by binding hydration state to the live composer DOM node rather than Work Item ID cache;
-- exact production SHA confirmed through issue #26.
-
-## 6. CURRENT — Telegram notification / Attention delivery
-
-Purpose: deliver Owner attention from persisted Attention/Event state to Telegram without making Telegram authoritative or required for workflow correctness.
-
-### 6.1 Delivery contract
-
-- Work Item/Event/Attention persistence happens first and remains authoritative.
-- Telegram send failure is non-fatal to the underlying workflow transition.
-- Notification delivery records its own attempt/result audit evidence.
-- Retry policy is bounded and idempotent; repeated processing must not create notification storms.
-- Delivery uses typed backend integration boundaries, never direct arbitrary DB mutation by the bot.
-
-### 6.2 Identity / routing
-
-- Owner Telegram identity/linking must be explicit, authenticated and auditable.
-- Do not infer a Telegram recipient from display name alone.
-- Initial scope is Owner notifications only.
-
-### 6.3 Initial attention cases
-
-Start narrowly with durable events/attention such as:
-
-- Review enters `WAITING_OWNER`;
-- external MCP review completes and Owner attention is required;
-- later bounded workflow failures that already create durable attention.
-
-Do not broaden to inventory alerts or staff notifications in the same slice.
-
-### 6.4 Authority boundary
-
-Telegram delivery grants no inventory/tool authority. Any future Telegram command/action must go through the same authenticated typed-operation and confirmation policies as Web/MCP/native paths.
-
-## 7. Immediate implementation order
-
-1. **CURRENT:** inspect existing Telegram/bot foundations and lock notification-delivery architecture before code.
-2. Implement Owner identity/routing + idempotent delivery attempt records + bounded sender integration.
-3. Wire only selected persisted Attention/Event cases; prove send failure is non-fatal.
-4. Add focused tests and production evidence, then refresh continuity docs.
-5. Add GROUP shared-context collaboration with Owner pause/resume/stop/steer and optional external checkpoints.
-6. Add COMPARE, then bounded DEBATE.
-7. Return to live PRIMARY -> FALLBACK proof when stable secondary provider/model exists.
-8. Add staff entitlement/location authority before staff tool rollout.
-9. Expand vision/OCR only as a separate bounded evidence slice.
-10. Controlled inventory writes remain later and require explicit canonicality, authority, idempotency, confirmation, audit and read-back prerequisites.
-
-## 8. Immediate boundary
-
-D4.9 is complete. Proceed from the production-verified D4.8/D4.9/Web foundation. Do not enable production inventory mutation, arbitrary agent DB access, or PostgreSQL canonical promotion as part of Telegram delivery.
+The project focus is now the real inventory/workbook/database path. Do not spend the next slices expanding AI collaboration, Telegram delivery, GROUP/COMPARE/DEBATE, or speculative intelligence features unless explicitly reprioritized.
