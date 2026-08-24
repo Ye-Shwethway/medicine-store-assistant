@@ -117,6 +117,26 @@ SYSTEM_PRESETS: dict[str, ViewDefinition] = {
             ViewColumn("review_reason", "Review Reason", 320),
         ),
     ),
+    "cms-mapping-review": ViewDefinition(
+        view_id="cms-mapping-review",
+        name="CMS Mapping Review",
+        preset_type="CMS_MAPPING_REVIEW",
+        provider="cms_mapping_review",
+        row_grain="PRODUCT_CMS_MAPPING",
+        store_scope="ALL",
+        system_preset=True,
+        description="Current non-accepted Product↔CMS mapping review state. Read-only; no mapping or price acceptance occurs here.",
+        columns=(
+            ViewColumn("local_item_name", "Local Item", 280),
+            ViewColumn("unit", "Unit", 90),
+            ViewColumn("cms_code", "CMS Code", 120),
+            ViewColumn("cms_name", "CMS Name", 260),
+            ViewColumn("mapping_status", "Mapping Status", 170),
+            ViewColumn("catalogue_price", "Current Catalogue Price", 150),
+            ViewColumn("accepted_operational_price", "Accepted Store Price", 150),
+            ViewColumn("review_reason", "Review Reason", 360),
+        ),
+    ),
 }
 
 
@@ -149,12 +169,16 @@ def _resolve_columns(view: ViewDefinition, requested_fields: str | None) -> list
     return result
 
 
-def _main_stock_rows(*, q: str | None, limit: int, offset: int) -> list[dict[str, Any]]:
+def _main_stock_rows(*, q: str | None, mapping_status: str | None, limit: int, offset: int) -> list[dict[str, Any]]:
     params: dict[str, Any] = {"limit": limit, "offset": offset}
     search_clause = ""
+    mapping_clause = ""
     if q:
         params["q"] = q
         search_clause = "AND (p.local_name ILIKE '%' || :q || '%' OR COALESCE(map.cms_code_snapshot,'') ILIKE '%' || :q || '%' OR COALESCE(map.cms_name_snapshot,'') ILIKE '%' || :q || '%')"
+    if mapping_status:
+        params["mapping_status"] = mapping_status
+        mapping_clause = "AND map.mapping_status = :mapping_status"
     return _query(
         f"""
         WITH opening AS (
@@ -209,7 +233,7 @@ def _main_stock_rows(*, q: str | None, limit: int, offset: int) -> list[dict[str
         LEFT JOIN usage u ON u.store_id=s.store_id AND u.lot_id=pl.lot_id
         LEFT JOIN current_mapping map ON map.product_id=p.product_id
         LEFT JOIN cms_catalogue_items ci ON ci.catalogue_item_id=map.catalogue_item_id
-        WHERE p.active {search_clause}
+        WHERE p.active {search_clause} {mapping_clause}
         ORDER BY COALESCE(p.display_order, 2147483647), lower(p.local_name), pl.expiry_date NULLS LAST, pl.lot_id
         LIMIT :limit OFFSET :offset
         """,
@@ -217,12 +241,32 @@ def _main_stock_rows(*, q: str | None, limit: int, offset: int) -> list[dict[str
     )
 
 
-def _migration_review_rows(*, q: str | None, limit: int, offset: int) -> list[dict[str, Any]]:
+def _migration_review_rows(
+    *,
+    q: str | None,
+    mapping_status: str | None,
+    source_classification: str | None,
+    review_reason: str | None,
+    limit: int,
+    offset: int,
+) -> list[dict[str, Any]]:
     params: dict[str, Any] = {"limit": limit, "offset": offset}
     search_clause = ""
+    mapping_clause = ""
+    classification_clause = ""
+    reason_clause = ""
     if q:
         params["q"] = q
         search_clause = "AND (COALESCE(msr.payload->>'item_name','') ILIKE '%' || :q || '%' OR COALESCE(msr.payload->>'serial_code','') ILIKE '%' || :q || '%' OR COALESCE(msr.review_reason,'') ILIKE '%' || :q || '%')"
+    if mapping_status:
+        params["mapping_status"] = mapping_status
+        mapping_clause = "AND map.mapping_status = :mapping_status"
+    if source_classification:
+        params["source_classification"] = source_classification
+        classification_clause = "AND msr.classification = :source_classification"
+    if review_reason:
+        params["review_reason"] = review_reason
+        reason_clause = "AND COALESCE(msr.review_reason,'') ILIKE '%' || :review_reason || '%'"
     return _query(
         f"""
         WITH latest_batch AS (
@@ -257,7 +301,7 @@ def _migration_review_rows(*, q: str | None, limit: int, offset: int) -> list[di
         LEFT JOIN stores s ON s.code='MAIN' AND s.active
         LEFT JOIN inventory_location_balances b ON b.store_id=s.store_id AND b.lot_id=pl.lot_id
         LEFT JOIN current_mapping map ON map.product_id=p.product_id
-        WHERE msr.source_sheet='Main Stock' {search_clause}
+        WHERE msr.source_sheet='Main Stock' {search_clause} {mapping_clause} {classification_clause} {reason_clause}
         ORDER BY msr.source_row_no
         LIMIT :limit OFFSET :offset
         """,
@@ -265,11 +309,88 @@ def _migration_review_rows(*, q: str | None, limit: int, offset: int) -> list[di
     )
 
 
-def _render_provider(provider: str, *, q: str | None, limit: int, offset: int) -> list[dict[str, Any]]:
+def _cms_mapping_review_rows(
+    *,
+    q: str | None,
+    mapping_status: str | None,
+    review_reason: str | None,
+    limit: int,
+    offset: int,
+) -> list[dict[str, Any]]:
+    params: dict[str, Any] = {"limit": limit, "offset": offset}
+    search_clause = ""
+    mapping_clause = ""
+    reason_clause = ""
+    if q:
+        params["q"] = q
+        search_clause = "AND (p.local_name ILIKE '%' || :q || '%' OR COALESCE(map.cms_code_snapshot,'') ILIKE '%' || :q || '%' OR COALESCE(map.cms_name_snapshot,'') ILIKE '%' || :q || '%' OR COALESCE(map.review_reason,'') ILIKE '%' || :q || '%')"
+    if mapping_status:
+        params["mapping_status"] = mapping_status
+        mapping_clause = "AND map.mapping_status = :mapping_status"
+    if review_reason:
+        params["review_reason"] = review_reason
+        reason_clause = "AND COALESCE(map.review_reason,'') ILIKE '%' || :review_reason || '%'"
+    return _query(
+        f"""
+        WITH current_mapping AS (
+            SELECT DISTINCT ON (product_id)
+                   product_id, catalogue_item_id, cms_code_snapshot, cms_name_snapshot,
+                   mapping_status, accepted_operational_price, review_reason, valid_from
+            FROM product_cms_mappings
+            WHERE valid_to IS NULL
+            ORDER BY product_id,
+                     CASE mapping_status WHEN 'ACTIVE_MATCH' THEN 0 WHEN 'REVIEW_REQUIRED' THEN 1 WHEN 'RECYCLED_CODE' THEN 2 WHEN 'CMS_DISCONTINUED' THEN 3 WHEN 'UNMAPPED' THEN 4 ELSE 5 END,
+                     valid_from DESC
+        )
+        SELECT p.product_id::text AS product_id,
+               p.local_name AS local_item_name,
+               p.default_unit AS unit,
+               map.cms_code_snapshot AS cms_code,
+               map.cms_name_snapshot AS cms_name,
+               map.mapping_status,
+               ci.selling_price AS catalogue_price,
+               map.accepted_operational_price,
+               map.review_reason
+        FROM products p
+        JOIN current_mapping map ON map.product_id=p.product_id
+        LEFT JOIN cms_catalogue_items ci ON ci.catalogue_item_id=map.catalogue_item_id
+        WHERE p.active {search_clause} {mapping_clause} {reason_clause}
+        ORDER BY COALESCE(p.display_order, 2147483647), lower(p.local_name), p.product_id
+        LIMIT :limit OFFSET :offset
+        """,
+        params,
+    )
+
+
+def _render_provider(
+    provider: str,
+    *,
+    q: str | None,
+    mapping_status: str | None,
+    source_classification: str | None,
+    review_reason: str | None,
+    limit: int,
+    offset: int,
+) -> list[dict[str, Any]]:
     if provider == "lot_balance":
-        return _main_stock_rows(q=q, limit=limit, offset=offset)
+        return _main_stock_rows(q=q, mapping_status=mapping_status, limit=limit, offset=offset)
     if provider == "migration_review":
-        return _migration_review_rows(q=q, limit=limit, offset=offset)
+        return _migration_review_rows(
+            q=q,
+            mapping_status=mapping_status,
+            source_classification=source_classification,
+            review_reason=review_reason,
+            limit=limit,
+            offset=offset,
+        )
+    if provider == "cms_mapping_review":
+        return _cms_mapping_review_rows(
+            q=q,
+            mapping_status=mapping_status,
+            review_reason=review_reason,
+            limit=limit,
+            offset=offset,
+        )
     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Unknown inventory view provider")
 
 
@@ -301,6 +422,9 @@ def inventory_view_rows(
     preset: str = Query(default="main-stock"),
     fields: str | None = Query(default=None, description="Optional comma-separated registry field keys; validates the generic renderer contract."),
     q: str | None = None,
+    mapping_status: str | None = Query(default=None, max_length=64),
+    source_classification: str | None = Query(default=None, max_length=64),
+    review_reason: str | None = Query(default=None, max_length=255),
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
 ) -> dict[str, Any]:
@@ -309,7 +433,19 @@ def inventory_view_rows(
     if view is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Inventory view preset not found")
     columns = _resolve_columns(view, fields)
-    provider_rows = _render_provider(view.provider, q=q.strip() if q and q.strip() else None, limit=limit, offset=offset)
+    normalized_q = q.strip() if q and q.strip() else None
+    normalized_mapping_status = mapping_status.strip() if mapping_status and mapping_status.strip() else None
+    normalized_source_classification = source_classification.strip() if source_classification and source_classification.strip() else None
+    normalized_review_reason = review_reason.strip() if review_reason and review_reason.strip() else None
+    provider_rows = _render_provider(
+        view.provider,
+        q=normalized_q,
+        mapping_status=normalized_mapping_status,
+        source_classification=normalized_source_classification,
+        review_reason=normalized_review_reason,
+        limit=limit,
+        offset=offset,
+    )
     selected = [{column.field: row.get(column.field) for column in columns} for row in provider_rows]
     return {
         "view": _serialize_view(view),
@@ -325,6 +461,12 @@ def inventory_view_rows(
         "count": len(selected),
         "limit": limit,
         "offset": offset,
+        "filters": {
+            "q": normalized_q,
+            "mapping_status": normalized_mapping_status,
+            "source_classification": normalized_source_classification,
+            "review_reason": normalized_review_reason,
+        },
         "read_only": True,
         "customizable_projection": True,
         "database_canonical": False,
