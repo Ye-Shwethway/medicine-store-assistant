@@ -8,6 +8,7 @@ on:
       - 'backend/app/multi_agent_review_registration.py'
       - 'backend/app/dashboard_assets/dashboard_multi_agent_review.js'
       - 'backend/app/dashboard_assets/dashboard_multi_agent_live_export.js'
+      - 'backend/app/dashboard_assets/dashboard_multi_agent_review.css'
       - '.github/workflows/validate-federated-feedback-loop.yml'
 
 permissions:
@@ -43,8 +44,13 @@ jobs:
           grep -Fq '/feedback-pass' backend/app/dashboard_assets/dashboard_multi_agent_review.js
           grep -Fq 'Send feedback to review team' backend/app/dashboard_assets/dashboard_multi_agent_review.js
           grep -Fq "status==='WAITING_EXTERNAL'||status==='REVIEWING'" backend/app/dashboard_assets/dashboard_multi_agent_live_export.js
-          grep -Fq 'if(card)hydrateWorkId=null' backend/app/dashboard_assets/dashboard_multi_agent_live_export.js
+          grep -Fq 'if(card){hydrateWorkId=null;enterReviewChatView()}' backend/app/dashboard_assets/dashboard_multi_agent_live_export.js
+          grep -Fq '← Back to reviews' backend/app/dashboard_assets/dashboard_multi_agent_live_export.js
+          grep -Fq "artifacts.forEach(a=>{const turn=artifactTurn(a);if(turn)turns.push(turn)})" backend/app/dashboard_assets/dashboard_multi_agent_live_export.js
+          grep -Fq "const ownerAction=item.status==='WAITING_OWNER'" backend/app/dashboard_assets/dashboard_multi_agent_live_export.js
+          grep -Fq '#aiMultiMode:not(.review-chat-open) .review-detail{display:none}' backend/app/dashboard_assets/dashboard_multi_agent_review.css
+          grep -Fq '#aiMultiMode.review-chat-open .review-history{display:none}' backend/app/dashboard_assets/dashboard_multi_agent_review.css
           grep -Fq 'OWNER_STARTED_FEEDBACK_PASS' backend/app/multi_agent_review_feedback.py
           grep -Fq 'NATIVE_FEEDBACK_PARTICIPANT_COMPLETED' backend/app/multi_agent_review_feedback.py
           grep -Fq 'OWNER_REVIEW_REQUIRED_AFTER_FEEDBACK_PASS' backend/app/multi_agent_review_feedback.py
-          echo 'federated_feedback_ui_contract=pass'
+          echo 'federated_feedback_single_surface_ui_contract=pass'

@@ -46,6 +46,33 @@
 
   function statusNotice(text,kind='info'){const el=document.querySelector('#aiMultiMode #reviewUiStatus');if(!el)return;el.textContent=text||'';el.dataset.kind=kind;el.hidden=!text}
   function reviewExportHtml(workItemId){const id=encodeURIComponent(workItemId);return '<div class="review-export-actions" data-review-export-for="'+esc(workItemId)+'"><a href="/dashboard/api/ai-workspace/multi-agent/work-items/'+id+'/export?format=docx">DOCX</a><a href="/dashboard/api/ai-workspace/multi-agent/work-items/'+id+'/export?format=json">JSON</a></div>'}
+  function enterReviewChatView(){
+    const host=document.querySelector('#aiMultiMode');
+    if(!host)return;
+    host.classList.add('review-chat-open');
+    ensureReviewBackButton();
+    requestAnimationFrame(()=>document.querySelector('#aiMultiMode .review-chatbox-shell')?.scrollIntoView({block:'start'}));
+  }
+
+  function exitReviewChatView(){
+    const host=document.querySelector('#aiMultiMode');
+    if(!host)return;
+    host.classList.remove('review-chat-open');
+    const history=host.querySelector('.review-history');
+    if(history)requestAnimationFrame(()=>history.scrollIntoView({block:'start'}));
+  }
+
+  function ensureReviewBackButton(){
+    const head=document.querySelector('#aiMultiMode #reviewWorkDetail .review-chatbox-head');
+    if(!head||head.querySelector('[data-review-back]'))return;
+    const button=document.createElement('button');
+    button.type='button';
+    button.className='review-chat-back';
+    button.dataset.reviewBack='1';
+    button.textContent='← Back to reviews';
+    head.prepend(button);
+  }
+
   function federationActionHtml(workItemId,status,hasExternalSubmission=false){
     if(status==='WAITING_EXTERNAL')return '<div class="review-federation-action review-federation-wait"><span class="review-live-dot"></span><div><strong>Waiting for external review</strong><small>Bound artifact snapshot is available to authorized external MCP agents.</small></div></div>';
     if(status!=='WAITING_OWNER')return '';
@@ -54,20 +81,33 @@
 
   function renderLive(item){
     const detail=document.querySelector('#aiMultiMode #reviewWorkDetail');if(!detail)return;
-    const artifacts=item.artifacts||[];const reviews=item.reviews||[];const owner=artifacts.find(a=>a.artifact_type==='OWNER_TASK');const turns=[];
-    if(owner){const text=cleanDisplayText(owner.payload?.task||item.objective||'');turns.push('<article class="review-chat-turn review-chat-owner"><div class="review-chat-meta"><strong>Owner</strong><span>TASK</span></div><div class="review-chat-bubble" data-review-copy-text="'+esc(text)+'">'+esc(text)+'</div><button class="review-message-copy" type="button">Copy</button></article>')}
-    artifacts.filter(a=>a.artifact_type==='PARTICIPANT_OUTPUT').forEach(a=>{
-      const payload=a.payload||{};const prov=payload.provenance||{};const text=cleanDisplayText(payload.response||'');const related=reviews.find(r=>r.findings?.review_output_artifact_id===a.artifact_id);const verdict=related?'<span class="review-verdict">'+esc(related.verdict)+'</span>':'';
-      const uniqueTools=Array.isArray(prov.native_unique_tools_executed)?prov.native_unique_tools_executed:(Array.isArray(prov.native_model_tools_executed)?prov.native_model_tools_executed:[]);const tools=[...new Set(uniqueTools.filter(Boolean))];const rawCount=Number(prov.native_tool_call_count);const toolCalls=Number.isFinite(rawCount)?rawCount:(Array.isArray(prov.native_tool_calls)?prov.native_tool_calls.length:0);const toolInfo=tools.length?'<span>Tools: '+esc(tools.join(', '))+' · '+toolCalls+' call'+(toolCalls===1?'':'s')+'</span>':(prov.native_store_tools_allowed?'<span>Tools: none · 0 calls</span>':'');
-      turns.push('<article class="review-chat-turn review-chat-agent"><div class="review-chat-meta"><div><strong>'+esc(prov.agent_display_name||payload.display_label||'Internal agent')+'</strong><span>'+esc(payload.role||'PARTICIPANT')+'</span></div>'+verdict+'</div><div class="review-chat-bubble" data-review-copy-text="'+esc(text)+'">'+esc(text)+'</div><div class="review-chat-provenance"><span>'+esc((prov.selected_provider_name||'Provider')+' · '+(prov.selected_model_name||prov.selected_model_id||'Model'))+'</span>'+(prov.fallback_used?'<span>fallback</span>':'')+(prov.latency_ms!=null?'<span>'+esc(prov.latency_ms+' ms')+'</span>':'')+toolInfo+'</div><button class="review-message-copy" type="button">Copy</button></article>');
-    });
-    artifacts.filter(a=>a.artifact_type==='EXTERNAL_REVIEW_SUBMISSION').forEach(a=>{
-      const payload=a.payload||{};const text=cleanDisplayText(payload.notes||'');const verdict=payload.verdict?'<span class="review-verdict">'+esc(payload.verdict)+'</span>':'';
-      turns.push('<article class="review-chat-turn review-chat-agent review-chat-external"><div class="review-chat-meta"><div><strong>'+esc(payload.external_agent_display_name||payload.external_agent_call_name||'External MCP reviewer')+'</strong><span>EXTERNAL REVIEW</span></div>'+verdict+'</div><div class="review-chat-bubble" data-review-copy-text="'+esc(text)+'">'+esc(text)+'</div><div class="review-chat-provenance"><span>External MCP evidence · exact artifact v'+Number(payload.bound_artifact_version||0)+'</span></div><button class="review-message-copy" type="button">Copy</button></article>');
-    });
+    const artifacts=item.artifacts||[];const reviews=item.reviews||[];const turns=[];
+    const artifactTurn=a=>{
+      if(a.artifact_type==='OWNER_TASK'){
+        const text=cleanDisplayText(a.payload?.task||item.objective||'');
+        return '<article class="review-chat-turn review-chat-owner"><div class="review-chat-meta"><strong>Owner</strong><span>TASK</span></div><div class="review-chat-bubble" data-review-copy-text="'+esc(text)+'">'+esc(text)+'</div><button class="review-message-copy" type="button">Copy</button></article>';
+      }
+      if(a.artifact_type==='PARTICIPANT_OUTPUT'){
+        const payload=a.payload||{};const prov=payload.provenance||{};const text=cleanDisplayText(payload.response||'');const related=reviews.find(r=>r.findings?.review_output_artifact_id===a.artifact_id);const verdict=related?'<span class="review-verdict">'+esc(related.verdict)+'</span>':'';
+        const uniqueTools=Array.isArray(prov.native_unique_tools_executed)?prov.native_unique_tools_executed:(Array.isArray(prov.native_model_tools_executed)?prov.native_model_tools_executed:[]);const tools=[...new Set(uniqueTools.filter(Boolean))];const rawCount=Number(prov.native_tool_call_count);const toolCalls=Number.isFinite(rawCount)?rawCount:(Array.isArray(prov.native_tool_calls)?prov.native_tool_calls.length:0);const toolInfo=tools.length?'<span>Tools: '+esc(tools.join(', '))+' · '+toolCalls+' call'+(toolCalls===1?'':'s')+'</span>':(prov.native_store_tools_allowed?'<span>Tools: none · 0 calls</span>':'');
+        return '<article class="review-chat-turn review-chat-agent"><div class="review-chat-meta"><div><strong>'+esc(prov.agent_display_name||payload.display_label||'Internal agent')+'</strong><span>'+esc(payload.role||'PARTICIPANT')+'</span></div>'+verdict+'</div><div class="review-chat-bubble" data-review-copy-text="'+esc(text)+'">'+esc(text)+'</div><div class="review-chat-provenance"><span>'+esc((prov.selected_provider_name||'Provider')+' · '+(prov.selected_model_name||prov.selected_model_id||'Model'))+'</span>'+(prov.fallback_used?'<span>fallback</span>':'')+(prov.latency_ms!=null?'<span>'+esc(prov.latency_ms+' ms')+'</span>':'')+toolInfo+'</div><button class="review-message-copy" type="button">Copy</button></article>';
+      }
+      if(a.artifact_type==='EXTERNAL_REVIEW_SUBMISSION'){
+        const payload=a.payload||{};const text=cleanDisplayText(payload.notes||'');const verdict=payload.verdict?'<span class="review-verdict">'+esc(payload.verdict)+'</span>':'';
+        return '<article class="review-chat-turn review-chat-agent review-chat-external"><div class="review-chat-meta"><div><strong>'+esc(payload.external_agent_display_name||payload.external_agent_call_name||'External MCP reviewer')+'</strong><span>EXTERNAL REVIEW</span></div>'+verdict+'</div><div class="review-chat-bubble" data-review-copy-text="'+esc(text)+'">'+esc(text)+'</div><div class="review-chat-provenance"><span>External MCP evidence · exact artifact v'+Number(payload.bound_artifact_version||0)+'</span></div><button class="review-message-copy" type="button">Copy</button></article>';
+      }
+      if(a.artifact_type==='OWNER_REVISION'){
+        const text=cleanDisplayText(a.payload?.instruction||'');
+        return '<article class="review-chat-turn review-chat-owner"><div class="review-chat-meta"><strong>Owner</strong><span>FEEDBACK</span></div><div class="review-chat-bubble" data-review-copy-text="'+esc(text)+'">'+esc(text)+'</div><button class="review-message-copy" type="button">Copy</button></article>';
+      }
+      return '';
+    };
+    artifacts.forEach(a=>{const turn=artifactTurn(a);if(turn)turns.push(turn)});
     const running=item.status==='REVIEWING'?'<div class="review-live-wait"><span class="review-live-dot"></span>Waiting for the next configured participant…</div>':'';
     const hasExternal=artifacts.some(a=>a.artifact_type==='EXTERNAL_REVIEW_SUBMISSION');
-    detail.innerHTML='<div class="review-chatbox-head"><div><div class="review-detail-title"><h3>'+esc(item.title)+'</h3><span class="review-status review-status-'+esc(String(item.status||'').toLowerCase())+'">'+esc(item.status)+'</span></div><span class="review-id">'+esc(item.work_item_id)+'</span></div>'+reviewExportHtml(item.work_item_id)+'<div class="review-safety-line"><strong>Production mutation: NO</strong><span>Database canonical: NO</span></div>'+federationActionHtml(item.work_item_id,item.status,hasExternal)+'</div><div class="review-chat-stream">'+turns.join('')+running+'</div>';
+    const ownerAction=item.status==='WAITING_OWNER'?'<div class="review-owner-action review-chat-composer"><label for="reviewRevisionInstruction">Owner message</label><textarea id="reviewRevisionInstruction" maxlength="5000" placeholder="Add instructions, or leave blank to send the external review back to the native team."></textarea><button type="button" id="reviewReturnRevision">Send feedback to review team</button></div>':'';
+    detail.innerHTML='<div class="review-chatbox-head"><div><div class="review-detail-title"><h3>'+esc(item.title)+'</h3><span class="review-status review-status-'+esc(String(item.status||'').toLowerCase())+'">'+esc(item.status)+'</span></div><span class="review-id">'+esc(item.work_item_id)+'</span></div>'+reviewExportHtml(item.work_item_id)+'<div class="review-safety-line"><strong>Production mutation: NO</strong><span>Database canonical: NO</span></div>'+federationActionHtml(item.work_item_id,item.status,hasExternal)+'</div><div class="review-chat-stream">'+turns.join('')+running+'</div>'+ownerAction;
+    ensureReviewBackButton();
     const stream=detail.querySelector('.review-chat-stream');if(stream)stream.scrollTop=stream.scrollHeight;scheduleReconcile();
   }
 
@@ -100,7 +140,7 @@
   async function startLiveReview(){
     if(liveRunning)return;const host=document.querySelector('#aiMultiMode');if(!host)return;const sessionId=host.querySelector('#reviewSessionSelect')?.value||'';const title=compact(host.querySelector('#reviewTitle')?.value||'');const task=String(host.querySelector('#reviewTask')?.value||'').trim();if(!sessionId){statusNotice('Choose an open REVIEW preset first.','error');return}if(!title||!task){statusNotice('Enter both a Work title and Owner task.','error');return}
     const conversationId=host.querySelector('#reviewEvidenceConversation')?.value||null;const attachmentIds=[...host.querySelectorAll('#reviewEvidenceFiles input[type="checkbox"]:checked')].map(x=>x.value);liveRunning=true;statusNotice('Review started. Completed participant turns will appear here live.');const run=host.querySelector('#reviewRun');if(run){run.disabled=true;run.textContent='Review running…'}
-    try{const item=await api('/dashboard/api/ai-workspace/multi-agent/reviews/live',{method:'POST',body:JSON.stringify({session_id:sessionId,title,task,evidence_conversation_id:conversationId,attachment_ids:attachmentIds})});liveWorkId=item.work_item_id;liveLastSignature='';hydrateWorkId=item.work_item_id;renderLive(item);pollLive()}catch(err){liveRunning=false;statusNotice(err.message,'error');if(run){run.disabled=false;run.textContent='Run native review'}}
+    try{const item=await api('/dashboard/api/ai-workspace/multi-agent/reviews/live',{method:'POST',body:JSON.stringify({session_id:sessionId,title,task,evidence_conversation_id:conversationId,attachment_ids:attachmentIds})});liveWorkId=item.work_item_id;liveLastSignature='';hydrateWorkId=item.work_item_id;renderLive(item);enterReviewChatView();pollLive()}catch(err){liveRunning=false;statusNotice(err.message,'error');if(run){run.disabled=false;run.textContent='Run native review'}}
   }
 
   async function requestExternalReview(workItemId,button){
@@ -122,7 +162,7 @@
 
   function polishReviewDom(scope=document){
     scope.querySelectorAll?.('.review-chat-bubble:not([data-review-polished])').forEach(bubble=>{const clean=cleanDisplayText(bubble.textContent||'');bubble.textContent=clean;bubble.dataset.reviewCopyText=clean;bubble.dataset.reviewPolished='1';const turn=bubble.closest('.review-chat-turn');if(turn&&!turn.querySelector('.review-message-copy')){const button=document.createElement('button');button.type='button';button.className='review-message-copy';button.textContent='Copy';turn.appendChild(button)}});
-    addWorkCardDeleteControls(scope);const detail=scope.querySelector?.('#reviewWorkDetail')||document.querySelector('#reviewWorkDetail');const id=detail?.querySelector('.review-id')?.textContent?.trim();const head=detail?.querySelector('.review-chatbox-head');if(head)head.querySelectorAll('.review-delete-action').forEach(button=>button.remove());if(id&&head&&!head.querySelector('.review-export-actions')){const wrapper=document.createElement('div');wrapper.innerHTML=reviewExportHtml(id);const actions=wrapper.firstElementChild;if(actions)head.appendChild(actions)}syncFederationAction(detail,id);
+    addWorkCardDeleteControls(scope);const detail=scope.querySelector?.('#reviewWorkDetail')||document.querySelector('#reviewWorkDetail');const id=detail?.querySelector('.review-id')?.textContent?.trim();const head=detail?.querySelector('.review-chatbox-head');if(head)head.querySelectorAll('.review-delete-action').forEach(button=>button.remove());if(id&&head&&!head.querySelector('.review-export-actions')){const wrapper=document.createElement('div');wrapper.innerHTML=reviewExportHtml(id);const actions=wrapper.firstElementChild;if(actions)head.appendChild(actions)}if(id&&head)ensureReviewBackButton();syncFederationAction(detail,id);
   }
 
   function currentConversationId(){return document.querySelector('.ai-conversation-item.active [data-ai-conversation]')?.dataset.aiConversation||null}
@@ -133,9 +173,10 @@
   document.addEventListener('click',event=>{
     const run=event.target.closest('#aiMultiMode #reviewRun');if(run){event.preventDefault();event.stopPropagation();startLiveReview();return}
     const copy=event.target.closest('.review-message-copy');if(copy){const text=copy.closest('.review-chat-turn')?.querySelector('.review-chat-bubble')?.dataset.reviewCopyText||'';copyText(text,copy);return}
+    const back=event.target.closest('[data-review-back]');if(back){event.preventDefault();event.stopPropagation();exitReviewChatView();return}
     const external=event.target.closest('[data-request-external-review]');if(external){event.preventDefault();event.stopPropagation();requestExternalReview(external.dataset.requestExternalReview,external);return}
     const deleteButton=event.target.closest('.review-delete-action');if(deleteButton){event.preventDefault();event.stopPropagation();deleteReview(deleteButton.dataset.reviewDeleteFor,deleteButton);return}
-    if(event.target.closest('[data-ai-conversation],#aiNewConversation,#aiWorkspaceNav,[data-ai-tab],#aiMultiMode .review-work-item')){const card=event.target.closest('#aiMultiMode .review-work-item');if(card)hydrateWorkId=null;scheduleReconcile()}
+    if(event.target.closest('[data-ai-conversation],#aiNewConversation,#aiWorkspaceNav,[data-ai-tab],#aiMultiMode .review-work-item')){const card=event.target.closest('#aiMultiMode .review-work-item');if(card){hydrateWorkId=null;enterReviewChatView()}scheduleReconcile()}
   },true);
 
   const observer=new MutationObserver(()=>scheduleReconcile());observer.observe(root,{childList:true,subtree:true});scheduleReconcile();
