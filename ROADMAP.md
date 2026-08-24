@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Project Roadmap
 
-Status: **AI Workspace / D4.8-D4.9 is an accepted supporting foundation. F6B remains test-only; PostgreSQL remains non-canonical. F6C core field semantics and Store/Location model are now locked; remaining blockers are month rollover semantics and exact legacy reorder calculation. F6D follows after those gates are resolved or explicitly bounded.**
+Status: **AI Workspace is an accepted supporting foundation. PostgreSQL remains non-canonical. F6C has been realigned around the Canonical Inventory Foundation; exact reorder/monthly Excel formula parity is no longer an F6D blocker. Next bounded implementation target: F6D Canonical Inventory Schema Parity + Fresh Shadow Import.**
 
 The live Google workbook/source documents remain operationally authoritative. `migration_baseline_accepted=false`; `database_canonical=false`.
 
@@ -15,23 +15,30 @@ Target product:
 - human staff and AI agents working through the same typed operation layer;
 - Web, Flutter, Telegram, ChatGPT and automation clients over the same backend;
 - persistent operation with or without ChatGPT/Google Sheets;
-- spreadsheet-like operational tables that may use presets or user-defined column layouts.
+- spreadsheet-like operational tables that may use presets or user-defined layouts;
+- dynamic AI/rule-based inventory intelligence layered on top of canonical stock history.
 
-Core rule:
+Core rules:
 
 > **Spreadsheet layout is configurable; inventory semantics are not arbitrary.**
 
-Architecture:
+> **Stock belongs to a location; product and catalogue identity do not.**
 
-`canonical inventory domain -> field/computation registry -> configurable operational views -> draft/confirm/save -> typed domain commands -> audit/read-back`
+> **Store quantity truth comes from movements; totals and operational quantity columns are projections of that truth.**
 
-Human UI edits and AI-agent MSA actions converge on the same authorized typed backend command layer. Neither receives raw SQL authority.
+Canonical foundation:
 
-Canonical companion architecture: `docs/architecture/CONFIGURABLE_OPERATIONAL_VIEW_ENGINE.md`.
+`Product -> Lot -> Store -> Movement -> Balance -> Transfer -> CMS Mapping -> Actor/Audit`
+
+Canonical architecture docs:
+
+- `docs/architecture/CANONICAL_INVENTORY_FOUNDATION.md`
+- `docs/architecture/STORE_LOCATION_MODEL.md`
+- `docs/architecture/CONFIGURABLE_OPERATIONAL_VIEW_ENGINE.md`
 
 ## Delivery policy
 
-`branch -> PR -> main -> automatic VPS deploy for relevant runtime changes -> issue #26 runtime evidence -> continuity docs`
+`branch -> PR -> main -> automatic VPS deploy for relevant runtime changes -> runtime evidence -> continuity docs`
 
 ## Canonicality / authority boundary
 
@@ -43,86 +50,95 @@ Canonical companion architecture: `docs/architecture/CONFIGURABLE_OPERATIONAL_VI
 
 ## Accepted AI Workspace foundation
 
-D4.8/D4.9, external MCP federation, Review thread discussion, Owner Decisions, export/delete UX and Web Production Reliability Hardening are accepted foundations.
-
-PR #129 added ordinary Review-thread `Talk to -> All agents` broadcast while keeping full `Send review` separate. Production deploy evidence:
-
-- source SHA `75bfb89eb83b5cedfffa9148db454b1245269593`
-- workflow run `32736647711`
-- issue #26 `status=success`
+D4.8/D4.9, external MCP federation, Review discussion, Owner Decisions, Web Production Reliability Hardening and `Talk to -> All agents` remain accepted supporting foundations.
 
 Small Review UI polish may be folded into later touched Web work. Do not keep extending AI collaboration as the immediate product focus.
 
-## CURRENT — F6C Workbook / Domain Parity Lock
+## CURRENT — F6C Canonical Inventory Foundation / Workbook Semantics Lock
 
-Canonical architecture:
+### Locked core
 
-- `docs/architecture/F6C_WORKBOOK_PARITY_LOCK.md`
-- `docs/architecture/CONFIGURABLE_OPERATIONAL_VIEW_ENGINE.md`
-- `docs/architecture/STORE_LOCATION_MODEL.md`
-- `docs/architecture/WORKBOOK_PARITY_MATRIX.md`
-- `docs/architecture/WORKBOOK_FUNCTION_CONTRACT.md`
+- Product = stable local operational identity.
+- Lot = normal v1 Product + expiry operational identity.
+- Store/Location = one Main Store plus unlimited Sub Stores.
+- Balance = derived per `(store_id, lot_id)` from canonical movements.
+- Total Store Stock = sum of location balances, not an independent editable truth.
+- External receipt and internal transfer are distinct event classes.
+- Internal transfer preserves Product/Lot identity and atomically creates source-out + destination-in effects.
+- Usage/deduction belongs to the actual issuing store.
+- CMS catalogue is global/versioned and separate from local Product identity.
+- Product-to-CMS mapping is auditable/version-aware; CMS code alone is never canonical identity.
+- current catalogue price is distinct from historical receipt/source price.
+- human/AI operations resolve stable actor identity, operation/idempotency ID, audit and read-back.
+- Main Stock and Daily Usage are operational projections/edit surfaces over canonical data.
 
-### Locked during F6C
+### Operational inventory view direction
 
-- Main Stock field semantics and product/lot identity.
-- Daily Usage Day 1–31 as a monthly pivot/edit surface over normalized usage events.
-- CMS catalogue identity/mapping/current price vs historical receipt-price separation.
-- Batch intake, idempotency, new expiry-lot and fixed-asset-routing semantics.
-- `This Month Received` / Reorder Form / Final Reorder / Master archive treatment as projection, working output, or snapshot rather than canonical inventory tables.
-- configurable operational-view boundary.
-- one Main Store plus unlimited Sub Stores with shared Product/Lot identity and location-scoped stock.
-- internal transfer as one atomic typed operation with linked source and destination ledger effects.
+Useful inventory columns may include:
 
-### Store/Location schema gap proven
+`Local Item Name | CMS Name | Type | Unit | CMS Code | Expiry Date | Original/Opening Qty | Received Qty | Deducted/Used Qty | Current Qty | CMS Price | Store/Location`
 
-Current shadow migrations have no canonical store/location entity and `inventory_transactions` is lot-only. Therefore F6D must add location-aware inventory state before multi-store canonicality.
+`No.` is view/order metadata only.
 
-The current live `Medicine Store Cloud` contains no populated Store/Location/Sub Store field in Main Stock/Daily Usage. Treat it as the configured legacy Main Store context during migration rather than changing its production columns.
+Opening, received, deducted and current quantities are not separate mutable inventory truths. They are source fields or movement aggregates according to their semantics.
 
-### Remaining F6C blockers
+### Reorder / calculation realignment
 
-1. Month rollover/carry-forward semantics that affect canonical monthly state.
-2. Exact legacy reorder calculation/threshold/rounding needed for parity.
+Exact legacy `Estimated Reorder Qty` formula, threshold and rounding parity is **deprioritized and does not block F6D**.
 
-Exact cosmetic workbook formatting and report-only macro behavior do not block F6D unless they change inventory meaning or historical reconstruction requirements.
+Future reorder is a dynamic workflow/intelligence layer that may combine usage history, trends, expiry risk, safety stock, lead time, incoming stock, store-specific demand, deterministic rules, AI proposals, agent review and human approval/adjustment.
+
+F6D only needs to preserve the canonical stock/history/configuration data required for those workflows.
+
+### Monthly Excel compatibility realignment
+
+Exact reset formulas/macros and archive formatting are later compatibility work unless a specific behavior changes canonical stock identity, quantity, provenance, transfer semantics or audit truth.
+
+Opening/migration balance provenance remains foundational.
 
 ## NEXT — F6D Canonical Inventory Schema Parity + Fresh Shadow Import
 
-After F6C acceptance:
+Implement the minimum schema foundation proven by F6C:
 
-1. add canonical Store/Location identity and bind the legacy workbook source to the configured Main Store;
-2. make balance-changing movements location-aware;
-3. add receipt destination location and explicit internal transfer representation;
-4. make monthly snapshot rows store+lot scoped while keeping the shared calendar month concept where appropriate;
-5. preserve a path for store-scoped reorder configuration;
-6. adjust only other schema/domain pieces proven necessary by parity analysis;
-7. take a fresh authorized source snapshot;
-8. perform a repeatable non-canonical shadow import;
-9. reconcile identities, expiry lots, opening/base stock, receipt totals, usage, CMS mapping/price and balances;
-10. prove Main Stock and Daily Usage projections can be generated from the DB for the Main Store context;
-11. keep unresolved mismatches explicit and remain non-canonical until accepted.
+1. canonical `stores` identity and one configured Main Store;
+2. location-aware stock movements;
+3. Product/Lot identity preserved independently of location;
+4. receipt provenance and destination location;
+5. explicit internal transfer header/lines or equivalent paired atomic semantics;
+6. Universal CMS Catalogue versioning + auditable Product mapping;
+7. location-aware balance queries/aggregation;
+8. actor/audit/idempotency coverage for inventory operations;
+9. only the minimum additional snapshot/config structures required for the fresh import and projection proof;
+10. fresh authorized source snapshot bound to Main Store;
+11. repeatable non-canonical import with provenance;
+12. reconciliation of Product/Lot identity, opening stock, receipts, usage, CMS mapping/price and current balances;
+13. proof that Main Stock and Daily Usage views can be generated from DB state;
+14. explicit mismatch classification with PostgreSQL still non-canonical.
 
 The existing F6B data is not the F6D migration baseline.
 
 ## Subsequent inventory/database path
 
-1. **F6C — CURRENT:** close month/reorder parity gates.
-2. **F6D:** location-aware canonical schema parity + fresh shadow import.
-3. Historical bootstrap from strongest available evidence without fabricating transactions.
-4. Shadow calculation parity for balances, receipts, usage, CMS data, month outputs and reorder.
+1. **F6C — CURRENT:** complete documentation alignment and any remaining genuinely foundational Owner decisions.
+2. **F6D:** canonical inventory schema parity + fresh shadow import.
+3. Historical bootstrap from strongest available evidence without fabricating movements.
+4. Shadow balance/projection parity and transfer tests.
 5. Minimal field/computation registry + saved view-definition substrate.
 6. Main Stock/Daily Usage DB-backed preset views.
 7. Spreadsheet-like draft/confirm/save editing over typed commands.
-8. Dual verification of real operational events against the live workbook.
-9. Selected DB read-path promotion only after repeated parity.
-10. Controlled write promotion one operation class at a time with idempotency, authorization, confirmation, audit and read-back.
-11. Explicit database canonicality promotion only after migration, backup/restore, month-close/reorder and Sheet-mirror parity are proven.
+8. Dynamic reorder / trend / AI proposal-review workflows.
+9. Dual verification of real operational events against the live workbook.
+10. Selected DB read-path promotion after repeated parity.
+11. Controlled write promotion one operation class at a time.
+12. Explicit database canonicality promotion only after migration, recovery, reconciliation and controlled-write gates pass.
+13. Sheet mirror/rebuild, monthly exports, Flutter/Telegram expansion and further AI workflows.
 
 ## Deferred supporting work
 
-Telegram Attention delivery, GROUP, COMPARE, DEBATE, broader vision/OCR and additional AI collaboration features remain later work unless explicitly reprioritized. They must not block the core inventory/database migration path.
+Exact legacy reorder formula reconstruction, cosmetic Excel macro parity, broader AI collaboration modes, Telegram Attention delivery, GROUP/COMPARE/DEBATE and speculative intelligence features do not block the canonical inventory foundation.
 
 ## Immediate boundary
 
-Continue using the live workbook plus the established MSA skill as source-backed operational evidence. Do not infer exact reorder or month-close behavior from materialized Google Sheet values alone. No production inventory mutation or PostgreSQL canonical promotion is authorized in F6C/F6D until the explicit acceptance gates are met.
+Continue re-reading the live Google Sheet whenever source structure/value behavior matters, but do not let legacy spreadsheet calculation mechanics dictate the new database architecture.
+
+The immediate implementation target is the canonical inventory foundation, not formula replication and not additional AI surface area.

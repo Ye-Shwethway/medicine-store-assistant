@@ -1,271 +1,222 @@
 # Workbook Function Contract
 
-Status: **F6C working artifact — Main Stock / Daily Usage / CMS / intake / Store-Location core source-backed; exact rollover and legacy reorder formula still open**
+Status: **F6C source-backed compatibility contract — canonical foundation takes precedence over exact formula parity**
 
-Purpose: capture the operational behavior that the future backend must reproduce while allowing the human spreadsheet layout to become configurable.
+Purpose: preserve the real operational meaning of the existing workbook while allowing the future backend to use a normalized, location-aware inventory foundation and configurable views.
 
-Core rule:
+Core rules:
 
 > **Spreadsheet layout is configurable; inventory semantics are not arbitrary.**
 
-## Evidence hierarchy for this contract
+> **Stock belongs to a location; product and catalogue identity do not.**
+
+## Evidence hierarchy
 
 1. exact source document / physical movement evidence;
 2. verified live operational workbook state;
 3. verified current CMS catalogue;
 4. established MSA skill workflow and confirmed mappings;
-5. Owner-confirmed legacy process;
-6. model inference only as an explicitly labeled proposal.
+5. Owner-confirmed business process;
+6. model inference only when explicitly labeled as proposal.
 
-Representative `FORMULA` reads of the live Google Sheet returned materialized values, not formula strings, for both Main Stock and Daily Usage. Therefore exact Excel formula/macro logic must not be reconstructed from those materialized values alone.
+Representative Google Sheet `FORMULA` reads returned materialized values, not exact legacy Excel formula strings. Therefore do not reconstruct Excel formulas/macros from those values alone.
 
 ## Main Stock
 
 ### Role
 
-Main Stock is the primary human operational stock/lot view and structural source for the Daily Usage projection. It is not a canonical database table design.
+Main Stock is the primary human stock/lot operational view. It is not the canonical database table design.
 
 ### Identity
 
-A Main Stock row may represent one expiry lot of a local product. Multiple sibling rows can share a CMS code while having different expiry dates. Therefore:
+- one local Product can have multiple expiry Lots;
+- sibling expiry rows may share the same CMS code;
+- `No.` / row order is presentation metadata;
+- terminal expiry suffix is lot presentation metadata, not Product identity;
+- structured Expiry Date is the stronger lot field unless stronger source evidence says otherwise.
 
-- local product identity is stable across expiry rows;
-- lot identity is separate and normally distinguishes expiry in v1;
-- CMS catalogue identity is external/versioned;
-- row number/order is presentation metadata only.
+### Field semantics
 
-A terminal `(month/year)` item-name suffix is lot presentation metadata, not part of product identity. Product-defining parentheses remain identity-significant.
+Current source-backed classifications remain in `WORKBOOK_PARITY_MATRIX.md`.
 
-### Current field behavior
+Important future mapping:
 
-Source-backed classifications are maintained in `WORKBOOK_PARITY_MATRIX.md`.
+- Local item name -> Product display metadata;
+- Expiry Date -> Lot;
+- Unit / Type -> Product/operational metadata;
+- CMS Code / CMS Name / CMS Price -> current accepted Product-to-CMS mapping/catalogue projection;
+- Remaining/Original/Open stock -> migration or selected-period opening context;
+- Received Stock -> receipt movement aggregate;
+- This Month Usage -> dated usage aggregate;
+- Stock Status Today / Current Qty -> ledger-derived current balance;
+- reorder/helper/status fields -> configurable workflow/computed/view outputs.
 
-Important write/derive boundaries:
+`Price` remains compatibility/derived output and is not routine canonical movement truth.
 
-- source/authorized fields include local item metadata, structured expiry, unit, opening/base stock evidence, received activity, reorder configuration, CMS mapping/current-price metadata and supported remarks;
-- current balance, monthly usage, expiry status, reorder status, estimated request quantity, shortage date, pricing output and helper/filter fields are derived or projection outputs;
-- `Price` is not routine-write data; the MSA skill explicitly preserves it as Excel-derived pricing output;
-- `Serial Code` is a mapping field, never canonical identity by itself.
+### New expiry lot
 
-### New expiry-lot behavior
+When verified evidence establishes a new expiry of an existing Product:
 
-When verified source evidence establishes a new expiry lot of an existing item:
-
-1. preserve the existing product identity;
-2. create a distinct lot;
-3. keep the human row adjacent to sibling lots in compatibility views;
-4. opening/base stock for the new lot begins at 0 under the established current intake workflow;
-5. source receipt quantity is represented as receipt activity;
-6. do not copy neighboring derived/helper outputs as source truth;
-7. preserve mapping/current catalogue evidence separately from historical receipt evidence.
-
-In the future DB, this becomes a lot creation + receipt command, not a raw row insert/update.
+1. preserve Product identity;
+2. create a new Lot;
+3. preserve receipt/source provenance;
+4. represent quantity through receipt/opening movement semantics rather than copying neighboring balances;
+5. keep sibling ordering only as view metadata.
 
 ## Daily Usage
 
 ### Role
 
-Daily Usage is the operational consumption-entry view. Its 1–31 day grid is a monthly presentation of normalized usage events.
+Daily Usage is the operational consumption-entry view. Day 1-31 is a monthly pivot over dated usage events.
 
-Established flow:
+Established compatibility flow:
 
-`Main Stock structure/base state -> Daily Usage forward projection -> actual day usage -> deterministic monthly calculations -> Main Stock current-state projection`.
+`Main Stock structure/base projection -> Daily Usage -> day usage entry -> monthly aggregates/current balance -> Main Stock current-state projection`.
 
-### Forward projection
+### Forward fields
 
-Current verified mapping:
+Current established mapping includes:
 
-- Main Stock `No.` -> Daily Usage `No.`
-- Main Stock `Items` -> Daily Usage `Items`
-- Main Stock `Remaining Stock` -> Daily Usage `Remaining Stock`
-- Main Stock `Received Stock` -> Daily Usage `Received Stock`
-- Main Stock structured `Expiry Date` -> Daily Usage far-right `Expiry Date`
+- Main Stock No. -> Daily Usage No.;
+- Items -> Items;
+- Remaining Stock -> Remaining Stock;
+- Received Stock -> Received Stock;
+- structured Expiry Date -> far-right Expiry Date.
 
-Daily structural parity is checked by item/lot identity rather than blindly trusting row numbers.
+Structural matching must use Product/Lot meaning rather than row number as identity.
 
 ### Usage entry
 
-Day columns 1–31 are the routine operational usage input surface.
+Canonical future meaning:
 
-Canonical future command meaning:
-
-`record_usage(store_id, lot_id, date, quantity, source, operation_id, actor)`.
-
-The grid cell is only a client representation of that command/event.
+`record_usage(store_id, lot_id, effective_date, quantity, source, operation_id, actor)`
 
 Rules:
 
-- record the actual lot/date/quantity supplied by evidence;
-- do not redirect history to satisfy FIFO/FEFO;
-- preserve blank versus numeric zero in the view/input semantics;
-- if an existing day cell already has a value, determine whether new evidence means correction/replacement or an additional event rather than blindly adding/overwriting;
-- multiple same-day usage events may remain separate canonically even when the view displays their sum.
+- record the actual Store/Lot/date/quantity;
+- do not rewrite history merely to satisfy FIFO/FEFO advice;
+- multiple same-day events may remain separate canonically while the cell displays their sum;
+- correction versus additional usage must be semantically distinguished.
 
-### Deterministic monthly calculations
+### Monthly compatibility values
 
-Current established contract:
+Current workbook behavior includes:
 
 `This Month Usage = SUM(Day 1..31)`
 
-`This Month Remaining = Remaining Stock + Received Stock - This Month Usage`
+and a current remaining value derived from opening/base + receipts - usage in the current simple sheet flow.
 
-Current monthly result projects back to Main Stock:
+In the future backend, the general current balance also includes transfers and adjustments. Both Main Stock and Daily Usage therefore become projections of the same Store+Lot ledger state.
 
-- Daily `This Month Usage` -> Main Stock `This Month Usage`;
-- Daily `This Month Remaining` -> Main Stock `Stock Status Today`.
-
-Do not reverse-sync current calculated balance into the opening/base `Remaining Stock` field.
-
-In the DB-backed design, the ledger becomes authoritative and both Main Stock and Daily Usage current-balance cells become projections of the same store+lot state.
+Do not reverse-sync a calculated current balance into canonical opening history.
 
 ## CMS catalogue and mapping
 
-### Catalogue role
+The current CMS price list is a versioned external catalogue with Code, name/description, form/type/class and selling price information.
 
-The current CMS price list is a versioned external catalogue with fields such as:
+It is not the local Product master.
 
-`Code | Brand Name | Description | Form | Type | Class | Selling Price`.
+Rules:
 
-It is not the local product master.
-
-### Mapping rule
-
-Do not use `CMS code match -> identity` or `CMS code match -> price propagation` alone.
-
-Evaluate code with compatible descriptive evidence such as local name, brand/description, strength, formulation, size/type, unit and mapping history.
-
-A code can be retired, changed or reused. Mapping history must survive catalogue changes.
-
-### Price rule
-
-Current CMS catalogue price is current external catalogue truth. It must not overwrite genuine receipt-time/historical transaction price merely because the catalogue changes.
-
-Future storage therefore separates:
-
-- versioned catalogue price;
-- local product/lot mapping;
-- receipt-line source price;
-- derived/current display price where business rules require it.
+- CMS code alone never proves Product identity;
+- evaluate descriptive evidence and mapping history;
+- mappings remain auditable/version-aware;
+- current catalogue price is distinct from historical receipt/source price;
+- catalogue updates do not fabricate stock movement or rewrite historical receipt price.
 
 ## Batch / receipt intake
 
-### Source semantics
+Observed staging evidence includes source code/description, quantity, unit, price, expiry and transfer/document number.
 
-Observed current staging structure includes code, description, quantity received, unit, sale price, expiry and transfer number.
+Canonical future flow:
 
-### Intake command flow
+`source evidence -> classify consumable/fixed asset -> resolve Product/CMS identity -> resolve Lot -> resolve destination Store -> idempotency/review -> commit receipt -> audit/read-back`
 
-Future semantic flow must preserve the already-proven MSA process:
+Rules:
 
-`source evidence -> classify fixed asset vs consumable -> resolve product/catalogue identity -> resolve existing lot/new lot/new product -> idempotency check -> stage/review if ambiguous -> commit receipt -> audit/read-back`.
+- same Product + different expiry normally creates a new Lot;
+- repeated evidence must not double-intake;
+- already-applied historical transfers may be reconciliation-only;
+- fixed assets stay separate;
+- receipt destination Store is explicit in the future backend.
 
-Important rules:
+## Store / Location
 
-- same product + new expiry normally creates a distinct lot;
-- repeated historical source evidence must not double-intake quantity;
-- if receipt is already represented, use the source for reconciliation rather than applying the quantity again;
-- fixed assets remain a separate domain;
-- current catalogue mapping corrections do not fabricate stock movement;
-- a committed receipt must resolve its destination store/location.
+Canonical architecture: `STORE_LOCATION_MODEL.md` and `CANONICAL_INVENTORY_FOUNDATION.md`.
 
-## Reorder
+The current live workbook contains no populated Store/Location field in Main Stock/Daily Usage, so it is treated as the configured legacy Main Store context for migration.
 
-### Confirmed structure
+The same Product/Lot may hold quantity in multiple stores. Balance is per `(store_id, lot_id)`.
 
-Main Stock contains reorder inputs/configuration and calculated outputs including at least:
+Internal transfer preserves Product/Lot identity and atomically creates linked source-out + destination-in movement effects.
 
-- Reorder Level;
-- Reorder Surplus Factor;
-- current stock/monthly usage inputs;
-- Estimated Request Qty;
-- reorder status/helper outputs.
+## Quantity / Total Stock
 
-Owner-confirmed workflow:
+The human-facing inventory may show Original/Opening, Received, Deducted, Current and Total Stock columns.
 
-`Main Stock calculated Estimated Request Qty -> filtered Reorder Form -> copy to Final Reorder Form -> optional manual adjustment -> submit/archive final result`.
+These are not independent mutable truths.
 
-### Canonical treatment
+```text
+Current Qty
+  = Opening
+  + Receipts
+  + Transfer In
+  + Positive Adjustments
+  - Usage
+  - Transfer Out
+  - Negative Adjustments
+```
 
-- reorder configuration is canonical configuration;
-- calculated recommendation is deterministic computed output;
-- Reorder Form is a projection;
-- Final Reorder becomes a durable business snapshot only when approved/submitted;
-- manual final adjustment must remain distinguishable from the deterministic recommendation;
-- recommendation scope must identify the store/location whose balance and usage are being considered.
-
-### Still open
-
-The exact legacy formula/threshold/rounding logic behind the calculated recommendation remains source-unverified and must not be invented from current materialized values.
-
-Also still open: whether Sub Store replenishment normally means a request to Main Store or an independent external reorder workflow, and whether reorder configuration defaults are global or per-store overrides.
+Total Store Stock for a Lot is the sum of its location balances.
 
 ## This Month Received
 
-Owner-confirmed role: a filtered/derived view of Main Stock rows with current-month received quantity.
+Owner-confirmed role: filtered/derived display of current-period received activity.
 
-It contains no known independent canonical inventory truth. Future implementation should generate it from receipt/lot/store state as a view/export.
+It has no known independent canonical stock truth. Generate it from receipt + Product/Lot/Store state.
 
-## Audit
+## Reorder / Final Reorder
 
-The live workbook already maintains significant-operation history with previous value, updated value and backup snapshot reference.
+Owner-confirmed legacy flow:
 
-Future backend audit must add stable actor/client/operation/idempotency context while preserving the key principle:
+`Main Stock Estimated Reorder Qty -> filtered Reorder Form -> copy to Final Reorder -> manual reasoning/adjustment -> submit/archive`
 
-**a successful operational mutation is not complete until its intended resulting state can be read back and attributed.**
+### Future treatment
 
-Routine AI and human operations converge on the same typed domain command and audit layer.
+This legacy calculation is **not a canonical database formula requirement**.
 
-## Store / location scope — LOCKED CORE
-
-Canonical architecture: `STORE_LOCATION_MODEL.md`.
-
-Product direction is one Main Store plus unlimited Sub Stores.
-
-The current live `Medicine Store Cloud` Main Stock / Daily Usage populated contracts contain no store/location field. Treat that workbook as the configured legacy Main Store context; do not invent multi-store structure inside the sheet.
-
-Core rule:
-
-> **Stock belongs to a location; product and catalogue identity do not.**
+Future reorder may be dynamic and can use historical/trend data, store demand, expiry risk, incoming stock, safety stock, lead time, deterministic modules, AI proposal, agent review and authorized human adjustment/approval.
 
 Therefore:
 
-- the same `product_id` is shared across all stores;
-- the same normal `lot_id` (product + expiry in v1) may hold quantity in multiple stores;
-- canonical balance is location-scoped, conceptually `(store_id, lot_id)`;
-- every stock-changing movement resolves a store/location;
-- usage is recorded against the actual issuing store;
-- external receipt resolves a destination store;
-- internal transfer preserves product/lot identity while moving quantity between two managed stores;
-- internal transfer decreases source and increases destination atomically under one typed operation/idempotency identity;
-- store support must not clone product, lot, transaction or view tables per location.
+- exact old Estimated Reorder Qty formula/threshold/rounding is non-blocking for F6D;
+- old fields remain useful compatibility/reference outputs;
+- the foundational DB must preserve stock/history/provenance needed for better future planning;
+- a final approved reorder may later be stored as a durable reviewed business artifact/snapshot;
+- calculated proposal, AI reasoning/review and final human-approved result should remain distinguishable.
 
-Current schema gap: the deployed shadow migrations have no canonical store entity and `inventory_transactions` is lot-only. F6D must fix this before multi-store canonicality.
+## Audit
 
-The existing F2 movement set also lacks transfer semantics. F6D must add an explicit transfer representation with linked source/destination ledger effects rather than abusing unrelated adjustments.
+The live workbook already preserves significant-operation history with previous value, updated value and backup reference.
 
-Open but non-blocking for the core location schema:
+Future backend extends this with stable human/agent identity, client/channel, operation/idempotency ID, source/reason, approval/review context, outcome and read-back evidence.
 
-- Sub Store naming/code convention;
-- exact user-to-store access assignment UX;
-- global-vs-per-store reorder configuration fallback;
-- Sub Store request-to-Main-Store versus external reorder policy.
+A mutation is not complete until the intended resulting state can be read back and attributed.
 
-## Month rollover / close — still open
+## Monthly lifecycle / Excel Master
 
-Exact original Excel behavior remains to be source-verified for:
+Legacy close/reset/archive behavior remains compatibility evidence.
 
-- closing/current balance -> next-month opening/base balance;
-- received/month-usage/day-column reset behavior;
-- archive snapshot timing;
-- macro effects required for historical reproduction;
-- whether any operational remarks/configuration roll forward automatically.
+Exact formulas/macros are not a foundation blocker unless a specific behavior changes canonical Product/Lot/Store identity, stock quantity, source provenance, transfer meaning or audit truth.
 
-The existing schema decision remains valid: opening balance is not fabricated as a monthly stock movement each month; monthly opening can be a frozen/derived carry-forward state, while migration uses explicit opening-balance transactions as required.
+Foundational requirement retained:
 
-With multiple stores, opening/received/usage/closing snapshot values must be store+lot scoped even if the calendar month identity remains shared globally.
+- migration/opening balance must be explicit and provenance-bearing;
+- closed/report snapshots, when added, are Store+Lot scoped and derive from canonical history;
+- do not fabricate new stock movements merely to imitate monthly spreadsheet resets.
 
 ## Completion rule
 
-F6C can advance to F6D when the canonical meaning of Product, Lot, Store, Catalogue Mapping, Receipt, Usage, Adjustment/Ledger, Reorder configuration and Audit is locked strongly enough to reproduce Main Stock and Daily Usage from DB state.
+F6C is sufficient for F6D when Product, Lot, Store, Movement, Balance, Transfer, CMS Mapping and Actor/Audit semantics are explicit and Main Stock/Daily Usage can be explained as projections/edit surfaces over them.
 
-Exact cosmetic/report-only workbook behavior does not block F6D. Unresolved behavior that changes inventory meaning, identity, balance, store allocation, reorder calculation or month carry-forward does block or remains explicitly gated.
+Exact reorder formula parity, cosmetic/report-only formulas, and legacy macro formatting do not block F6D.
