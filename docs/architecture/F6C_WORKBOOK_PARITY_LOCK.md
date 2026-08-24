@@ -8,98 +8,124 @@ Close the gap between the existing Medicine Store Cloud / Excel workflow and the
 
 The existing Google Sheet/source documents remain operationally authoritative throughout this slice. F6B remains test-only and must not be promoted.
 
-## Why this slice exists
+Canonical companion architecture: `CONFIGURABLE_OPERATIONAL_VIEW_ENGINE.md`.
 
-The current shadow database proves infrastructure and selected migration mechanics, but it does not yet prove full parity with the real workbook structure and functions.
+## Locked architectural direction
 
-The database design already assumes that Main Stock, Daily Usage, This Month Received, Reorder / Final Reorder, CMS catalogue history, month-close behavior, and legacy Excel compatibility are projections or workflows over canonical domain data. Before implementation can safely continue, those source behaviors must be captured exactly enough that the backend can reproduce them without inventing replacements.
+MSA will not reproduce every worksheet as a canonical database table.
 
-## Source contract to lock
+The target is:
 
-### Main Stock
+`canonical inventory domain -> typed field/computation registry -> configurable operational views -> draft/confirm/save -> typed domain commands`
 
-Document from the real workbook/source evidence:
+Guiding rule:
 
-- exact production columns and their meanings;
-- which cells/columns are human input, formula-derived, lookup-derived, or integration-managed;
-- local product identity vs expiry-lot presentation;
-- CMS Code / Serial / CMS Price / Price behavior and current formula dependencies;
-- received/current stock/monthly usage/reorder-related fields;
-- row insertion, removal, reorder, naming and expiry-suffix behavior;
-- formatting or helper metadata that has workflow meaning.
+> **Spreadsheet layout is configurable; inventory semantics are not arbitrary.**
 
-### Daily Usage
+This allows familiar Main Stock / Daily Usage workflows, custom spreadsheet-like tables, one Main Store plus unlimited Sub Stores, human staff and AI agents, and multiple clients without making any one UI or spreadsheet the source of truth.
 
-Lock:
+## F6C priority
 
-- exact A:D/base-field synchronization behavior;
-- Day 1–31 structure and editing semantics;
-- monthly total and remaining/current balance formulas;
-- remark and expiry behavior;
-- how multiple physical issues on the same day/lot are represented;
-- month rollover/reset/archive behavior;
-- non-FIFO literal recording compatibility.
+F6C should spend most effort on source behavior that determines canonical inventory semantics.
 
-### This Month Received
+### Priority A — canonical/domain behavior
 
-Lock:
+Lock from live source evidence and the existing MSA skill:
 
-- exact source columns;
-- filter/inclusion rule from Main Stock / receipt evidence;
-- whether any user-authored information exists beyond projection;
-- month reset/archive behavior.
+- local product identity vs expiry-specific lot identity;
+- store/location scope and future Main Store/Sub Store behavior;
+- Main Stock opening/base stock semantics;
+- received stock / batch intake semantics;
+- Daily Usage day-by-day movement semantics;
+- current balance derivation;
+- adjustments/corrections and actual-movement preservation;
+- CMS catalogue identity, mapping, current price and historical-price separation;
+- new expiry-lot insertion and sibling-lot behavior;
+- fixed-asset boundary;
+- reorder inputs/configuration and calculated recommendation semantics;
+- month rollover/opening-balance carry-forward;
+- audit/idempotency/read-back requirements.
 
-### Reorder / Final Reorder
+### Priority B — operational view compatibility
 
-Lock the actual current algorithm rather than designing a new one:
+Document enough layout behavior to reproduce the familiar human workflow without treating the layout itself as canonical data.
 
-- source inputs from Main Stock;
-- exact formulas/thresholds/rounding;
-- working Reorder generation;
-- Final Reorder copy/edit/submission behavior;
-- approved manual edits and how they differ from calculated recommendation;
-- monthly archive behavior.
+#### Main Stock
 
-### CMS catalogue / transfer intake
+Classify each production column as one of:
 
-Lock:
+- entity/domain field;
+- computed field;
+- command-backed editable field;
+- display/helper field.
 
-- active catalogue sheet structure and retention behavior;
-- code/serial/name/price identity rules;
-- recycled/retired/new CMS code handling;
-- transfer/batch input structure;
-- mapping, new expiry-lot and NEW_UNMAPPED behavior.
+Preserve the existing view as a future preset.
 
-### Monthly lifecycle / Excel compatibility
+#### Daily Usage
+
+Treat the existing Day 1–31 layout as a monthly pivot/preset over normalized usage events.
 
 Lock:
 
-- opening balance carry-forward;
-- month close sequence;
-- Master/archive workbook behavior;
-- sheet reset/copy operations;
-- formulas/macros that still represent required business behavior;
-- outputs that must be reproducible from a future canonical database.
+- structural/base synchronization meaning;
+- day-cell editing semantics;
+- monthly usage aggregation;
+- current remaining calculation;
+- expiry/remark compatibility;
+- actual non-FIFO movement preservation.
+
+### Priority C — projection/archive surfaces
+
+`This Month Received`, `Reorder Form`, `Final Reorder Form` and Master/archive formatting are lower-priority schema concerns.
+
+Current Owner-confirmed semantics:
+
+- **This Month Received** — filtered/derived rows from Main Stock received-stock activity for convenient display/archive.
+- **Reorder Form** — filtered/derived projection of Main Stock calculated `Estimated Reorder Qty`.
+- **Final Reorder Form** — copied working output that the Owner may manually adjust before submission.
+- **Master Data archive** — preserves the approved/final monthly output through the legacy macro workflow.
+
+These should normally be modeled as views, generated working documents and approved snapshots/archives rather than independent canonical inventory tables.
+
+F6C needs to preserve their business meaning, but it must not let their legacy worksheet structure drive the canonical schema.
+
+## Current Google Sheet evidence
+
+The live `Medicine Store Cloud` is an operational subset of the fuller local Excel workflow.
+
+Observed user-facing/support surfaces include:
+
+- `Main Stock`
+- `Daily Usage`
+- `Fixed Assets`
+- versioned `CMS_Price_List_YYYYMM`
+- `Audit_Log`
+- preserved `CMS_Batch_<TRANSFER>_<DATE>` tabs
+
+The existing MSA skill already encodes important compatibility behavior for Main Stock, Daily Usage, batch intake, CMS matching/pricing, fixed assets, visual marking and tab lifecycle. F6C must treat that skill as source-backed operational knowledge rather than re-inventing those rules.
 
 ## Deliverables
 
-1. `WORKBOOK_PARITY_MATRIX.md` — source surface -> exact fields/formulas/actions -> future domain entity/projection mapping.
-2. `WORKBOOK_FUNCTION_CONTRACT.md` — behavioral rules for Main Stock, Daily Usage, This Month Received, Reorder/Final Reorder and month close.
-3. Gap list classified as:
+1. `WORKBOOK_PARITY_MATRIX.md` — source surface/field -> domain meaning -> field class -> future canonical/projection mapping.
+2. `WORKBOOK_FUNCTION_CONTRACT.md` — behavioral rules for Main Stock, Daily Usage, intake, price/mapping, reorder/month rollover and relevant archive outputs.
+3. `CONFIGURABLE_OPERATIONAL_VIEW_ENGINE.md` — canonical domain/view/edit boundary.
+4. Gap list classified as:
    - already represented correctly in current schema;
    - schema/domain adjustment required;
-   - projection/export only;
+   - configurable view/projection only;
+   - approved snapshot/archive output;
    - unresolved and Owner review required.
-4. Fresh real-source shadow-import plan derived from the locked contract.
+5. Fresh real-source shadow-import plan derived from the locked contract.
 
 ## Acceptance
 
 F6C is complete only when:
 
-- every operational workbook surface above is accounted for;
-- no current formula/macro/business behavior required for operations is silently omitted;
-- identity mapping distinguishes product, lot and CMS catalogue identity;
-- the future database can explain how each workbook input/output is represented or generated;
+- canonical product, lot, store/location, receipt, usage, catalogue, adjustment and audit semantics are explicit;
+- Main Stock and Daily Usage can be explained as projections/edit surfaces over canonical data;
+- every current operational column is classified by semantic field type;
+- derived/archive tabs are accounted for without being over-modeled;
+- the future database can explain how each important workbook input/output is represented or generated;
 - unresolved gaps are explicit rather than guessed;
 - no production store mutation or canonical DB promotion occurred.
 
@@ -110,3 +136,5 @@ F6C is complete only when:
 Implement only the schema/domain changes proven necessary by F6C, then perform a fresh non-canonical shadow import against an authorized current source snapshot with reconciliation and read-back evidence.
 
 Do not reuse F6B as an accepted migration baseline merely because it already contains data.
+
+The full configurable table-builder UI is not part of F6D. First prove canonical domain correctness and Main Stock/Daily Usage projections, then add the reusable view-definition substrate and later spreadsheet-like editing.
