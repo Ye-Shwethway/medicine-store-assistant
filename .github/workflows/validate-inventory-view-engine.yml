@@ -26,7 +26,7 @@ jobs:
         run: |
           PYTHONPATH=backend python - <<'PY'
           from app.main import app
-          paths = {route.path for route in app.routes}
+          paths = {path for route in app.routes if (path := getattr(route, 'path', None))}
           required = {
               '/dashboard/api/inventory-view/registry',
               '/dashboard/api/inventory-view/presets',
