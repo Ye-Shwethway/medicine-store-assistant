@@ -1,0 +1,215 @@
+name: Validate F6D inventory schema
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'backend/alembic/**'
+      - '.github/workflows/validate-f6d-schema.yml'
+  push:
+    branches: [test]
+    paths:
+      - 'backend/alembic/**'
+      - '.github/workflows/validate-f6d-schema.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  postgres-migration-proof:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: msa_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d msa_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/msa_test
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install backend dependencies
+        run: python -m pip install --disable-pip-version-check -q -r backend/requirements.txt
+
+      - name: Compile Alembic migrations
+        run: python -m compileall -q backend/alembic
+
+      - name: Upgrade from empty database to head
+        working-directory: backend
+        run: alembic upgrade head
+
+      - name: Verify F6D schema and balance semantics
+        run: |
+          PYTHONPATH=backend python - <<'PY'
+          import os
+          import uuid
+          from decimal import Decimal
+
+          from sqlalchemy import create_engine, text
+
+          engine = create_engine(os.environ["DATABASE_URL"].replace("postgresql://", "postgresql+psycopg://", 1))
+          with engine.begin() as conn:
+              revision = conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
+              assert revision == "0022_inventory_foundation", revision
+
+              tables = set(conn.execute(text("SELECT tablename FROM pg_tables WHERE schemaname='public'")).scalars())
+              required = {
+                  "stores",
+                  "inventory_transactions",
+                  "receipt_batches",
+                  "receipt_lines",
+                  "inventory_transfers",
+                  "inventory_transfer_lines",
+                  "product_cms_mappings",
+              }
+              assert required <= tables, sorted(required - tables)
+
+              main_store_id = conn.execute(text("SELECT store_id FROM stores WHERE code='MAIN' AND store_type='MAIN' AND active")).scalar_one()
+              sub_store_id = uuid.uuid4()
+              conn.execute(
+                  text("INSERT INTO stores (store_id, code, name, store_type, active) VALUES (:id, 'SUB-A', 'Sub Store A', 'SUB', true)"),
+                  {"id": sub_store_id},
+              )
+
+              product_id = uuid.uuid4()
+              lot_id = uuid.uuid4()
+              conn.execute(
+                  text("INSERT INTO products (product_id, local_name, default_unit) VALUES (:id, 'Synthetic F6D Item', 'Pcs')"),
+                  {"id": product_id},
+              )
+              conn.execute(
+                  text("INSERT INTO product_lots (lot_id, product_id, expiry_date) VALUES (:lot_id, :product_id, DATE '2030-01-01')"),
+                  {"lot_id": lot_id, "product_id": product_id},
+              )
+
+              movements = [
+                  (main_store_id, "OPENING_BALANCE", Decimal("100"), "f6d-open"),
+                  (main_store_id, "TRANSFER_OUT", Decimal("25"), "f6d-out"),
+                  (sub_store_id, "TRANSFER_IN", Decimal("25"), "f6d-in"),
+              ]
+              for store_id, movement_type, qty, operation_id in movements:
+                  conn.execute(
+                      text(
+                          "INSERT INTO inventory_transactions "
+                          "(lot_id, store_id, transaction_type, quantity, effective_date, source_type, operation_id) "
+                          "VALUES (:lot_id, :store_id, :movement_type, :qty, DATE '2026-08-24', 'ci', :operation_id)"
+                      ),
+                      {
+                          "lot_id": lot_id,
+                          "store_id": store_id,
+                          "movement_type": movement_type,
+                          "qty": qty,
+                          "operation_id": operation_id,
+                      },
+                  )
+
+              balances = {
+                  str(row.store_id): row.current_qty
+                  for row in conn.execute(
+                      text("SELECT store_id, current_qty FROM inventory_location_balances WHERE lot_id=:lot_id"),
+                      {"lot_id": lot_id},
+                  )
+              }
+              assert balances[str(main_store_id)] == Decimal("75.000"), balances
+              assert balances[str(sub_store_id)] == Decimal("25.000"), balances
+              total = conn.execute(
+                  text("SELECT total_qty FROM inventory_total_stock WHERE lot_id=:lot_id"),
+                  {"lot_id": lot_id},
+              ).scalar_one()
+              assert total == Decimal("100.000"), total
+
+              transfer_id = uuid.uuid4()
+              conn.execute(
+                  text(
+                      "INSERT INTO inventory_transfers "
+                      "(transfer_id, source_store_id, destination_store_id, effective_date, status, operation_id) "
+                      "VALUES (:transfer_id, :source_store_id, :destination_store_id, DATE '2026-08-24', 'committed', 'f6d-transfer')"
+                  ),
+                  {
+                      "transfer_id": transfer_id,
+                      "source_store_id": main_store_id,
+                      "destination_store_id": sub_store_id,
+                  },
+              )
+              tx_ids = conn.execute(
+                  text("SELECT transaction_id, transaction_type FROM inventory_transactions WHERE operation_id IN ('f6d-out','f6d-in')")
+              ).all()
+              tx_by_type = {row.transaction_type: row.transaction_id for row in tx_ids}
+              conn.execute(
+                  text(
+                      "INSERT INTO inventory_transfer_lines "
+                      "(transfer_id, lot_id, quantity, transfer_out_transaction_id, transfer_in_transaction_id) "
+                      "VALUES (:transfer_id, :lot_id, 25, :out_id, :in_id)"
+                  ),
+                  {
+                      "transfer_id": transfer_id,
+                      "lot_id": lot_id,
+                      "out_id": tx_by_type["TRANSFER_OUT"],
+                      "in_id": tx_by_type["TRANSFER_IN"],
+                  },
+              )
+
+              version_id = uuid.uuid4()
+              item_id = uuid.uuid4()
+              conn.execute(
+                  text(
+                      "INSERT INTO cms_catalogue_versions "
+                      "(catalogue_version_id, effective_date, source_hash, source_label, row_count, import_status) "
+                      "VALUES (:version_id, DATE '2026-08-01', :source_hash, 'CI CMS', 1, 'complete')"
+                  ),
+                  {"version_id": version_id, "source_hash": "f6d-ci-source-hash"},
+              )
+              conn.execute(
+                  text(
+                      "INSERT INTO cms_catalogue_items "
+                      "(catalogue_item_id, catalogue_version_id, cms_code, brand_name, selling_price) "
+                      "VALUES (:item_id, :version_id, 'CI001', 'CI CMS Item', 12.5)"
+                  ),
+                  {"item_id": item_id, "version_id": version_id},
+              )
+              conn.execute(
+                  text(
+                      "INSERT INTO product_cms_mappings "
+                      "(product_id, catalogue_item_id, cms_code_snapshot, cms_name_snapshot, mapping_status, accepted_operational_price, operation_id) "
+                      "VALUES (:product_id, :item_id, 'CI001', 'CI CMS Item', 'ACTIVE_MATCH', 12.5, 'f6d-map-active')"
+                  ),
+                  {"product_id": product_id, "item_id": item_id},
+              )
+              conn.execute(
+                  text(
+                      "INSERT INTO product_cms_mappings "
+                      "(product_id, cms_code_snapshot, cms_name_snapshot, mapping_status, accepted_operational_price, operation_id, review_reason) "
+                      "VALUES (:product_id, 'CI999', 'Unresolved New Candidate', 'REVIEW_REQUIRED', NULL, 'f6d-map-review', 'identity changed')"
+                  ),
+                  {"product_id": product_id},
+              )
+              accepted = conn.execute(
+                  text(
+                      "SELECT cms_code_snapshot, accepted_operational_price FROM product_cms_mappings "
+                      "WHERE product_id=:product_id AND mapping_status='ACTIVE_MATCH' AND valid_to IS NULL"
+                  ),
+                  {"product_id": product_id},
+              ).one()
+              assert accepted.cms_code_snapshot == "CI001"
+              assert accepted.accepted_operational_price == Decimal("12.500")
+
+          print("f6d_schema=pass location_balance=pass total_stock=pass transfer_link=pass cms_last_accepted_state=pass")
+          PY
+
+      - name: Prove downgrade and re-upgrade
+        working-directory: backend
+        run: |
+          alembic downgrade 0021_review_orchestration_roles
+          alembic upgrade head
