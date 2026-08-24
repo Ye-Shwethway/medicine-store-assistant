@@ -1,0 +1,37 @@
+name: F6D shadow reset audit
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/app/f6d_shadow_reset_audit.py'
+      - '.github/workflows/f6d-shadow-reset-audit.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: msa-f6d-shadow-maintenance
+  cancel-in-progress: false
+
+jobs:
+  audit-shadow-inventory:
+    runs-on: [self-hosted, linux, msa-vps]
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          path: source
+          persist-credentials: false
+      - name: Read-only inventory shadow audit
+        shell: bash
+        working-directory: source
+        run: |
+          set -euo pipefail
+          ENV_FILE=/opt/medicine-store-assistant/secrets/runtime.env
+          COMPOSE_FILE="$PWD/deploy/docker-compose.yml"
+          test -r "$ENV_FILE"
+          export COMPOSE_PROJECT_NAME="${MSA_COMPOSE_PROJECT_NAME:-deploy}"
+          docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" build api
+          docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm api python -m app.f6d_shadow_reset_audit
