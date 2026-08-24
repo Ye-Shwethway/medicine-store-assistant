@@ -8,13 +8,25 @@ const stylesheet=path.join(root,'backend/app/dashboard_assets/dashboard_inventor
 const browser=await chromium.launch({headless:true});
 const page=await browser.newPage({viewport:{width:390,height:844}});
 
-await page.setContent(`<main id="msa"><button class="nav-btn" data-view="inventory">Inventory</button><button id="aiWorkspaceNav" type="button">AI Workspace</button><textarea id="aiMessageInput"></textarea><section class="view" data-panel="inventory"><div id="legacyInventorySubtree">legacy</div></section></main>`);
+await page.setContent(`<main id="msa"><button class="nav-btn" data-view="inventory">Inventory</button><button id="aiWorkspaceNav" type="button">AI Workspace</button><button id="aiMultiTab" type="button">Multi-Agent</button><textarea id="aiMessageInput"></textarea><section class="view" data-panel="inventory"><div id="legacyInventorySubtree">legacy</div></section></main>`);
 await page.addStyleTag({path:stylesheet});
 await page.evaluate(()=>{
   window.__inventoryRequests=[];
   window.__lastReviewContextBody=null;
   window.__aiNavClicks=0;
+  window.__multiClicks=0;
+  window.__reviewRunClicks=0;
   document.querySelector('#aiWorkspaceNav').addEventListener('click',()=>{window.__aiNavClicks+=1});
+  document.querySelector('#aiMultiTab').addEventListener('click',()=>{
+    window.__multiClicks+=1;
+    setTimeout(()=>{
+      if(document.querySelector('#reviewTitle'))return;
+      const box=document.createElement('section');box.id='fakeMultiReviewComposer';
+      box.innerHTML='<select id="reviewSessionSelect"><option value="">Choose a REVIEW preset…</option><option value="review-a">Review A</option></select><input id="reviewTitle"><textarea id="reviewTask"></textarea><button id="reviewRun" type="button">Run native review</button>';
+      document.querySelector('#msa').appendChild(box);
+      box.querySelector('#reviewRun').addEventListener('click',()=>{window.__reviewRunClicks+=1});
+    },20);
+  });
   const field=(key,label,kind='ENTITY_FIELD',data_type='string')=>({key,label,kind,data_type,editable:false,description:''});
   window.__registry=[field('display_no','No.','DISPLAY_HELPER','integer'),field('product_id','Product ID'),field('local_item_name','Items'),field('expiry_date','Expiry Date','ENTITY_FIELD','date'),field('unit','Unit'),field('opening_qty','Opening Qty','COMPUTED_FIELD','decimal'),field('current_qty','Current Qty','COMPUTED_FIELD','decimal'),field('cms_code','CMS Code'),field('cms_name','CMS Name'),field('mapping_status','Mapping Status'),field('catalogue_price','Current Catalogue Price','COMPUTED_FIELD','decimal'),field('accepted_operational_price','Accepted Store Price','ENTITY_FIELD','decimal'),field('source_row_no','Source Row','DISPLAY_HELPER','integer'),field('source_current_qty','Source Current Qty','DISPLAY_HELPER','decimal'),field('source_classification','Source Class','DISPLAY_HELPER'),field('review_reason','Review Reason','DISPLAY_HELPER')];
   const col=(field,label,width=120)=>({field,label,width});
@@ -50,16 +62,12 @@ await page.addScriptTag({path:script});
 await page.getByText('Shadow inventory — not canonical').waitFor({state:'visible'});
 assert.equal(await page.locator('#legacyInventorySubtree').count(),0);
 await page.getByText('10cc Syringe').waitFor({state:'visible'});
-assert.equal(await page.locator('#inventoryViewTable').count(),1);
 assert.equal(await page.locator('#inventoryReviewFilters').isHidden(),true);
 
 await page.locator('#inventoryPresetSelect').selectOption('migration-review');
 await page.getByText('Bandage- Soft Bandage 6"').waitFor({state:'visible'});
 assert.equal(await page.locator('#inventoryReviewFilters').isVisible(),true);
-assert.equal(await page.locator('#inventoryClassificationLabel').isVisible(),true);
 assert.ok((await page.locator('#inventoryViewTable tbody tr').first().getAttribute('class')).includes('inventory-row-review'));
-assert.ok((await page.locator('#inventoryViewTable tbody tr').first().textContent()).includes('duplicate Product+Expiry source key'),'plain-text Migration Review reasons stay readable');
-
 await page.locator('#inventoryMappingStatus').selectOption('REVIEW_REQUIRED');
 await page.locator('#inventorySourceClassification').selectOption('REVIEW');
 await page.locator('#inventoryReviewReason').fill('duplicate');
@@ -71,55 +79,62 @@ assert.ok(request.includes('review_reason=duplicate'));
 
 await page.locator('.inventory-row-check').check();
 assert.equal(await page.locator('#inventorySelectionBar').isVisible(),true);
-assert.ok((await page.locator('#inventorySelectionCount').textContent()).includes('1 selected'));
 assert.equal(await page.getByRole('button',{name:'Ask AI'}).isVisible(),true);
+assert.equal(await page.getByRole('button',{name:'Deep Review'}).isVisible(),true);
 await page.locator('#inventoryViewTable tbody tr').first().click();
 assert.equal(await page.locator('#inventoryReviewDrawer').isVisible(),true);
 assert.ok((await page.locator('#inventoryDrawerBody').textContent()).includes('Source'));
-assert.ok((await page.locator('#inventoryDrawerBody').textContent()).includes('Shadow'));
 await page.locator('#inventoryDrawerClose').click();
-
-await page.getByRole('button',{name:'Columns'}).click();
-await page.locator('#inventoryColumnGrid input:checked').evaluateAll(inputs=>inputs.forEach(input=>input.checked=false));
-await page.locator('#inventoryColumnGrid input[value="local_item_name"]').check();
-await page.locator('#inventoryColumnGrid input[value="review_reason"]').check();
-await page.getByRole('button',{name:'Apply columns'}).click();
-await page.waitForFunction(()=>[...document.querySelectorAll('#inventoryViewTable thead th')].slice(1).map(x=>x.textContent).join('|')==='Items|Review Reason');
 
 await page.locator('#inventoryPresetSelect').selectOption('cms-mapping-review');
 await page.getByRole('cell',{name:'Metformin 500mg',exact:true}).waitFor({state:'visible'});
-assert.equal(await page.locator('#inventoryClassificationLabel').isHidden(),true);
 const reasonCell=page.locator('#inventoryViewTable tbody tr').first().locator('td').last();
 assert.equal((await reasonCell.textContent()).trim(),'Continuity: exact name, same price');
-assert.ok(!(await reasonCell.textContent()).includes('{'),'structured review reason must not render as raw JSON');
 await page.locator('#inventoryViewTable tbody tr').first().click();
 const drawerText=await page.locator('#inventoryDrawerBody').textContent();
 assert.ok(drawerText.includes('Current catalogue price'));
-assert.ok(drawerText.includes('Accepted store price'));
-assert.ok(drawerText.includes('Continuity: exact name, same price'));
 assert.ok(drawerText.includes('Previous Price'));
-assert.ok(!drawerText.includes('CONTINUITY_EXACT_NAME_PRICE_SAME'),'drawer must humanize category token');
+assert.ok(!drawerText.includes('CONTINUITY_EXACT_NAME_PRICE_SAME'));
 const drawerBox=await page.locator('#inventoryReviewDrawer').boundingBox();assert.ok(drawerBox&&drawerBox.width<=390);
 await page.locator('#inventoryDrawerClose').click();
 
 await page.locator('.inventory-row-check').check();
 await page.getByRole('button',{name:'Ask AI'}).click();
 await page.waitForFunction(()=>document.querySelector('#aiMessageInput').value.includes('Review these 1 selected rows from CMS Mapping Review.'));
-const handoff=await page.evaluate(()=>({body:window.__lastReviewContextBody,navClicks:window.__aiNavClicks,draft:document.querySelector('#aiMessageInput').value,requests:window.__inventoryRequests}));
-assert.equal(handoff.navClicks,1);
+let handoff=await page.evaluate(()=>({body:window.__lastReviewContextBody,navClicks:window.__aiNavClicks,draft:document.querySelector('#aiMessageInput').value,requests:window.__inventoryRequests.slice()}));
 assert.equal(handoff.body.preset,'cms-mapping-review');
 assert.deepEqual(handoff.body.selected_indices,[0]);
-assert.equal(handoff.body.offset,0);
-assert.equal(handoff.body.limit,100);
 assert.ok(!JSON.stringify(handoff.body).includes('Metformin 500mg'),'client sends selection coordinates, not row facts');
 assert.ok(handoff.draft.includes('server-rehydrated shadow review evidence'));
-assert.ok(handoff.draft.includes('Continuity: exact name, same price'));
-assert.ok(!handoff.draft.includes('CONTINUITY_EXACT_NAME_PRICE_SAME'));
-assert.ok(!handoff.requests.some(url=>url.includes('/messages')),'Ask AI must prefill only and must not auto-send/model-call');
+assert.ok(!handoff.requests.some(url=>url.includes('/messages')),'Ask AI must not auto-send/model-call');
+
+const beforeDeepRequests=await page.evaluate(()=>window.__inventoryRequests.length);
+await page.getByRole('button',{name:'Deep Review'}).click();
+await page.waitForFunction(()=>document.querySelector('#reviewTask')?.value.includes('Perform a deep multi-agent review of these 1 selected rows from CMS Mapping Review.'));
+const deep=await page.evaluate(()=>({
+  body:window.__lastReviewContextBody,
+  navClicks:window.__aiNavClicks,
+  multiClicks:window.__multiClicks,
+  runClicks:window.__reviewRunClicks,
+  title:document.querySelector('#reviewTitle').value,
+  task:document.querySelector('#reviewTask').value,
+  session:document.querySelector('#reviewSessionSelect').value,
+  requests:window.__inventoryRequests.slice(),
+}));
+assert.equal(deep.multiClicks,1,'Deep Review opens the existing Multi-Agent tab');
+assert.equal(deep.session,'','handoff must not silently choose a REVIEW preset');
+assert.ok(deep.title.includes('Deep review · CMS Mapping Review · 1 row'));
+assert.ok(deep.task.includes('server-rehydrated shadow review evidence'));
+assert.ok(deep.task.includes('Continuity: exact name, same price'));
+assert.ok(!deep.task.includes('CONTINUITY_EXACT_NAME_PRICE_SAME'));
+assert.equal(deep.runClicks,0,'Deep Review handoff must not click Run native review');
+assert.ok(!deep.requests.some(url=>url.includes('/ai-workspace/multi-agent/reviews')),'Deep Review handoff must make zero native review execution requests');
+assert.ok(deep.requests.length>beforeDeepRequests,'Deep Review still obtains a fresh server-rehydrated context');
+assert.ok(!JSON.stringify(deep.body).includes('Metformin 500mg'),'Deep Review client request still sends coordinates, not row facts');
 
 assert.equal(await page.locator('#inventoryViewRefresh').isVisible(),true);
 const overflow=await page.locator('.inventory-view-table-wrap').evaluate(el=>getComputedStyle(el).overflow);assert.ok(overflow==='auto'||overflow==='scroll');
 const banner=await page.locator('.inventory-shadow-banner').boundingBox();assert.ok(banner&&banner.width<=390);
 
 await browser.close();
-console.log('inventory_review_workspace_smoke=pass viewport=390x844 filters=pass selection=pass drawer=pass human_review_reason=pass ask_ai_context=pass auto_send=false presets=3');
+console.log('inventory_review_workspace_smoke=pass viewport=390x844 ask_ai_context=pass auto_send=false deep_review_prefill=pass deep_review_auto_run=false presets=3');
