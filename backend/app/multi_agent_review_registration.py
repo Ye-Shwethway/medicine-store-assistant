@@ -3,6 +3,7 @@ from __future__ import annotations
 from app.conversation_export import router as conversation_export_router
 from app.federated_review import router as federated_review_router
 from app.multi_agent_review import router as multi_agent_review_router
+from app.multi_agent_review_feedback import router as multi_agent_review_feedback_router
 from app.multi_agent_review_live import router as multi_agent_review_live_router
 from app.multi_agent_review_ui_api import router as multi_agent_review_ui_router
 from app.native_agent_runtime import router as native_agent_runtime_router
@@ -11,6 +12,7 @@ from app.native_agent_runtime import router as native_agent_runtime_router
 # to the native AI runtime surface so Multi-Agent does not create another transport.
 native_agent_runtime_router.include_router(multi_agent_review_router)
 native_agent_runtime_router.include_router(multi_agent_review_live_router)
+native_agent_runtime_router.include_router(multi_agent_review_feedback_router)
 native_agent_runtime_router.include_router(multi_agent_review_ui_router)
 native_agent_runtime_router.include_router(federated_review_router)
 native_agent_runtime_router.include_router(conversation_export_router)
