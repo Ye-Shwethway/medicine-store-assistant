@@ -1,0 +1,32 @@
+name: One-shot feedback button hotfix
+
+on:
+  push:
+    branches: [fix/multi-agent-feedback-button]
+    paths:
+      - 'docs/checkpoints/feedback-button-hotfix-trigger.txt'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: fix/multi-agent-feedback-button
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Apply feedback button hotfix
+        run: |
+          set -euo pipefail
+          python scripts/patch_feedback_button.py
+          python -m compileall -q backend/app
+          node --check backend/app/dashboard_assets/dashboard_multi_agent_review.js
+          git diff --check
+          git config user.name 'MSA Feedback Button Hotfix'
+          git config user.email 'actions@users.noreply.github.com'
+          git add backend/app/dashboard_assets/dashboard_multi_agent_review.js backend/app/multi_agent_review_feedback.py
+          git commit -m 'Fix Multi-Agent feedback button and blank Owner turn'
+          git push origin HEAD:fix/multi-agent-feedback-button
