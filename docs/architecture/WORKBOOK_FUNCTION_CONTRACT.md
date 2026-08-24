@@ -1,6 +1,6 @@
 # Workbook Function Contract
 
-Status: **F6C working artifact — core Main Stock / Daily Usage / CMS / intake behavior source-backed; exact rollover and legacy reorder formula still open**
+Status: **F6C working artifact — Main Stock / Daily Usage / CMS / intake / Store-Location core source-backed; exact rollover and legacy reorder formula still open**
 
 Purpose: capture the operational behavior that the future backend must reproduce while allowing the human spreadsheet layout to become configurable.
 
@@ -89,7 +89,7 @@ Day columns 1–31 are the routine operational usage input surface.
 
 Canonical future command meaning:
 
-`record_usage(store, lot, date, quantity, source, operation_id, actor)`.
+`record_usage(store_id, lot_id, date, quantity, source, operation_id, actor)`.
 
 The grid cell is only a client representation of that command/event.
 
@@ -116,7 +116,7 @@ Current monthly result projects back to Main Stock:
 
 Do not reverse-sync current calculated balance into the opening/base `Remaining Stock` field.
 
-In the DB-backed design, the ledger becomes authoritative and both Main Stock and Daily Usage current-balance cells become projections of the same state.
+In the DB-backed design, the ledger becomes authoritative and both Main Stock and Daily Usage current-balance cells become projections of the same store+lot state.
 
 ## CMS catalogue and mapping
 
@@ -165,7 +165,8 @@ Important rules:
 - repeated historical source evidence must not double-intake quantity;
 - if receipt is already represented, use the source for reconciliation rather than applying the quantity again;
 - fixed assets remain a separate domain;
-- current catalogue mapping corrections do not fabricate stock movement.
+- current catalogue mapping corrections do not fabricate stock movement;
+- a committed receipt must resolve its destination store/location.
 
 ## Reorder
 
@@ -189,17 +190,20 @@ Owner-confirmed workflow:
 - calculated recommendation is deterministic computed output;
 - Reorder Form is a projection;
 - Final Reorder becomes a durable business snapshot only when approved/submitted;
-- manual final adjustment must remain distinguishable from the deterministic recommendation.
+- manual final adjustment must remain distinguishable from the deterministic recommendation;
+- recommendation scope must identify the store/location whose balance and usage are being considered.
 
 ### Still open
 
 The exact legacy formula/threshold/rounding logic behind the calculated recommendation remains source-unverified and must not be invented from current materialized values.
 
+Also still open: whether Sub Store replenishment normally means a request to Main Store or an independent external reorder workflow, and whether reorder configuration defaults are global or per-store overrides.
+
 ## This Month Received
 
 Owner-confirmed role: a filtered/derived view of Main Stock rows with current-month received quantity.
 
-It contains no known independent canonical inventory truth. Future implementation should generate it from receipt/lot state as a view/export.
+It contains no known independent canonical inventory truth. Future implementation should generate it from receipt/lot/store state as a view/export.
 
 ## Audit
 
@@ -211,18 +215,40 @@ Future backend audit must add stable actor/client/operation/idempotency context 
 
 Routine AI and human operations converge on the same typed domain command and audit layer.
 
-## Store / location scope
+## Store / location scope — LOCKED CORE
+
+Canonical architecture: `STORE_LOCATION_MODEL.md`.
 
 Product direction is one Main Store plus unlimited Sub Stores.
 
-The canonical model should therefore make `store/location` explicit and avoid cloning inventory tables per store.
+The current live `Medicine Store Cloud` Main Stock / Daily Usage populated contracts contain no store/location field. Treat that workbook as the configured legacy Main Store context; do not invent multi-store structure inside the sheet.
 
-Still to lock during F6C:
+Core rule:
 
-- whether each store holds independent lot balances under the same product/lot catalogue identity;
-- transfer semantics between Main Store and Sub Stores;
-- which reorder/usage/config values are global vs store-specific;
-- default view presets and authority boundaries by location.
+> **Stock belongs to a location; product and catalogue identity do not.**
+
+Therefore:
+
+- the same `product_id` is shared across all stores;
+- the same normal `lot_id` (product + expiry in v1) may hold quantity in multiple stores;
+- canonical balance is location-scoped, conceptually `(store_id, lot_id)`;
+- every stock-changing movement resolves a store/location;
+- usage is recorded against the actual issuing store;
+- external receipt resolves a destination store;
+- internal transfer preserves product/lot identity while moving quantity between two managed stores;
+- internal transfer decreases source and increases destination atomically under one typed operation/idempotency identity;
+- store support must not clone product, lot, transaction or view tables per location.
+
+Current schema gap: the deployed shadow migrations have no canonical store entity and `inventory_transactions` is lot-only. F6D must fix this before multi-store canonicality.
+
+The existing F2 movement set also lacks transfer semantics. F6D must add an explicit transfer representation with linked source/destination ledger effects rather than abusing unrelated adjustments.
+
+Open but non-blocking for the core location schema:
+
+- Sub Store naming/code convention;
+- exact user-to-store access assignment UX;
+- global-vs-per-store reorder configuration fallback;
+- Sub Store request-to-Main-Store versus external reorder policy.
 
 ## Month rollover / close — still open
 
@@ -235,6 +261,8 @@ Exact original Excel behavior remains to be source-verified for:
 - whether any operational remarks/configuration roll forward automatically.
 
 The existing schema decision remains valid: opening balance is not fabricated as a monthly stock movement each month; monthly opening can be a frozen/derived carry-forward state, while migration uses explicit opening-balance transactions as required.
+
+With multiple stores, opening/received/usage/closing snapshot values must be store+lot scoped even if the calendar month identity remains shared globally.
 
 ## Completion rule
 
