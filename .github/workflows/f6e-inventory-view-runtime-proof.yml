@@ -9,6 +9,7 @@ on:
       - '.github/workflows/f6e-inventory-view-runtime-proof.yml'
   workflow_dispatch:
 
+# Keep this workflow as the runtime acceptance proof for the read-only configurable Inventory View substrate.
 permissions:
   contents: read
   issues: write
