@@ -35,13 +35,14 @@ jobs:
               '/dashboard/api/inventory-view/registry',
               '/dashboard/api/inventory-view/presets',
               '/dashboard/api/inventory-view/rows',
+              '/dashboard/api/inventory-view/review-context',
           }
           missing = required - paths
           assert not missing, sorted(missing)
           main_source = Path('backend/app/main.py').read_text(encoding='utf-8')
           assert 'from app.inventory_view_engine import router as inventory_view_router' in main_source
           assert 'app.include_router(inventory_view_router)' in main_source
-          print('inventory_view_routes=pass main_binding=pass')
+          print('inventory_view_routes=pass review_context_route=pass main_binding=pass')
           PY
       - name: Verify Inventory JavaScript syntax
         run: node --check backend/app/dashboard_assets/dashboard_inventory_views.js
