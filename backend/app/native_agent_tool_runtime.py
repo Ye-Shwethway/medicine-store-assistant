@@ -20,6 +20,19 @@ from app.native_agent_tools import execute_native_read_tool, native_read_tool_de
 from app.provider_secrets import read_provider_secret
 
 MAX_TOOL_ROUNDS = 4
+AUTHORITY_ORDER = {"READ": 1, "PROPOSE": 2, "WRITE": 3, "CONTROL": 4}
+
+
+def native_agent_read_allowed(agent: dict[str, Any]) -> bool:
+    scopes = agent.get("capability_scopes") or []
+    if isinstance(scopes, str):
+        try:
+            scopes = json.loads(scopes)
+        except json.JSONDecodeError:
+            scopes = [scopes]
+    normalized = {str(scope).strip().lower() for scope in scopes if str(scope).strip()}
+    ceiling = str(agent.get("authority_ceiling") or "").upper()
+    return "mcp:read" in normalized and AUTHORITY_ORDER.get(ceiling, 0) >= AUTHORITY_ORDER["READ"]
 
 
 def _assignment_supports_tools(assignment: dict[str, Any]) -> bool:
@@ -111,6 +124,9 @@ def invoke_native_agent_with_read_tools(
     response.headers["Cache-Control"] = "no-store"
     response.headers["Pragma"] = "no-cache"
     agent, chain = _load_agent_and_chain(agent_id)
+    if not native_agent_read_allowed(agent):
+        return None
+
     tools = native_read_tool_definitions()
     if not tools:
         return None
@@ -177,6 +193,7 @@ def invoke_native_agent_with_read_tools(
                         "agent_execution_policy": agent["execution_policy"],
                         "agent_confirmation_policy": agent["confirmation_policy"],
                         "tool_execution_enabled": True,
+                        "native_store_tools_allowed": True,
                         "native_tools_exposed": [item["function"]["name"] for item in tools],
                         "native_tool_calls": tool_trace,
                         "selected_provider_id": assignment["provider_id"],
