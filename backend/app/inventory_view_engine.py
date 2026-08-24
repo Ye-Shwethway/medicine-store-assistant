@@ -4,6 +4,7 @@ from dataclasses import asdict, dataclass
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from pydantic import BaseModel, Field
 
 from app.dashboard_auth import require_dashboard_session
 from app.shadow_read_api import _query
@@ -11,6 +12,8 @@ from app.shadow_read_api import _query
 router = APIRouter(prefix="/dashboard/api/inventory-view", tags=["inventory-view"])
 
 FieldKind = Literal["ENTITY_FIELD", "COMPUTED_FIELD", "COMMAND_EDITABLE_FIELD", "DISPLAY_HELPER"]
+REVIEW_CONTEXT_PRESETS = {"migration-review", "cms-mapping-review"}
+MAX_REVIEW_CONTEXT_ROWS = 20
 
 
 @dataclass(frozen=True)
@@ -41,6 +44,17 @@ class ViewDefinition:
     system_preset: bool
     columns: tuple[ViewColumn, ...]
     description: str
+
+
+class InventoryReviewContextInput(BaseModel):
+    preset: str = Field(max_length=80)
+    offset: int = Field(default=0, ge=0)
+    limit: int = Field(default=100, ge=1, le=500)
+    q: str | None = Field(default=None, max_length=255)
+    mapping_status: str | None = Field(default=None, max_length=64)
+    source_classification: str | None = Field(default=None, max_length=64)
+    review_reason: str | None = Field(default=None, max_length=255)
+    selected_indices: list[int] = Field(min_length=1, max_length=MAX_REVIEW_CONTEXT_ROWS)
 
 
 FIELD_REGISTRY: dict[str, FieldDefinition] = {
@@ -167,6 +181,34 @@ def _resolve_columns(view: ViewDefinition, requested_fields: str | None) -> list
     if not result:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="At least one valid field is required")
     return result
+
+
+def _normalize_optional(value: str | None) -> str | None:
+    return value.strip() if value and value.strip() else None
+
+
+def _review_context_view(preset: str) -> ViewDefinition:
+    view = SYSTEM_PRESETS.get(preset)
+    if view is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Inventory view preset not found")
+    if preset not in REVIEW_CONTEXT_PRESETS:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="AI review context is available only for review presets")
+    return view
+
+
+def _select_review_context_rows(
+    view: ViewDefinition,
+    provider_rows: list[dict[str, Any]],
+    selected_indices: list[int],
+) -> list[dict[str, Any]]:
+    if len(set(selected_indices)) != len(selected_indices):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Selected row indices must be unique")
+    if any(index < 0 or index >= len(provider_rows) for index in selected_indices):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Selected row index is outside the current rehydrated page")
+    return [
+        {column.field: provider_rows[index].get(column.field) for column in view.columns}
+        for index in selected_indices
+    ]
 
 
 def _main_stock_rows(*, q: str | None, mapping_status: str | None, limit: int, offset: int) -> list[dict[str, Any]]:
@@ -433,10 +475,10 @@ def inventory_view_rows(
     if view is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Inventory view preset not found")
     columns = _resolve_columns(view, fields)
-    normalized_q = q.strip() if q and q.strip() else None
-    normalized_mapping_status = mapping_status.strip() if mapping_status and mapping_status.strip() else None
-    normalized_source_classification = source_classification.strip() if source_classification and source_classification.strip() else None
-    normalized_review_reason = review_reason.strip() if review_reason and review_reason.strip() else None
+    normalized_q = _normalize_optional(q)
+    normalized_mapping_status = _normalize_optional(mapping_status)
+    normalized_source_classification = _normalize_optional(source_classification)
+    normalized_review_reason = _normalize_optional(review_reason)
     provider_rows = _render_provider(
         view.provider,
         q=normalized_q,
@@ -469,6 +511,57 @@ def inventory_view_rows(
         },
         "read_only": True,
         "customizable_projection": True,
+        "database_canonical": False,
+        "migration_baseline_accepted": False,
+    }
+
+
+@router.post("/review-context", dependencies=[Depends(require_dashboard_session)])
+def inventory_review_context(payload: InventoryReviewContextInput, response: Response) -> dict[str, Any]:
+    _no_store(response)
+    view = _review_context_view(payload.preset)
+    normalized_q = _normalize_optional(payload.q)
+    normalized_mapping_status = _normalize_optional(payload.mapping_status)
+    normalized_source_classification = _normalize_optional(payload.source_classification)
+    normalized_review_reason = _normalize_optional(payload.review_reason)
+    provider_rows = _render_provider(
+        view.provider,
+        q=normalized_q,
+        mapping_status=normalized_mapping_status,
+        source_classification=normalized_source_classification if payload.preset == "migration-review" else None,
+        review_reason=normalized_review_reason,
+        limit=payload.limit,
+        offset=payload.offset,
+    )
+    rows = _select_review_context_rows(view, provider_rows, payload.selected_indices)
+    return {
+        "context_type": "INVENTORY_REVIEW_CONTEXT_V1",
+        "context_origin": "SERVER_REHYDRATED_INVENTORY_VIEW",
+        "view": {
+            "view_id": view.view_id,
+            "name": view.name,
+            "row_grain": view.row_grain,
+            "store_scope": view.store_scope,
+            "columns": [
+                {
+                    "field": column.field,
+                    "label": column.label or FIELD_REGISTRY[column.field].label,
+                    "data_type": FIELD_REGISTRY[column.field].data_type,
+                }
+                for column in view.columns
+            ],
+        },
+        "filters": {
+            "q": normalized_q,
+            "mapping_status": normalized_mapping_status,
+            "source_classification": normalized_source_classification if payload.preset == "migration-review" else None,
+            "review_reason": normalized_review_reason,
+        },
+        "page": {"limit": payload.limit, "offset": payload.offset},
+        "selected_indices": payload.selected_indices,
+        "selected_count": len(rows),
+        "rows": rows,
+        "read_only": True,
         "database_canonical": False,
         "migration_baseline_accepted": False,
     }
