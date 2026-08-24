@@ -1,6 +1,7 @@
 name: F6D CMS mapping review-state stage
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
