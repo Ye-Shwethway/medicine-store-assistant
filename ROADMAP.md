@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Project Roadmap
 
-Status: **D4.8 native Review, per-participant native reads, external MCP federation, federated feedback loop, single-surface Review UI, export/delete UX, and Web Production Reliability Hardening are deployed and manually exercised; F6B remains test-only; PostgreSQL remains non-canonical.**
+Status: **D4.8 native Review, per-participant native reads, external MCP federation, federated feedback loop, single-surface Review UI, export/delete UX, and Web Production Reliability Hardening are deployed and manually exercised; F6B remains test-only; PostgreSQL remains non-canonical. Current bounded target: Review-send state correctness, normal Owner chat send separation, and composer-adjacent DOCX/JSON export controls for Single Chat and Multi-Agent.**
 
 The live Google workbook/source documents remain operationally authoritative. F6B is test-only and not an accepted migration baseline.
 
@@ -134,13 +134,21 @@ Systemic rules now enforced:
 8. content-derived Dashboard asset identities eliminate manual stale-version drift;
 9. browser delivery is not accepted from source/CI evidence alone; exact deployed SHA remains required.
 
-The Dashboard now uses semantic-prefix + 12-character content hash asset identities, e.g. `f72d48-review-ui-<hash>`, instead of manually remembered fixed asset versions.
+The Dashboard uses semantic-prefix + 12-character content hash asset identities, e.g. `f72d48-review-ui-<hash>`.
 
 A Playwright Chromium mobile-size CI smoke performs the real critical Review interaction path:
 
 `open Review -> external review visible -> Back -> reopen -> external review still visible -> blank Send feedback -> POST feedback-pass -> Owner default feedback bubble`
 
-Web reliability CI plus broad existing regressions passed before merge.
+## Current bounded Web UX slice — ACTIVE
+
+Before moving on to Telegram/GROUP collaboration work, tighten the current chat/review composer behavior:
+
+1. **Review send/request state** — enable only when an actionable unsent review exists; successful persisted send/request settles or disables the control; refresh/reopen must preserve that state; a genuinely new actionable review may enable it again.
+2. **Normal Owner send** — expose an independent Telegram-style send control for ordinary Single Chat/Multi-Agent messaging. Normal messaging must never be conflated with Review workflow submission.
+3. **Bottom export access** — preserve existing top DOCX/JSON actions and add compact composer-adjacent DOCX/JSON controls on both Single Chat and Multi-Agent so long conversations can be saved without scrolling back to the top.
+4. **Reuse, do not fork** — bottom export controls must call the same export implementation as the top controls; new composer controls must extend the authoritative renderer/event owner rather than creating another DOM owner.
+5. **Browser behavior gate** — prove pending review -> sent/settled -> refresh/reopen still settled -> new actionable review re-enables; prove normal Send does not call Review endpoints; prove composer-side DOCX/JSON use the same export path on Single and Multi-Agent mobile views.
 
 ## Current lifecycle
 
@@ -152,16 +160,17 @@ Canonical Review lifecycle remains:
 
 ## Immediate implementation order
 
-1. **Maintain Web reliability discipline for every subsequent Dashboard slice; do not return to patch-by-patch dual-renderer behavior.**
-2. Finish D4.8 continuity/checkpoint cleanup and keep browser-level acceptance for changed critical interactions.
-3. Add Telegram notification/attention delivery over persisted Attention/Event state; notification failure must remain non-fatal to workflow correctness.
-4. Add GROUP as a bounded native shared-context loop with Owner pause/resume/stop/steer and optional external checkpoints.
-5. Add COMPARE while preserving independent answers until comparison.
-6. Add DEBATE with bounded rounds before synthesis.
-7. Return to live PRIMARY -> FALLBACK proof when a stable secondary provider/model is available.
-8. Add per-user Chat entitlement/allowed-agent UI plus human/location tool-authority intersection before staff tool rollout.
-9. Expand vision/OCR evidence processing only through an explicit bounded slice.
-10. Controlled inventory writes remain a later authorization phase after canonicality, authority, idempotency, audit and read-back requirements are satisfied.
+1. **CURRENT: complete the bounded Review-send state + normal Send separation + composer-adjacent export UX slice.**
+2. Maintain Web reliability discipline and browser-level acceptance for changed critical interactions.
+3. Refresh continuity docs with exact PR/main/deployment evidence after acceptance.
+4. Add Telegram notification/attention delivery over persisted Attention/Event state; notification failure must remain non-fatal to workflow correctness.
+5. Add GROUP as a bounded native shared-context loop with Owner pause/resume/stop/steer and optional external checkpoints.
+6. Add COMPARE while preserving independent answers until comparison.
+7. Add DEBATE with bounded rounds before synthesis.
+8. Return to live PRIMARY -> FALLBACK proof when a stable secondary provider/model is available.
+9. Add per-user Chat entitlement/allowed-agent UI plus human/location tool-authority intersection before staff tool rollout.
+10. Expand vision/OCR evidence processing only through an explicit bounded slice.
+11. Controlled inventory writes remain a later authorization phase after canonicality, authority, idempotency, audit and read-back requirements are satisfied.
 
 ## Later sequence
 
