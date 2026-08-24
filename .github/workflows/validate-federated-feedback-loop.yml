@@ -5,10 +5,12 @@ on:
     branches: [main]
     paths:
       - 'backend/app/multi_agent_review_feedback.py'
+      - 'backend/app/multi_agent_review_discussion.py'
       - 'backend/app/multi_agent_review_registration.py'
       - 'backend/app/dashboard_assets/dashboard_multi_agent_review.js'
       - 'backend/app/dashboard_assets/dashboard_multi_agent_live_export.js'
       - 'backend/app/dashboard_assets/dashboard_multi_agent_review.css'
+      - 'tests/web/multi_agent_feedback_smoke.mjs'
       - '.github/workflows/validate-federated-feedback-loop.yml'
 
 permissions:
@@ -28,6 +30,8 @@ jobs:
           from app.main import app
           paths=set(app.openapi()['paths'])
           assert '/dashboard/api/ai-workspace/multi-agent/work-items/{work_item_id}/feedback-pass' in paths
+          assert '/dashboard/api/ai-workspace/multi-agent/work-items/{work_item_id}/discussion-turn' in paths
+          assert '/dashboard/api/ai-workspace/multi-agent/work-items/{work_item_id}/decisions' in paths
           from app.multi_agent_review_feedback import _history_context
           context=_history_context('Task',[{'kind':'EXTERNAL_REVIEW','name':'IANEO','text':'review evidence'}],[{'orchestration_role':'REVIEWER'},{'orchestration_role':'SYNTHESIZER'}])
           assert 'EXTERNAL_REVIEW / IANEO' in context
@@ -35,22 +39,26 @@ jobs:
           assert 'REVIEWER -> SYNTHESIZER' in context
           print('federated_feedback_backend_contract=pass')
           PY
-      - name: Validate UI persistence and continuation
+      - name: Validate UI persistence and continuation contracts
         run: |
           node --check backend/app/dashboard_assets/dashboard_multi_agent_review.js
           node --check backend/app/dashboard_assets/dashboard_multi_agent_live_export.js
           grep -Fq "artifact_type==='EXTERNAL_REVIEW_SUBMISSION'" backend/app/dashboard_assets/dashboard_multi_agent_review.js
           grep -Fq 'review-chat-external' backend/app/dashboard_assets/dashboard_multi_agent_review.js
-          grep -Fq '/feedback-pass' backend/app/dashboard_assets/dashboard_multi_agent_review.js
-          grep -Fq 'Send feedback to review team' backend/app/dashboard_assets/dashboard_multi_agent_review.js
           grep -Fq "status==='WAITING_EXTERNAL'||status==='REVIEWING'" backend/app/dashboard_assets/dashboard_multi_agent_live_export.js
-          grep -Fq 'if(card){hydrateWorkId=null;enterReviewChatView()}' backend/app/dashboard_assets/dashboard_multi_agent_live_export.js
           grep -Fq '← Back to reviews' backend/app/dashboard_assets/dashboard_multi_agent_live_export.js
-          grep -Fq "artifacts.forEach(a=>{const turn=artifactTurn(a);if(turn)turns.push(turn)})" backend/app/dashboard_assets/dashboard_multi_agent_live_export.js
-          grep -Fq "const ownerAction=item.status==='WAITING_OWNER'" backend/app/dashboard_assets/dashboard_multi_agent_live_export.js
+          grep -Fq 'data-owner-message-send' backend/app/dashboard_assets/dashboard_multi_agent_live_export.js
+          grep -Fq 'data-owner-decision' backend/app/dashboard_assets/dashboard_multi_agent_live_export.js
+          grep -Fq 'data-review-send-pass' backend/app/dashboard_assets/dashboard_multi_agent_live_export.js
+          grep -Fq '/discussion-turn' backend/app/dashboard_assets/dashboard_multi_agent_live_export.js
+          grep -Fq '/decisions' backend/app/dashboard_assets/dashboard_multi_agent_live_export.js
+          grep -Fq '/feedback-pass' backend/app/dashboard_assets/dashboard_multi_agent_live_export.js
           grep -Fq '#aiMultiMode:not(.review-chat-open) .review-detail{display:none}' backend/app/dashboard_assets/dashboard_multi_agent_review.css
           grep -Fq '#aiMultiMode.review-chat-open .review-history{display:none}' backend/app/dashboard_assets/dashboard_multi_agent_review.css
           grep -Fq 'OWNER_STARTED_FEEDBACK_PASS' backend/app/multi_agent_review_feedback.py
           grep -Fq 'NATIVE_FEEDBACK_PARTICIPANT_COMPLETED' backend/app/multi_agent_review_feedback.py
           grep -Fq 'OWNER_REVIEW_REQUIRED_AFTER_FEEDBACK_PASS' backend/app/multi_agent_review_feedback.py
+          grep -Fq 'OWNER_DISCUSSION_MESSAGE_SENT' backend/app/multi_agent_review_discussion.py
+          grep -Fq 'NATIVE_DISCUSSION_TURN_COMPLETED' backend/app/multi_agent_review_discussion.py
+          grep -Fq 'OWNER_DECISION_RECORDED' backend/app/multi_agent_review_discussion.py
           echo 'federated_feedback_single_surface_ui_contract=pass'
