@@ -190,6 +190,7 @@
   function externalTurn(a){const payload=a.payload||{};const text=payload.notes||'';const verdict=payload.verdict?'<span class="review-verdict">'+esc(payload.verdict)+'</span>':'';return '<article class="review-chat-turn review-chat-agent review-chat-external"><div class="review-chat-meta"><div><strong>'+esc(payload.external_agent_display_name||payload.external_agent_call_name||'External MCP reviewer')+'</strong><span>EXTERNAL REVIEW</span></div>'+verdict+'</div><div class="review-chat-bubble">'+esc(text)+'</div><div class="review-chat-provenance"><span>External MCP evidence · exact artifact v'+Number(payload.bound_artifact_version||0)+'</span></div></article>'}
   function revisionTurn(a){const payload=a.payload||{};return '<article class="review-chat-turn review-chat-owner"><div class="review-chat-meta"><strong>Owner</strong><span>REVISION</span></div><div class="review-chat-bubble">'+esc(payload.instruction||'')+'</div></article>'}
   function renderWorkDetail(item){
+    if(window.MSAReviewChatRenderer?.render){window.MSAReviewChatRenderer.render(item);return}
     const detail=host.querySelector('#reviewWorkDetail');
     const reviews=item.reviews||[];const artifacts=item.artifacts||[];const events=item.events||[];const attention=item.attention||[];
     const ownerArtifact=artifacts.find(a=>a.artifact_type==='OWNER_TASK');
@@ -201,7 +202,6 @@
       +'<div class="review-chat-stream">'+(turns.length?turns.join(''):'<div class="review-empty">No persisted turns yet.</div>')+'</div>'
       +(item.status==='WAITING_OWNER'?'<div class="review-owner-action review-chat-composer"><label for="reviewRevisionInstruction">Owner feedback / next review pass</label><textarea id="reviewRevisionInstruction" maxlength="5000" placeholder="Add instructions, or leave blank to send the external review back to the native team."></textarea><button type="button" id="reviewReturnRevision">Send feedback to review team</button></div>':'')
       +'<details class="review-debug-details"><summary>Review records & timeline</summary><div class="review-detail-section"><h4>Reviews</h4>'+(reviews.length?reviews.map(r=>'<article class="review-record"><div><strong>'+esc(r.verdict)+'</strong><span>artifact v'+Number(r.artifact_version)+' · '+esc(r.reviewer_actor_type)+'</span></div><pre>'+esc(r.notes||'')+'</pre></article>').join(''):'<p class="muted">No reviewer record.</p>')+'</div><div class="review-detail-section"><h4>Attention & timeline</h4>'+(attention.length?attention.map(a=>'<div class="review-timeline"><strong>'+esc(a.category)+'</strong><span>'+esc(a.status)+' · '+esc(a.summary)+'</span></div>').join(''):'')+events.slice().reverse().map(e=>'<div class="review-timeline"><strong>'+esc(e.event_type)+'</strong><span>'+esc(e.actor_type)+' · '+esc(time(e.created_at))+'</span></div>').join('')+'</div></details>';
-    host.querySelector('#reviewReturnRevision')?.addEventListener('click',returnForRevision);
     const stream=host.querySelector('.review-chat-stream');if(stream)stream.scrollTop=stream.scrollHeight;
   }
 
