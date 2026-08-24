@@ -6,6 +6,13 @@ on:
     paths:
       - 'backend/app/audit_events.py'
       - 'backend/app/shadow_read_api.py'
+      - 'backend/app/federated_review.py'
+      - 'backend/app/federated_review_verify.py'
+      - 'backend/app/mcp_schema_v22_federated.py'
+      - 'backend/app/mcp_shadow_reads.py'
+      - 'backend/app/multi_agent_review_registration.py'
+      - 'backend/app/dashboard_assets/dashboard_multi_agent_live_export.js'
+      - 'backend/app/dashboard_assets/dashboard_multi_agent_live_export.css'
       - 'backend/app/main.py'
       - 'backend/app/db.py'
       - 'backend/app/dashboard_assets/dashboard_audit.js'
@@ -62,12 +69,16 @@ jobs:
           assert head.down_revision==substrate.revision
           assert EXPECTED_MIGRATION==head.revision
           assert '/dashboard/api/audit/recent' in set(app.openapi()['paths'])
+          assert '/dashboard/api/ai-workspace/multi-agent/work-items/{work_item_id}/request-external-review' in set(app.openapi()['paths'])
           assert AUDIT_ASSET_VERSION.startswith('f73a-')
           print('mcp_audit_contract=pass')
           PY
+      - name: Validate federated Review contract
+        run: PYTHONPATH=backend python backend/app/federated_review_verify.py
       - name: Validate UI and audit instrumentation contract
         run: |
           node --check backend/app/dashboard_assets/dashboard_audit.js
+          node --check backend/app/dashboard_assets/dashboard_multi_agent_live_export.js
           grep -Fq 'msa_inventory_read_summary' backend/app/shadow_read_api.py
           grep -Fq 'operation_audit_events' backend/app/audit_events.py
           grep -Fq 'dashboard_audit.js' backend/app/main.py

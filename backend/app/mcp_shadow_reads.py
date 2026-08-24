@@ -44,10 +44,10 @@ def msa_shadow_read_rows(
         capability_scope="mcp:read",
         outcome="SUCCESS",
         metadata={
-            "classification": classification,
             "migration_batch_id": migration_batch_id,
+            "classification": classification,
             "source_sheet": source_sheet,
-            "query_present": bool(query),
+            "query": query,
             "result_count": result.get("count", 0),
             "limit": bounded_limit,
             "offset": bounded_offset,
@@ -58,7 +58,7 @@ def msa_shadow_read_rows(
 
 @mcp.tool(annotations=READ)
 def msa_shadow_read_batch(migration_batch_id: str) -> dict[str, Any]:
-    """Read one shadow migration batch summary by stable batch identifier."""
+    """Read one shadow migration batch summary by stable migration batch identifier."""
     denied = _gate("msa_shadow_read_batch", "mcp:read")
     if denied:
         return denied
@@ -66,15 +66,15 @@ def msa_shadow_read_batch(migration_batch_id: str) -> dict[str, Any]:
     record_current_mcp_event(
         action_type="msa_shadow_read_batch",
         capability_scope="mcp:read",
-        outcome="SUCCESS",
+        outcome="SUCCESS" if result.get("item") else "NOT_FOUND",
         metadata={"migration_batch_id": migration_batch_id},
     )
-    return {"ok": True, "status": "AVAILABLE", **result}
+    return {"ok": result.get("item") is not None, "status": "AVAILABLE" if result.get("item") else "NOT_FOUND", **result}
 
 
 @mcp.tool(annotations=READ)
 def msa_shadow_read_review_reasons(migration_batch_id: str | None = None) -> dict[str, Any]:
-    """Read REVIEW, CONFLICT, and NEW_UNMAPPED reason counts, optionally for one batch."""
+    """Return bounded review-reason aggregates for shadow migration rows."""
     denied = _gate("msa_shadow_read_review_reasons", "mcp:read")
     if denied:
         return denied
@@ -89,8 +89,9 @@ def msa_shadow_read_review_reasons(migration_batch_id: str | None = None) -> dic
 
 
 # mcp_server imports this module before constructing mcp_http_app. Register the base
-# v2 schema, explicit exclusions/replacements, then the final v2.1 hardening layer so
-# ChatGPT scans the complete long-lived catalog from initial transport construction.
+# v2 schema, explicit exclusions/replacements, then the v2.1 hardening and v2.2
+# federated Review layers so ChatGPT scans the complete catalog from initial transport construction.
 import app.mcp_schema_v2 as _mcp_schema_v2  # noqa: E402,F401
 import app.mcp_schema_v2_finalize as _mcp_schema_v2_finalize  # noqa: E402,F401
 import app.mcp_schema_v21 as _mcp_schema_v21  # noqa: E402,F401
+import app.mcp_schema_v22_federated as _mcp_schema_v22_federated  # noqa: E402,F401

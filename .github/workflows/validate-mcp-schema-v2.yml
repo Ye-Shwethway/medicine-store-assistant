@@ -9,6 +9,8 @@ on:
       - 'backend/app/mcp_schema_v2.py'
       - 'backend/app/mcp_schema_v2_finalize.py'
       - 'backend/app/mcp_schema_v21.py'
+      - 'backend/app/mcp_schema_v22_federated.py'
+      - 'backend/app/federated_review.py'
       - '.github/workflows/validate-mcp-schema-v2.yml'
       - 'docs/architecture/F7_2D0_MCP_SCHEMA_FINALIZATION_V2.md'
 
@@ -32,9 +34,9 @@ jobs:
           from app.mcp_schema_v2 import FINAL_TOOL_COUNT, FINAL_TOOL_HASH, FINAL_TOOL_NAMES, SCHEMA_VERSION
 
           runtime_names = tuple(sorted(tool.name for tool in mcp._tool_manager.list_tools()))
-          assert SCHEMA_VERSION == '2026-08-23.v2.1'
-          assert FINAL_TOOL_COUNT == 106, FINAL_TOOL_COUNT
-          assert len(runtime_names) == 106, len(runtime_names)
+          assert SCHEMA_VERSION == '2026-08-24.v2.2'
+          assert FINAL_TOOL_COUNT == 108, FINAL_TOOL_COUNT
+          assert len(runtime_names) == 108, len(runtime_names)
           assert runtime_names == FINAL_TOOL_NAMES, (set(runtime_names) ^ set(FINAL_TOOL_NAMES))
           assert len(FINAL_TOOL_HASH) == 64
           required = {
@@ -54,12 +56,14 @@ jobs:
               'msa_sync_manage',
               'msa_migration_control',
               'msa_inventory_read_usage',
+              'msa_federated_review_query',
+              'msa_federated_review_submit',
           }
           assert required <= set(runtime_names), required - set(runtime_names)
           assert 'msa_agents_rotate_credential' not in runtime_names
           forbidden_name_fragments = ('password', 'credential', 'secret', 'raw_sql', 'sql_console', 'shell', 'filesystem')
           assert not [name for name in runtime_names if any(fragment in name for fragment in forbidden_name_fragments)]
-          print(f'mcp_schema_v21=pass version={SCHEMA_VERSION} count={len(runtime_names)} hash={FINAL_TOOL_HASH}')
+          print(f'mcp_schema_v22=pass version={SCHEMA_VERSION} count={len(runtime_names)} hash={FINAL_TOOL_HASH}')
           PY
       - name: Validate registration happens before transport construction
         run: |
@@ -70,6 +74,7 @@ jobs:
           assert server.index('import app.mcp_shadow_reads') < server.index('mcp_http_app = mcp.streamable_http_app')
           assert shadow.index('import app.mcp_schema_v2 ') < shadow.index('import app.mcp_schema_v2_finalize ')
           assert shadow.index('import app.mcp_schema_v2_finalize ') < shadow.index('import app.mcp_schema_v21 ')
+          assert shadow.index('import app.mcp_schema_v21 ') < shadow.index('import app.mcp_schema_v22_federated ')
           print('mcp_schema_registration_order=pass')
           PY
       - name: Validate open action schemas and exclusions
@@ -83,6 +88,7 @@ jobs:
               'msa_locations_manage', 'msa_agent_sessions_manage', 'msa_providers_catalog_manage',
               'msa_alerts_manage', 'msa_notifications_manage', 'msa_sync_manage',
               'msa_sources_manage', 'msa_integrations_manage', 'msa_migration_control',
+              'msa_federated_review_query',
           )
           tools = {tool.name: tool for tool in mcp._tool_manager.list_tools()}
           for name in open_action_tools:
@@ -90,6 +96,9 @@ jobs:
               action_schema = schema['properties']['action']
               assert action_schema['type'] == 'string', (name, action_schema)
               assert 'enum' not in action_schema, name
+          submit_schema = tools['msa_federated_review_submit'].parameters['properties']
+          for field in ('work_item_id','request_artifact_id','artifact_id','artifact_version','verdict','notes'):
+              assert field in submit_schema, field
           assert 'msa_agents_rotate_credential' not in tools
           print('mcp_open_action_schema=pass')
           PY
@@ -100,11 +109,14 @@ jobs:
           docs = Path('docs/architecture/F7_2D0_MCP_SCHEMA_FINALIZATION_V2.md').read_text()
           finalizer = Path('backend/app/mcp_schema_v2_finalize.py').read_text()
           hardening = Path('backend/app/mcp_schema_v21.py').read_text()
+          federation = Path('backend/app/mcp_schema_v22_federated.py').read_text()
           assert 'credential management' in finalizer
           assert 'mcp.remove_tool("msa_agents_rotate_credential")' in finalizer
           assert 'backend allowlists' in hardening
+          assert 'mcp:propose' in Path('backend/app/federated_review.py').read_text()
+          assert 'artifact_version: int' in federation
           assert 'arbitrary SQL' in docs
           assert 'provider API-key / credential provisioning' in docs
           assert 'Production inventory writes and control-plane system gates remain closed' in docs
-          print('mcp_schema_v21_boundaries=pass')
+          print('mcp_schema_v22_boundaries=pass')
           PY
