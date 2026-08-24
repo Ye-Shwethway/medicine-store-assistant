@@ -104,7 +104,7 @@ assert.equal(await settled.isDisabled(), true);
 
 // Ordinary Owner Send persists a message only and must not itself start another feedback pass.
 const feedbackCallsBeforeMessage = await page.evaluate(() => window.__requests.filter(r => r.url.endsWith('/feedback-pass')).length);
-await page.getByLabel('Owner message').fill('Please focus on rows 312 and 648.');
+await page.getByRole('textbox', { name: 'Owner message' }).fill('Please focus on rows 312 and 648.');
 await page.getByRole('button', { name: 'Send Owner message' }).click();
 await page.getByText('Please focus on rows 312 and 648.').waitFor({ state: 'visible' });
 const feedbackCallsAfterMessage = await page.evaluate(() => window.__requests.filter(r => r.url.endsWith('/feedback-pass')).length);
