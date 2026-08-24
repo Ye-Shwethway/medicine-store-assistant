@@ -1,0 +1,59 @@
+name: Validate Inventory View Engine
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'backend/app/inventory_view_engine.py'
+      - 'backend/app/inventory_view_engine_verify.py'
+      - 'backend/app/main.py'
+      - 'backend/app/dashboard_assets/dashboard_inventory_views.js'
+      - 'backend/app/dashboard_assets/dashboard_inventory_views.css'
+      - 'tests/web/inventory_view_engine_smoke.mjs'
+      - '.github/workflows/validate-inventory-view-engine.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  view-engine-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+      - name: Install backend dependencies
+        run: python -m pip install --disable-pip-version-check -q -r backend/requirements.txt
+      - name: Verify registry and presets
+        run: PYTHONPATH=backend python -m app.inventory_view_engine_verify
+      - name: Verify router contract and main binding
+        run: |
+          PYTHONPATH=backend python - <<'PY'
+          from pathlib import Path
+          from app.inventory_view_engine import router
+          paths = {getattr(route, 'path', None) for route in router.routes}
+          required = {
+              '/dashboard/api/inventory-view/registry',
+              '/dashboard/api/inventory-view/presets',
+              '/dashboard/api/inventory-view/rows',
+          }
+          missing = required - paths
+          assert not missing, sorted(missing)
+          main_source = Path('backend/app/main.py').read_text(encoding='utf-8')
+          assert 'from app.inventory_view_engine import router as inventory_view_router' in main_source
+          assert 'app.include_router(inventory_view_router)' in main_source
+          print('inventory_view_routes=pass main_binding=pass')
+          PY
+      - name: Verify Inventory JavaScript syntax
+        run: node --check backend/app/dashboard_assets/dashboard_inventory_views.js
+
+  inventory-browser-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+      - name: Install Playwright for CI only
+        run: |
+          npm install --no-save --no-package-lock playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Run configurable Inventory browser interaction smoke
+        run: node tests/web/inventory_view_engine_smoke.mjs

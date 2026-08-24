@@ -18,23 +18,21 @@ Before changing code/config/schema/runtime, read:
 6. `docs/architecture/STORE_LOCATION_MODEL.md`
 7. `docs/architecture/CMS_MAPPING_LIFECYCLE.md`
 8. `docs/architecture/CMS_CATALOGUE_VERSIONING.md`
-9. `docs/architecture/REORDER_BASELINE_AND_AI_ENHANCEMENT.md`
-10. `docs/architecture/MAIN_STOCK_DAILY_USAGE_MATERIALIZATION.md`
-11. `docs/architecture/INVENTORY_DATA_MODEL.md`
-12. latest F6C/F6D checkpoints;
-13. current runtime evidence issues/PRs when deployment truth matters.
+9. `docs/architecture/CONFIGURABLE_OPERATIONAL_VIEW_ENGINE.md`
+10. `docs/architecture/INVENTORY_VIEW_ENGINE_V1.md`
+11. `docs/architecture/MAIN_STOCK_DAILY_USAGE_MATERIALIZATION.md`
+12. `docs/architecture/REORDER_BASELINE_AND_AI_ENHANCEMENT.md`
+13. latest F6D/F6E checkpoints and current runtime evidence issues/PRs.
 
 Treat newer verified repository/runtime/source evidence as authoritative over remembered chat context.
 
 ## Current state
 
 - F6C Canonical Inventory Foundation is locked.
-- F6D migration `0022_inventory_foundation` is implemented and PostgreSQL-CI verified.
-- Fresh live Main Store source staging is complete and idempotent.
-- Source-safe Main-primary shadow Product/Lot/opening-balance materialization is complete and runtime-verified.
-- The first live CMS catalogue version is imported into shadow PostgreSQL as reference data and replay-idempotent.
-- Current bounded target: **CMS assisted-reconciliation read-only planner**.
+- F6D shadow foundation for the current dataset is runtime-verified through source staging, Product/Lot/opening-balance materialization, live CMS catalogue import, deterministic CMS reconciliation and durable non-accepted mapping review-state staging.
+- F6E is active: **configurable read-only Inventory View Engine + migration-review Web surface**.
 - PostgreSQL remains non-canonical: `database_canonical=false`, `migration_baseline_accepted=false`.
+- Google Sheet/source documents remain operational authority.
 
 ## Locked architecture
 
@@ -44,111 +42,102 @@ Rules:
 
 - spreadsheet layout is configurable; inventory semantics are not arbitrary;
 - stock belongs to a location; Product/CMS identity does not;
-- quantity truth comes from canonical movements;
+- quantity truth comes from movements;
 - Total Stock is aggregate truth, not an editable master number;
 - Main Stock/Daily Usage are projections, not canonical worksheet-shaped tables;
+- Main Stock, Daily Usage, Migration Review and CMS Mapping Review are **system presets over one reusable View Engine**, not fixed screens;
+- user-defined sheet-style views later bind columns to a registered semantic field/computation/typed-command contract, never arbitrary SQL/raw DB expressions;
 - AI improves workflows but is not an availability dependency;
 - CMS Code alone never proves local Product identity.
 
-### Product / Lot / Store
+## Verified F6D shadow state
 
-- `product_id` = stable local operational identity.
-- normal v1 Lot = Product + structured Expiry Date.
-- Store movement does not create a new Product/Lot identity.
-- exactly one configured Main Store + unlimited Sub Stores.
-- balance = per `(store_id, lot_id)` and movement-derived.
+### Source + inventory materialization
 
-### Universal CMS Catalogue / Mapping
-
-- CMS catalogue is global/versioned external reference data.
-- Product-CMS mapping is historical/auditable accepted state, not blind direct sync.
-- catalogue import does not create a mapping.
-- last accepted mapping and operational price remain usable while a newer catalogue is unresolved.
-- recycled/discontinued/ambiguous/local-error possibilities remain explicit review states.
-- AI may assist mapping review; deterministic/manual workflow must remain available without AI.
-- current catalogue price is separate from historical receipt/source price and local accepted operational price.
-
-### Reorder
-
-Future reorder has a deterministic backend baseline plus optional AI enhancement/review. AI outage must still leave a useful recommendation.
-
-## F6D runtime evidence
-
-### Fresh Main Store stage
-
-- migration batch `7ecf9a2b-0521-400d-8990-caaea20d3a57`;
+- fresh migration batch `7ecf9a2b-0521-400d-8990-caaea20d3a57`;
 - source hash `c212d7da6192e7e20f340e7b302436f588dfb0fa191459fd572dfdb46f23ba76`;
 - Main Stock **823** rows;
 - Daily Usage **823** rows;
-- staged records **1,646 = 823 + 823**;
-- replay idempotency PASS.
-
-Main Stock owns migration Product/Lot/current-balance evidence. Daily Usage is joined usage evidence only.
-
-### Main-primary materialization
-
-Runtime shadow state:
-
+- staged evidence **1,646 = 823 + 823**, not 1,646 inventory objects;
 - Products **670**;
 - Lots **799**;
 - `OPENING_BALANCE` movements **679**;
 - opening quantity **72,009**;
 - zero-balance identity-only Lots **120**;
-- balance readback mismatches **0**;
-- immediate replay created **0 Products / 0 Lots / 0 transactions**.
+- balance mismatches **0**;
+- materialization replay created **0/0/0** Product/Lot/transaction rows.
 
-HOLDs were preserved instead of guessed:
+HOLDs remain unresolved instead of guessed: 14 inventory-semantic review rows, duplicate Product+Expiry rows `41,42,156,157`, and Unit-review rows `237,245,459,460,461,601`.
 
-- 14 inventory-semantic review rows;
-- duplicate Product+Expiry rows `41,42,156,157`;
-- Unit-review rows `237,245,459,460,461,601`.
+### CMS catalogue + review state
 
-### Live CMS catalogue version
-
-- sheet `CMS_Price_List_202608`;
-- title `August 2026 Updated Price List (Yuan) - 02.08.2026`;
+- catalogue version `34947c29-6427-4b7c-9fb8-ba8ffe3278b0`;
 - effective date `2026-08-02`;
 - source hash `6f221152024c9a06b73f7f7115097abfb688a37a6ba6bf0be78345f3b70dd116`;
-- catalogue version `34947c29-6427-4b7c-9fb8-ba8ffe3278b0`;
-- rows/codes **6,891 / 6,891**;
+- rows / unique codes **6,891 / 6,891**;
 - duplicate codes **0**;
-- blank codes **0**;
-- invalid prices **0**;
-- one blank source selling price at row `6442`, code `S10105035`, preserved as `NULL`;
-- replay `created=false` for the same version.
+- one blank source price preserved as `NULL`.
 
-Catalogue import protected the local domain. Before/after counts stayed:
+Deterministic reconciliation produced 526 exact-name/same-price continuity candidates, 77 exact-name/changed-price candidates, 30 multiple-source-code cases, 19 discontinued, 9 code/name mismatch, 6 unmapped, 1 missing source CMS name, 1 multiple source CMS names and 1 recycled-code case.
 
-- Products **670**;
-- Lots **799**;
-- inventory transactions **679**;
-- Product-CMS mappings **0**.
+Durable non-accepted mapping state now contains **670** rows:
 
-## CURRENT — CMS assisted-reconciliation planner
+- `REVIEW_REQUIRED` **644**;
+- `CMS_DISCONTINUED` **19**;
+- `RECYCLED_CODE` **1**;
+- `UNMAPPED` **6**;
+- `ACTIVE_MATCH` **0**;
+- accepted operational prices **0**.
 
-Next bounded sequence:
+Replay created **0** additional review rows. This state is review evidence, not accepted mapping authority.
 
-1. join each materialized local Product to its fresh Main Stock source evidence using deterministic normalized local identity;
-2. inspect source `serial_code`, `cs_name`, local name, remark, mapping hint and price evidence;
-3. compare against catalogue version `34947c29-6427-4b7c-9fb8-ba8ffe3278b0`;
-4. produce deterministic read-only categories for continuity, unmapped, discontinued, recycled/review, code absent from current catalogue, code/name conflict and ambiguous local evidence;
-5. never treat code equality alone as identity proof;
-6. preserve uncertainty where evidence could be historical catalogue change or local staff error;
-7. keep `product_cms_mappings=0` during this planner;
-8. produce counts and representative review cases before any mapping persistence;
-9. AI candidate reasoning may be added later as optional assistance, not authority.
+## F6E Inventory View Engine
 
-## Source rules
+The product-facing Inventory Web surface must replace the old staged-source-row grid with a generic preset-driven renderer while keeping Shadow Inspection as a separate diagnostic surface.
 
-Use the live Google Sheet repeatedly whenever structure/value behavior matters. Do not reverse-engineer exact legacy formulas from cloud materialized values.
+### Implemented substrate
 
-Important known facts:
+- `backend/app/inventory_view_engine.py` defines a typed field registry and generic View Definition model.
+- semantic classes: `ENTITY_FIELD`, `COMPUTED_FIELD`, `COMMAND_EDITABLE_FIELD`, `DISPLAY_HELPER`.
+- system presets now start with:
+  - `main-stock` at `PRODUCT_LOT` grain, Store `MAIN`;
+  - `migration-review` at `SOURCE_MAIN_ROW` grain, Store `MAIN`.
+- generic `/dashboard/api/inventory-view/rows` validates registered field selection/order; unknown field keys are rejected.
+- output is explicitly read-only, customizable-projection capable, non-canonical.
 
-- Product identity != expiry Lot identity != CMS catalogue identity.
-- item-name expiry suffix may disagree with structured Expiry Date.
-- recycled/discontinued/same-code conflicts may reflect historical mapping, CMS change, or local staff error; preserve uncertainty.
-- actual historical movement wins over ideal FIFO/FEFO advice.
+### Web transition in progress
+
+The generic renderer must:
+
+- derive table headers/cells from API `columns[]` metadata, not fixed HTML columns;
+- use one component for Main Stock and Migration Review;
+- support registry-only column visibility/order selection, search and pagination;
+- prominently show `Shadow inventory — not canonical`;
+- preserve one owner per interactive Inventory DOM subtree;
+- retain Shadow Inspection separately for migration diagnostics;
+- pass behavior-level browser verification, including 390x844 mobile.
+
+## AI / review direction
+
+Inventory is the primary visual review/workspace. Embedded AI later receives current view, selected rows, filters and source evidence as context. Difficult/disputed cases may escalate to AI Workspace/multi-agent review. AI may explain/rank/propose but does not own acceptance authority.
+
+Migration progression remains:
+
+`shadow projection -> source reconciliation -> exception review -> baseline acceptance -> selected DB read promotion -> controlled write promotion -> explicit canonical promotion`
+
+## Next sequence
+
+1. finish and runtime-prove the generic Main Stock/Migration Review Web renderer;
+2. add source-vs-shadow compare detail and HOLD/review filters;
+3. add CMS Mapping Review system preset;
+4. add embedded AI copilot + deep-review handoff;
+5. resolve HOLD rows/mapping exceptions through reviewed typed actions;
+6. persist saved user-defined view definitions and build View Builder;
+7. add Daily Usage monthly-pivot preset;
+8. add draft/preview/Confirm & Save editing over typed commands;
+9. deterministic reorder baseline + reorder presets;
+10. only then advance migration baseline/read/write/canonical promotion gates with explicit evidence.
 
 ## Immediate boundary
 
-No production inventory write, DB canonical promotion, accepted Product-CMS mapping, automatic catalogue-price propagation, full AI matcher, or broad UI expansion belongs in the next slice. The immediate task is deterministic **read-only CMS reconciliation planning**.
+Do not present shadow DB as canonical. Do not create accepted CMS mappings, push catalogue prices, mutate inventory or enable production writes as part of the current View Engine slice.
