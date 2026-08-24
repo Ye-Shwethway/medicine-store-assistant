@@ -10,7 +10,6 @@ from app.db import EXPECTED_MIGRATION, normalize_database_url
 
 EXPECTED_BATCH_ID = "be13d127-5045-4284-a088-0a0b9b024d76"
 EXPECTED_SOURCE_HASH = "cfe4c24201bbe9f519189572f0c4c1988a9785e6fb0ca3e8f9630f5ca0417192"
-EXPECTED_SOURCE_LABEL = "google-sheet:1kATvZ3tfhwijd0wKx9m15QHNRIdmFnGdvbesVktpjsE"
 EXPECTED_ROW_COUNT = 1646
 MAIN_STORE_ID = "00000000-0000-0000-0000-000000000001"
 
@@ -84,16 +83,15 @@ def main() -> None:
             if len(batches) != 1:
                 raise RuntimeError(f"refusing reset: expected exactly one legacy batch, found {len(batches)}")
             batch = batches[0]
-            fingerprint = (str(batch[0]), batch[1], batch[2], int(batch[3]), batch[4])
+            fingerprint = (str(batch[0]), batch[1], int(batch[3]), batch[4])
             expected = (
                 EXPECTED_BATCH_ID,
                 EXPECTED_SOURCE_HASH,
-                EXPECTED_SOURCE_LABEL,
                 EXPECTED_ROW_COUNT,
                 "google_sheet_snapshot",
             )
-            if fingerprint != expected:
-                raise RuntimeError(f"refusing reset: legacy batch fingerprint changed: {fingerprint!r}")
+            if fingerprint != expected or not str(batch[2]).startswith("google-sheet:"):
+                raise RuntimeError("refusing reset: legacy batch fingerprint changed")
 
             source_rows = _count(conn, "migration_source_rows")
             if source_rows != EXPECTED_ROW_COUNT:
