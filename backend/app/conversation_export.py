@@ -17,7 +17,7 @@ from app.multi_agent_review import _work_item_detail
 
 router = APIRouter(prefix="/dashboard/api/ai-workspace", tags=["conversation-export"])
 
-SNAPSHOT_SCHEMA_VERSION = "2026-08-24.v1"
+SNAPSHOT_SCHEMA_VERSION = "2026-08-24.v2"
 ExportFormat = Literal["docx", "json"]
 
 
@@ -64,6 +64,20 @@ def _clean_human_text(value: Any) -> str:
             line = " · ".join(cell for cell in cells if cell)
         lines.append(line.rstrip())
     return re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
+
+
+def _tool_summary(provenance: dict[str, Any]) -> tuple[list[str], int]:
+    unique = provenance.get("native_unique_tools_executed")
+    if not isinstance(unique, list):
+        unique = provenance.get("native_model_tools_executed")
+    tools = [str(item) for item in (unique or []) if item]
+    tools = list(dict.fromkeys(tools))
+    count = provenance.get("native_tool_call_count")
+    try:
+        call_count = int(count) if count is not None else len(provenance.get("native_tool_calls") or [])
+    except (TypeError, ValueError):
+        call_count = len(provenance.get("native_tool_calls") or [])
+    return tools, max(0, call_count)
 
 
 def _chat_snapshot(connection: Any, conversation_id: str, principal: dict[str, str]) -> dict[str, Any]:
@@ -117,6 +131,16 @@ def _add_meta(document: Document, label: str, value: Any) -> None:
     paragraph.add_run(str(value if value is not None else ""))
 
 
+def _add_tool_meta(document: Document, provenance: dict[str, Any]) -> None:
+    tools, call_count = _tool_summary(provenance)
+    if tools:
+        _add_meta(document, "Tools used", ", ".join(tools))
+        _add_meta(document, "Tool calls", call_count)
+    elif provenance.get("native_store_tools_allowed"):
+        _add_meta(document, "Tools used", "None")
+        _add_meta(document, "Tool calls", call_count)
+
+
 def _chat_docx(snapshot: dict[str, Any]) -> bytes:
     document = Document()
     conversation = snapshot["conversation"]
@@ -143,6 +167,7 @@ def _chat_docx(snapshot: dict[str, Any]) -> bytes:
                 + (" · fallback" if provenance.get("fallback_used") else "")
                 + (f" · {provenance.get('latency_ms')} ms" if provenance.get("latency_ms") is not None else ""),
             )
+            _add_tool_meta(document, provenance)
         for attachment in message.get("attachments") or []:
             _add_meta(
                 document,
@@ -195,6 +220,7 @@ def _review_docx(snapshot: dict[str, Any]) -> bytes:
                 + (" · fallback" if provenance.get("fallback_used") else "")
                 + (f" · {provenance.get('latency_ms')} ms" if provenance.get("latency_ms") is not None else ""),
             )
+            _add_tool_meta(document, provenance)
 
     document.add_heading("Reviews", level=1)
     for review in item.get("reviews") or []:
