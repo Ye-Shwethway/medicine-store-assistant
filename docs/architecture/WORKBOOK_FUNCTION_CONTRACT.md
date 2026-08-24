@@ -10,6 +10,8 @@ Core rules:
 
 > **Stock belongs to a location; product and catalogue identity do not.**
 
+> **AI assistance must degrade to safe deterministic/manual operation rather than block the store.**
+
 ## Evidence hierarchy
 
 1. exact source document / physical movement evidence;
@@ -44,7 +46,7 @@ Important future mapping:
 - Local item name -> Product display metadata;
 - Expiry Date -> Lot;
 - Unit / Type -> Product/operational metadata;
-- CMS Code / CMS Name / CMS Price -> current accepted Product-to-CMS mapping/catalogue projection;
+- CMS Code / CMS Name / CMS Price -> accepted Product-to-CMS mapping/catalogue projection with mapping lifecycle status;
 - Remaining/Original/Open stock -> migration or selected-period opening context;
 - Received Stock -> receipt movement aggregate;
 - This Month Usage -> dated usage aggregate;
@@ -112,17 +114,45 @@ Do not reverse-sync a calculated current balance into canonical opening history.
 
 ## CMS catalogue and mapping
 
+Canonical companion: `CMS_MAPPING_LIFECYCLE.md`.
+
 The current CMS price list is a versioned external catalogue with Code, name/description, form/type/class and selling price information.
 
 It is not the local Product master.
+
+The live workbook contains real mapping complexity:
+
+- `Recycled ID` examples;
+- `CMS Discontinued (Local Stock Retained)` examples;
+- same-code local rows whose meanings differ, which may represent stale/historical mapping or local staff error;
+- local names that differ from CMS catalogue descriptions.
+
+Therefore the workbook `Serial Code` / `CS Name` cells are operational mapping state/evidence, not proof that code equality is correct identity.
 
 Rules:
 
 - CMS code alone never proves Product identity;
 - evaluate descriptive evidence and mapping history;
-- mappings remain auditable/version-aware;
-- current catalogue price is distinct from historical receipt/source price;
+- do not silently decide whether a conflict is a CMS error, historical state, or local staff error;
+- mappings remain historical/auditable/version-aware;
+- a new catalogue is reconciled against accepted mapping state rather than blindly synchronized;
+- AI may assist candidate ranking/explanation when available;
+- manual mapping/review remains supported when AI is unavailable;
+- last accepted mapping remains usable until a newer mapping is explicitly accepted;
+- current catalogue price is distinct from last accepted operational price and historical receipt/source price;
 - catalogue updates do not fabricate stock movement or rewrite historical receipt price.
+
+### Price fallback
+
+If a newer CMS catalogue exists but an affected Product cannot yet be safely reconciled:
+
+- keep the last accepted mapping;
+- keep the last accepted operational price available;
+- flag the mapping/price as not yet reconciled to the newest catalogue;
+- do not force a zero/null price;
+- do not adopt a new code's price solely because the code string matches.
+
+This preserves the current practical store behavior where an older accepted price can remain in use until the next mapping/price review is completed.
 
 ## Batch / receipt intake
 
@@ -177,23 +207,37 @@ It has no known independent canonical stock truth. Generate it from receipt + Pr
 
 ## Reorder / Final Reorder
 
+Canonical companion: `REORDER_BASELINE_AND_AI_ENHANCEMENT.md`.
+
 Owner-confirmed legacy flow:
 
 `Main Stock Estimated Reorder Qty -> filtered Reorder Form -> copy to Final Reorder -> manual reasoning/adjustment -> submit/archive`
 
 ### Future treatment
 
-This legacy calculation is **not a canonical database formula requirement**.
+The exact legacy calculation is **not a canonical database formula requirement**, but the useful baseline behavior must survive AI outages.
 
-Future reorder may be dynamic and can use historical/trend data, store demand, expiry risk, incoming stock, safety stock, lead time, deterministic modules, AI proposal, agent review and authorized human adjustment/approval.
+Required two-layer model:
+
+1. deterministic baseline calculation from structured local/backend stock, usage and configuration;
+2. optional AI/advanced enhancement/review.
+
+AI unavailable:
+
+`canonical stock/history -> deterministic baseline -> human review/adjustment -> final reorder`
+
+AI available:
+
+`canonical stock/history -> deterministic baseline -> AI enhancement/review -> human/authorized workflow -> final reorder`
 
 Therefore:
 
 - exact old Estimated Reorder Qty formula/threshold/rounding is non-blocking for F6D;
+- the future backend must eventually supply a deterministic baseline strategy so users do not calculate every item manually during AI outage;
 - old fields remain useful compatibility/reference outputs;
-- the foundational DB must preserve stock/history/provenance needed for better future planning;
+- the foundational DB must preserve stock/history/provenance/configuration needed for baseline and richer planning;
 - a final approved reorder may later be stored as a durable reviewed business artifact/snapshot;
-- calculated proposal, AI reasoning/review and final human-approved result should remain distinguishable.
+- deterministic baseline, AI reasoning/review and final human-approved result remain distinguishable.
 
 ## Audit
 
@@ -202,6 +246,8 @@ The live workbook already preserves significant-operation history with previous 
 Future backend extends this with stable human/agent identity, client/channel, operation/idempotency ID, source/reason, approval/review context, outcome and read-back evidence.
 
 A mutation is not complete until the intended resulting state can be read back and attributed.
+
+CMS mapping/price changes must also preserve prior accepted state so recycled/discontinued or mistaken changes can be reconstructed.
 
 ## Monthly lifecycle / Excel Master
 
@@ -219,4 +265,4 @@ Foundational requirement retained:
 
 F6C is sufficient for F6D when Product, Lot, Store, Movement, Balance, Transfer, CMS Mapping and Actor/Audit semantics are explicit and Main Stock/Daily Usage can be explained as projections/edit surfaces over them.
 
-Exact reorder formula parity, cosmetic/report-only formulas, and legacy macro formatting do not block F6D.
+This condition is now met for entering the bounded F6D schema slice. Exact reorder formula parity, cosmetic/report-only formulas, and legacy macro formatting do not block F6D.
