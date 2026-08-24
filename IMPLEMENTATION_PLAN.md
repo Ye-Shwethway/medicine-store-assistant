@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Implementation Plan
 
-Status: **F6C architecture is locked. F6D canonical inventory schema foundation is implemented and PostgreSQL-CI verified. PostgreSQL remains non-canonical. Current bounded work: fresh Main Store shadow import + reconciliation.**
+Status: **F6C architecture is locked. F6D canonical inventory schema foundation and fresh-source snapshot staging adapter are implemented and PostgreSQL-CI verified. PostgreSQL remains non-canonical. Current bounded work: stage the actual live Main Store snapshot, inspect classifications, then perform only source-safe shadow materialization/reconciliation.**
 
 ## 1. Global rules
 
@@ -81,7 +81,7 @@ Migration `0022_inventory_foundation` implements:
 
 ### 5.2 Schema proof — DONE
 
-Targeted PostgreSQL 16 CI must and now does prove:
+Targeted PostgreSQL 16 CI proves:
 
 - empty DB -> Alembic head;
 - required tables/views exist;
@@ -92,41 +92,80 @@ Targeted PostgreSQL 16 CI must and now does prove:
 - synthetic F6D-only business data is removed before schema reversibility proof;
 - downgrade to `0021_review_orchestration_roles` then re-upgrade to head succeeds.
 
-Do **not** modify downgrade logic to silently delete or reinterpret genuine committed transfer history. A production downgrade containing F6D-only business data would require an explicit data-migration plan.
+Do **not** modify downgrade logic to silently delete or reinterpret genuine committed transfer history. A production downgrade containing F6D-only business data requires an explicit data-migration plan.
 
-### 5.3 CURRENT — fresh source snapshot/import
+### 5.3 Fresh snapshot staging adapter — DONE
 
-Implement the next bounded slice:
+The existing F6B live-sheet reader is upgraded for F6D and verified against source-shaped fixtures plus PostgreSQL 16.
 
-1. fresh read-only snapshot of the authorized live workbook;
-2. deterministic source hash + migration batch bound to `MAIN`;
-3. source-row capture with sheet/row provenance;
-4. stable Product resolution using local operational identity, not CMS Code;
-5. Lot resolution using structured Expiry Date under v1 rules;
-6. explicit migration/opening transactions for accepted pre-existing lot quantity;
-7. reconcile current CMS mapping state into lifecycle statuses without forcing ambiguous matches;
-8. preserve last accepted operational CMS price separately from current catalogue candidate price;
-9. preserve receipt/usage evidence where source support is strong enough; do not fabricate history;
-10. derive Main Store balances and compare with live Main Stock current state;
-11. classify SAFE/REVIEW/CONFLICT/NEW_UNMAPPED-style mismatches explicitly;
-12. prove import idempotency by replaying the same snapshot without duplicate stock movement;
-13. generate shadow Main Stock and Daily Usage projection evidence;
-14. remain non-canonical.
+Implemented behavior:
 
-### 5.4 Import implementation constraints
+1. explicit Main Store binding for migration batches;
+2. Store-aware deterministic snapshot hashing;
+3. Google Sheets numeric date serial -> ISO date normalization;
+4. terminal numeric expiry suffix normalization for Product candidate only;
+5. preservation of product-defining parentheses;
+6. raw item name retention and expiry suffix/structured-date mismatch flag;
+7. valid no-expiry consumables are not rejected solely for missing expiry;
+8. CMS Price, displayed Price, Remark, Serial Code and CS Name are staged;
+9. structured mapping hints: `ACTIVE_MATCH`, `UNMAPPED`, `REVIEW_REQUIRED`, `RECYCLED_CODE`, `CMS_DISCONTINUED`;
+10. literal `Nil` CMS codes normalize to unmapped;
+11. recycled mapping stays REVIEW rather than auto-sync;
+12. discontinued local stock can remain inventory-safe;
+13. Daily Usage Remaining Stock header compatibility;
+14. exact same snapshot replay reuses the same migration batch and does not duplicate staged rows.
+
+CI proof:
+
+- pure normalization rules PASS;
+- PostgreSQL Main Store staging PASS;
+- mapping-hint persistence PASS;
+- replay idempotency PASS.
+
+This stage captures source evidence only. It does not yet create Product/Lot or movement records from the actual live snapshot.
+
+### 5.4 CURRENT — actual live snapshot staging
+
+Next:
+
+1. verify target shadow runtime is on schema `0022_inventory_foundation` and has the updated staging adapter;
+2. run one fresh authorized read-only source staging pass against the live workbook;
+3. record batch/store/source hash and row count;
+4. record SAFE/REVIEW/CONFLICT/NEW_UNMAPPED counts;
+5. record CMS mapping-hint counts;
+6. inspect representative REVIEW/CONFLICT/RECYCLED/DISCONTINUED/UNMAPPED rows;
+7. replay the exact snapshot to prove real-source staging idempotency;
+8. do not materialize canonical shadow movements until this evidence is reviewed.
+
+### 5.5 After staging — safe materialization/reconciliation
+
+Only after actual source classifications are known:
+
+1. resolve Product identities from normalized local operational names, never CMS Code alone;
+2. resolve Lots from structured Expiry Date while preserving no-expiry items;
+3. decide the migration opening-balance basis with source evidence, avoiding fabricated receipt/usage history;
+4. create provenance-bearing shadow movement records only for source-safe cases;
+5. preserve recycled/discontinued/review-required CMS states rather than forcing matches;
+6. preserve last accepted operational price separately from current catalogue candidates;
+7. derive Main Store balances and compare with live Main Stock;
+8. prove materialization replay idempotency;
+9. generate shadow Main Stock/Daily Usage projection evidence;
+10. remain non-canonical.
+
+### 5.6 Import constraints
 
 - Never identify Product solely from CMS Code.
 - Do not infer Product identity solely from item-name expiry suffix.
 - Structured Expiry Date is the primary lot-expiry source unless stronger evidence overrides it.
 - Preserve local names and suspicious/recycled/discontinued CMS states.
-- Do not turn current Main Stock `Received Stock` into a fabricated historical receipt when provenance is insufficient; classify/reconcile instead.
-- One explicit `OPENING_BALANCE` per accepted migrated pre-existing lot is the F2 migration representation.
+- Do not turn current Main Stock `Received Stock` into fabricated historical receipts when provenance is insufficient.
+- One explicit `OPENING_BALANCE` per accepted migrated pre-existing lot remains the F2 migration representation once the exact basis is accepted.
 - Normal monthly rollover does not create repeated opening movements.
 - Every generated movement requires deterministic operation/idempotency identity and source provenance.
 
 ## 6. Later sequence
 
-1. Complete fresh F6D shadow import + reconciliation.
+1. Actual fresh F6D source staging + safe materialization/reconciliation.
 2. Historical bootstrap from strongest available evidence.
 3. Shadow balance/projection parity + transfer tests.
 4. Field/computation registry + saved views.
@@ -143,4 +182,4 @@ Implement the next bounded slice:
 
 ## 7. Immediate boundary
 
-The next change should be import/reconciliation tooling and fresh read-only source evidence. Do not start production inventory writes, full AI matching, final reorder engine, or broad UI expansion inside this slice.
+The next action is actual read-only live snapshot staging and classification review. Do not start production inventory writes, source-derived movement materialization, full AI matching, final reorder engine, or broad UI expansion before the real staging evidence is inspected.

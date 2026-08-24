@@ -37,7 +37,8 @@ Treat newer verified repository/runtime/source evidence as authoritative over re
 
 - F6C Canonical Inventory Foundation is complete enough for implementation.
 - F6D schema foundation migration `0022_inventory_foundation` is implemented and PostgreSQL-CI verified.
-- Current bounded target is **fresh authorized Main Store shadow snapshot/import + reconciliation**.
+- F6D live-source snapshot staging adapter is implemented and PostgreSQL-CI verified.
+- Current bounded target is **stage the actual fresh live Main Store snapshot, inspect classifications, then perform only source-safe shadow materialization/reconciliation**.
 - PostgreSQL remains non-canonical: `database_canonical=false`, `migration_baseline_accepted=false`.
 - F6B is test-only and is not the accepted F6D migration baseline.
 
@@ -109,25 +110,58 @@ Targeted PostgreSQL 16 CI proves:
 
 Do not make downgrade silently delete/coerce real transfer history. A real downgrade with committed F6D-only movement data requires an explicit migration decision.
 
-## CURRENT — fresh shadow import
+## F6D snapshot staging adapter — IMPLEMENTED
+
+The old F6B live-sheet reader was upgraded in place.
+
+It now:
+
+- binds staged batches explicitly to Store `MAIN` by default;
+- includes Store identity in the snapshot hash;
+- converts Google Sheets date serials to ISO dates;
+- strips only terminal numeric expiry suffixes such as `(1/2026)` for Product matching while preserving `(Adult)`, `(China)`, strengths/sizes and other product-defining parentheses;
+- preserves raw local item names;
+- flags item-name expiry suffix vs structured Expiry Date mismatches;
+- supports valid no-expiry consumables;
+- captures CMS Price, Price display, Remark, Serial Code and CS Name;
+- derives mapping hints `ACTIVE_MATCH`, `UNMAPPED`, `REVIEW_REQUIRED`, `RECYCLED_CODE`, `CMS_DISCONTINUED`;
+- normalizes `Nil` CMS code to unmapped;
+- preserves recycled mappings for review;
+- preserves discontinued local stock as valid inventory state when stock arithmetic is valid;
+- supports current Daily Usage Remaining Stock header variants;
+- stages exact snapshots idempotently with sheet/row provenance.
+
+CI on PR #135 verifies normalization plus PostgreSQL Main Store staging and replay idempotency.
+
+This adapter stages evidence only. It has not yet staged the actual current workbook into the target runtime and has not created Product/Lot/opening movements from live rows.
+
+## CURRENT — actual live source staging
 
 Next bounded sequence:
 
-1. re-read the live Google workbook source-first;
-2. take a fresh authorized read-only snapshot;
-3. hash and stage it as a migration batch bound to Main Store;
-4. preserve row/sheet provenance;
-5. resolve local Product identities independently of CMS Code;
-6. resolve expiry Lots from structured Expiry Date;
-7. create one provenance-bearing migration `OPENING_BALANCE` per accepted pre-existing lot;
-8. reconcile CMS mapping states without forcing recycled/discontinued/ambiguous matches;
-9. preserve last accepted operational price distinctly from newest catalogue candidates;
-10. use receipt/usage evidence only where source support is strong; never fabricate transaction history;
-11. derive Main Store balances and compare with live Main Stock;
-12. classify mismatches explicitly;
-13. replay the same source snapshot to prove idempotency;
-14. generate shadow Main Stock/Daily Usage projections;
-15. remain non-canonical.
+1. verify target shadow runtime is on schema `0022_inventory_foundation` and contains the F6D staging adapter;
+2. run one fresh authorized read-only live workbook staging pass;
+3. record migration batch ID, Main Store binding, source hash and row count;
+4. record SAFE/REVIEW/CONFLICT/NEW_UNMAPPED distribution;
+5. record CMS mapping-hint distribution;
+6. inspect representative REVIEW/CONFLICT/RECYCLED/DISCONTINUED/UNMAPPED rows;
+7. replay the exact snapshot and prove no duplicate batch/source rows;
+8. do not create canonical shadow movements until the real classification evidence has been reviewed.
+
+## After staging — source-safe materialization
+
+Only after actual source evidence is known:
+
+1. resolve Product identity from normalized local names, never CMS Code alone;
+2. resolve Lots from structured Expiry Date while allowing valid no-expiry items;
+3. choose the migration opening-balance basis explicitly from source evidence;
+4. create provenance-bearing shadow movements only for source-safe cases;
+5. do not fabricate receipts/usage from aggregates when provenance is insufficient;
+6. preserve recycled/discontinued/review-required CMS states;
+7. derive Main Store balances and compare with live source;
+8. prove materialization replay idempotency;
+9. generate shadow Main Stock/Daily Usage projections;
+10. remain non-canonical.
 
 ## Source rules
 
@@ -143,4 +177,4 @@ Important known source facts:
 
 ## Immediate boundary
 
-No production inventory write, DB canonical promotion, full semantic AI matcher, full reorder engine, or broad UI expansion belongs in the current import/reconciliation slice.
+No production inventory write, DB canonical promotion, live-source movement materialization, full semantic AI matcher, full reorder engine, or broad UI expansion belongs before the actual live snapshot staging evidence is inspected.

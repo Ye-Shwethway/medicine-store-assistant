@@ -1,0 +1,68 @@
+name: Validate F6D shadow import staging
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'backend/app/live_sheet_snapshot.py'
+      - 'backend/app/live_sheet_snapshot_verify.py'
+      - 'backend/app/live_sheet_snapshot_db_verify.py'
+      - 'backend/app/live_shadow_import.py'
+      - '.github/workflows/validate-f6d-import.yml'
+  push:
+    branches: [test]
+    paths:
+      - 'backend/app/live_sheet_snapshot.py'
+      - 'backend/app/live_sheet_snapshot_verify.py'
+      - 'backend/app/live_sheet_snapshot_db_verify.py'
+      - 'backend/app/live_shadow_import.py'
+      - '.github/workflows/validate-f6d-import.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot-staging-proof:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: msa_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d msa_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/msa_test
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install backend dependencies
+        run: python -m pip install --disable-pip-version-check -q -r backend/requirements.txt
+
+      - name: Compile changed adapter code
+        run: |
+          python -m py_compile \
+            backend/app/live_sheet_snapshot.py \
+            backend/app/live_sheet_snapshot_verify.py \
+            backend/app/live_sheet_snapshot_db_verify.py \
+            backend/app/live_shadow_import.py
+
+      - name: Verify live-shaped normalization rules
+        run: PYTHONPATH=backend python -m app.live_sheet_snapshot_verify
+
+      - name: Upgrade PostgreSQL schema
+        working-directory: backend
+        run: alembic upgrade head
+
+      - name: Verify Main Store staging and replay idempotency
+        run: PYTHONPATH=backend python -m app.live_sheet_snapshot_db_verify
