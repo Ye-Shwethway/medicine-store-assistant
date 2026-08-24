@@ -59,6 +59,16 @@ def _effective_date(title: str | None) -> date | None:
     ).date()
 
 
+def _first_title(values: list[list[Any]]) -> str | None:
+    for row in values[:2]:
+        if not row:
+            continue
+        title = _norm(row[0])
+        if title:
+            return title
+    return None
+
+
 def _read_source() -> dict[str, Any]:
     spreadsheet_id = os.environ.get("MSA_GOOGLE_SPREADSHEET_ID")
     credential_file = os.environ.get("MSA_GOOGLE_SERVICE_ACCOUNT_FILE")
@@ -71,13 +81,14 @@ def _read_source() -> dict[str, Any]:
     if len(values) < 3:
         raise RuntimeError("CMS catalogue source has fewer than three rows")
 
-    title = _norm(values[0][0] if values[0] else None)
+    title = _first_title(values)
     headers = tuple(_norm(value) or "" for value in values[2][:7])
     if headers != EXPECTED_HEADERS:
         raise RuntimeError(f"CMS catalogue header drift: {headers!r}")
 
     rows: list[CatalogueRow] = []
     blank_code_rows: list[int] = []
+    blank_price_rows: list[int] = []
     invalid_price_rows: list[int] = []
     duplicate_codes: dict[str, list[int]] = defaultdict(list)
 
@@ -93,6 +104,8 @@ def _read_source() -> dict[str, Any]:
         if not price_ok:
             invalid_price_rows.append(source_row_no)
             continue
+        if price is None:
+            blank_price_rows.append(source_row_no)
         duplicate_codes[code].append(source_row_no)
         rows.append(
             CatalogueRow(
@@ -116,6 +129,7 @@ def _read_source() -> dict[str, Any]:
         "effective_date": _effective_date(title),
         "rows": rows,
         "blank_code_rows": blank_code_rows,
+        "blank_price_rows": blank_price_rows,
         "invalid_price_rows": invalid_price_rows,
         "duplicate_codes": duplicate_codes,
     }
@@ -136,6 +150,7 @@ def _plan(source: dict[str, Any]) -> dict[str, Any]:
         "duplicate_code_count": len(source["duplicate_codes"]),
         "duplicate_codes": source["duplicate_codes"],
         "blank_code_rows": source["blank_code_rows"],
+        "blank_price_rows": source["blank_price_rows"],
         "invalid_price_rows": source["invalid_price_rows"],
         "price_presence": dict(sorted(price_presence.items())),
         "database_canonical": False,
@@ -175,6 +190,10 @@ def _execute(conn, source: dict[str, Any]) -> dict[str, Any]:
     before = _counts(conn)
     rows: list[CatalogueRow] = source["rows"]
     digest = source_hash(rows)
+    expected_hash = os.environ.get("MSA_EXPECTED_CMS_SOURCE_HASH", "").strip()
+    if expected_hash and digest != expected_hash:
+        raise RuntimeError(f"CMS source hash changed: {digest!r} != expected {expected_hash!r}")
+
     version_id, created = import_catalogue(
         conn,
         rows=rows,
