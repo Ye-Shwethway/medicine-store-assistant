@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - 'backend/app/f6d_shadow_reset_audit.py'
+      - 'backend/app/f6d_materialization_plan.py'
+      - 'docs/architecture/MAIN_STOCK_DAILY_USAGE_MATERIALIZATION.md'
       - '.github/workflows/f6d-shadow-reset-audit.yml'
 
 permissions:
@@ -25,7 +27,7 @@ jobs:
         with:
           path: source
           persist-credentials: false
-      - name: Read-only inventory shadow audit
+      - name: Read-only inventory audit and materialization plan
         shell: bash
         working-directory: source
         env:
@@ -39,17 +41,21 @@ jobs:
           export COMPOSE_PROJECT_NAME="${MSA_COMPOSE_PROJECT_NAME:-deploy}"
           docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" build api
           AUDIT_FILE="${RUNNER_TEMP}/f6d-shadow-audit.txt"
+          PLAN_FILE="${RUNNER_TEMP}/f6d-materialization-plan.txt"
           docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm api \
             python -m app.f6d_shadow_reset_audit | tee "$AUDIT_FILE"
+          docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm api \
+            python -m app.f6d_materialization_plan | tee "$PLAN_FILE"
 
-          export AUDIT_FILE
+          export AUDIT_FILE PLAN_FILE
           BODY_FILE="${RUNNER_TEMP}/f6d-shadow-audit-body.json"
           python3 - <<'PY' > "$BODY_FILE"
           import json, os
           from pathlib import Path
           audit = Path(os.environ['AUDIT_FILE']).read_text(encoding='utf-8').strip()
+          plan = Path(os.environ['PLAN_FILE']).read_text(encoding='utf-8').strip()
           body = "\n".join([
-              "Machine-readable read-only F6D shadow reset audit evidence.",
+              "Machine-readable read-only F6D shadow and materialization-planning evidence.",
               "",
               "status=success",
               f"source_sha={os.environ['GITHUB_SHA']}",
@@ -58,8 +64,14 @@ jobs:
               "database_canonical=false",
               "migration_baseline_accepted=false",
               "",
+              "## Shadow audit",
               "```text",
               audit,
+              "```",
+              "",
+              "## Main-primary materialization plan",
+              "```text",
+              plan,
               "```",
           ])
           print(json.dumps({"body": body}))
@@ -71,4 +83,4 @@ jobs:
             --header "X-GitHub-Api-Version: 2022-11-28" \
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/${EVIDENCE_ISSUE}" \
             --data-binary "@${BODY_FILE}" >/dev/null
-          echo "f6d_shadow_audit_evidence_issue=${EVIDENCE_ISSUE}"
+          echo "f6d_shadow_and_plan_evidence_issue=${EVIDENCE_ISSUE}"
