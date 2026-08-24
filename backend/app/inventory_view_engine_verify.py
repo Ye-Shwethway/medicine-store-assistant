@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from fastapi import HTTPException
+from pydantic import ValidationError
 
 from app.inventory_view_engine import (
     FIELD_REGISTRY,
+    InventoryReviewContextInput,
     MAX_REVIEW_CONTEXT_ROWS,
     REVIEW_CONTEXT_PRESETS,
     SYSTEM_PRESETS,
@@ -55,6 +57,20 @@ def main() -> None:
     else:
         raise AssertionError("non-review preset must be rejected for AI review context")
 
+    InventoryReviewContextInput(
+        preset="migration-review",
+        selected_indices=list(range(MAX_REVIEW_CONTEXT_ROWS)),
+    )
+    try:
+        InventoryReviewContextInput(
+            preset="migration-review",
+            selected_indices=list(range(MAX_REVIEW_CONTEXT_ROWS + 1)),
+        )
+    except ValidationError:
+        pass
+    else:
+        raise AssertionError("review context must reject more than 20 selected rows")
+
     mock_rows = [
         {
             "source_row_no": 41,
@@ -93,7 +109,8 @@ def main() -> None:
     print(
         "inventory_view_engine=pass presets=3 cms_mapping_review=pass "
         "generic_field_selection=pass arbitrary_field_rejected=pass "
-        "review_context=pass max_rows=20 server_selection=pass read_only=pass"
+        "review_context=pass max_rows=20 selection_limit=pass "
+        "server_selection=pass read_only=pass"
     )
 
 
