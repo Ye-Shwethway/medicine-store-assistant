@@ -111,6 +111,8 @@
     const stream=detail.querySelector('.review-chat-stream');if(stream)stream.scrollTop=stream.scrollHeight;scheduleReconcile();
   }
 
+  window.MSAReviewChatRenderer={render:renderLive,enter:enterReviewChatView,exit:exitReviewChatView};
+
   function signature(item){return[item.status,(item.artifacts||[]).length,(item.reviews||[]).length,(item.events||[]).length].join(':')}
   function stopLivePolling(){if(livePollTimer){clearTimeout(livePollTimer);livePollTimer=null}liveRunning=false;liveWorkId=null;liveLastSignature=''}
   async function pollLive(){

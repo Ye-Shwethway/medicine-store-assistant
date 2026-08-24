@@ -15,6 +15,7 @@ on:
       - 'backend/app/multi_agent_review_ui_api.py'
       - 'backend/app/provider_model_view.py'
       - 'backend/app/main.py'
+      - 'backend/app/dashboard_asset_version.py'
       - 'backend/app/db.py'
       - 'backend/app/dashboard_assets/dashboard_ai_workspace.js'
       - 'backend/app/dashboard_assets/dashboard_ai_workspace.css'
@@ -61,7 +62,8 @@ jobs:
           assert substrate.down_revision == attachments.revision
           assert head.down_revision == substrate.revision
           assert EXPECTED_MIGRATION == head.revision
-          assert MULTI_AGENT_REVIEW_ASSET_VERSION == 'f72d48-review-ui-2'
+          assert MULTI_AGENT_REVIEW_ASSET_VERSION.startswith('f72d48-review-ui-')
+          assert len(MULTI_AGENT_REVIEW_ASSET_VERSION.removeprefix('f72d48-review-ui-')) == 12
 
           paths=set(app.openapi()['paths'])
           required={
@@ -128,10 +130,9 @@ jobs:
           grep -Fq '.review-grid' backend/app/dashboard_assets/dashboard_multi_agent_review.css
           grep -Fq '.review-chat-stream' backend/app/dashboard_assets/dashboard_multi_agent_review.css
           grep -Fq '@media(max-width:760px)' backend/app/dashboard_assets/dashboard_multi_agent_review.css
-          grep -Fq 'MULTI_AGENT_REVIEW_ASSET_VERSION = "f72d48-review-ui-2"' backend/app/main.py
+          grep -Fq 'MULTI_AGENT_REVIEW_ASSET_VERSION = asset_bundle_version' backend/app/main.py
+          grep -Fq '"dashboard_multi_agent_review.js": "f72d48-review-ui-"' backend/app/dashboard_asset_version.py
           grep -Fq 'dashboard_multi_agent_review.css?v={MULTI_AGENT_REVIEW_ASSET_VERSION}' backend/app/main.py
           grep -Fq 'dashboard_multi_agent_review.js?v={MULTI_AGENT_REVIEW_ASSET_VERSION}' backend/app/main.py
           grep -Fq 'no-store, max-age=0' backend/app/main.py
-          ! grep -Fq 'f72d48-review-ui-0' backend/app/main.py
-          ! grep -Fq 'f72d48-review-ui-1' backend/app/main.py
           echo 'ai_workspace_review_asset_chain=pass'

@@ -1,0 +1,44 @@
+name: Validate Web production reliability
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'AGENTS.md'
+      - 'docs/design/WEB_IMPLEMENTATION_STANDARD.md'
+      - 'docs/design/WEB_SURFACE_OWNERSHIP.md'
+      - 'docs/design/WEB_ASSET_RELEASE_INTEGRITY.md'
+      - 'docs/design/UI_UX_PRO_MAX_INTEGRATION.md'
+      - 'backend/app/main.py'
+      - 'backend/app/dashboard_asset_version.py'
+      - 'backend/app/dashboard_assets/**'
+      - 'scripts/validate_web_implementation.py'
+      - 'tests/web/**'
+      - '.github/workflows/validate-web-production-reliability.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate-web-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate source and ownership contracts
+        run: |
+          set -euo pipefail
+          python scripts/validate_web_implementation.py
+          python -m compileall -q backend/app
+          for file in backend/app/dashboard_assets/*.js; do node --check "$file"; done
+          git diff --check origin/main...HEAD || true
+
+  browser-interaction-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install Playwright for CI only
+        run: |
+          npm install --no-save --no-package-lock playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Run critical Multi-Agent browser interaction smoke
+        run: node tests/web/multi_agent_feedback_smoke.mjs

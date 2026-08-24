@@ -17,6 +17,7 @@ on:
       - 'backend/app/multi_agent_review_polish_verify.py'
       - 'backend/app/conversation_export.py'
       - 'backend/app/main.py'
+      - 'backend/app/dashboard_asset_version.py'
       - 'backend/app/dashboard_assets/dashboard_ai_workspace.css'
       - 'backend/app/dashboard_assets/dashboard_multi_agent_live_export.js'
       - 'backend/app/dashboard_assets/dashboard_multi_agent_live_export.css'
@@ -62,7 +63,14 @@ jobs:
           grep -Fq 'review-delete-action' backend/app/dashboard_assets/dashboard_multi_agent_live_export.js
           grep -Fq 'Tools used' backend/app/conversation_export.py
           grep -Fq 'f7.2d47b-human-presentation' backend/app/main.py
-          grep -Fq 'f72d48-live-export-3' backend/app/main.py
+          grep -Fq 'MULTI_AGENT_LIVE_EXPORT_ASSET_VERSION = asset_bundle_version' backend/app/main.py
+          grep -Fq '"dashboard_multi_agent_live_export.js": "f72d48-live-export-"' backend/app/dashboard_asset_version.py
+          PYTHONPATH=backend python - <<'PY'
+          from app.main import MULTI_AGENT_LIVE_EXPORT_ASSET_VERSION
+          assert MULTI_AGENT_LIVE_EXPORT_ASSET_VERSION.startswith('f72d48-live-export-')
+          assert len(MULTI_AGENT_LIVE_EXPORT_ASSET_VERSION.removeprefix('f72d48-live-export-')) == 12
+          print('multi_agent_live_export_asset_identity=pass')
+          PY
           grep -Fq 'f7.2d48-review-provenance-delete' backend/app/main.py
           grep -Fq 'metadata-and-evidence-persistence-no-model-processing' backend/app/main.py
           echo 'native_agent_tool_ui_contract=pass'

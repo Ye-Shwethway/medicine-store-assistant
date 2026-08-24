@@ -16,6 +16,7 @@ from app.ai_workspace_chat import router as ai_workspace_chat_router
 from app.audit_events import router as audit_events_router
 from app.credential_lifecycle import router as credential_lifecycle_router
 from app.dashboard import ASSET_DIR, DASHBOARD_CSP, router as dashboard_router
+from app.dashboard_asset_version import asset_bundle_version
 from app.dashboard_auth import SESSION_COOKIE, validate_session_token
 from app.dashboard_login import router as dashboard_login_router
 from app.db import database_readiness
@@ -39,16 +40,16 @@ SERVICE_NAME = "medicine-store-assistant-api"
 SERVICE_VERSION = os.getenv("MSA_SERVICE_VERSION", "0.1.0-dev")
 ENVIRONMENT = os.getenv("MSA_ENVIRONMENT", "development")
 BUILD_SHA = os.getenv("MSA_BUILD_SHA", "unknown")
-SAVED_MODEL_ASSET_VERSION = "f72d31-2"
-AGENT_ASSIGNMENT_GUARD_ASSET_VERSION = "f72d4-preflight-1"
-NATIVE_AGENT_TEST_ASSET_VERSION = "f72d4d-native-test-1"
-AI_WORKSPACE_ACCESS_ASSET_VERSION = "f72d4-access-1"
-AI_WORKSPACE_ASSET_VERSION = "f72d47b-attachments-1"
-MULTI_AGENT_REVIEW_ASSET_VERSION = "f72d48-review-ui-2"
-MULTI_AGENT_LIVE_EXPORT_ASSET_VERSION = "f72d48-live-export-3"
-AGENT_POLISH_ASSET_VERSION = "f72d31-agentui-1"
-MCP_BINDING_ASSET_VERSION = "f72d4a-mcpbind-1"
-AUDIT_ASSET_VERSION = "f73a-mcpaudit-1"
+SAVED_MODEL_ASSET_VERSION = asset_bundle_version(ASSET_DIR, "dashboard_saved_models.js", "dashboard_saved_models.css")
+AGENT_ASSIGNMENT_GUARD_ASSET_VERSION = asset_bundle_version(ASSET_DIR, "dashboard_agent_assignment_guard.js")
+NATIVE_AGENT_TEST_ASSET_VERSION = asset_bundle_version(ASSET_DIR, "dashboard_native_agent_test.js")
+AI_WORKSPACE_ACCESS_ASSET_VERSION = asset_bundle_version(ASSET_DIR, "dashboard_ai_workspace_access.js")
+AI_WORKSPACE_ASSET_VERSION = asset_bundle_version(ASSET_DIR, "dashboard_ai_workspace.js", "dashboard_ai_workspace.css")
+MULTI_AGENT_REVIEW_ASSET_VERSION = asset_bundle_version(ASSET_DIR, "dashboard_multi_agent_review.js", "dashboard_multi_agent_review.css")
+MULTI_AGENT_LIVE_EXPORT_ASSET_VERSION = asset_bundle_version(ASSET_DIR, "dashboard_multi_agent_live_export.js", "dashboard_multi_agent_live_export.css")
+AGENT_POLISH_ASSET_VERSION = asset_bundle_version(ASSET_DIR, "dashboard_agent_polish.css")
+MCP_BINDING_ASSET_VERSION = asset_bundle_version(ASSET_DIR, "dashboard_mcp_binding.js", "dashboard_mcp_binding.css")
+AUDIT_ASSET_VERSION = asset_bundle_version(ASSET_DIR, "dashboard_audit.js", "dashboard_audit.css")
 
 
 @asynccontextmanager
