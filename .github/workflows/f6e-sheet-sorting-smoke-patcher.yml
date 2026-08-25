@@ -1,0 +1,38 @@
+name: One-shot F6E Sheet Sorting Smoke Patcher
+
+on:
+  push:
+    branches:
+      - feat/f6e-sheet-selection-foundation
+    paths:
+      - '.github/workflows/f6e-sheet-sorting-smoke-patcher.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: feat/f6e-sheet-selection-foundation
+      - name: Migrate sorting smoke row selection
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path=Path('tests/web/inventory_sorting_smoke.mjs')
+          text=path.read_text(encoding='utf-8')
+          old="await page.locator('.inventory-row-check').first().check();"
+          new="await page.getByRole('button',{name:'Select row 1'}).click();"
+          assert text.count(old)==1
+          path.write_text(text.replace(old,new,1),encoding='utf-8')
+          PY
+          git diff --check
+      - name: Commit sorting smoke migration
+        run: |
+          git config user.name "MSA Sheet Smoke Patcher"
+          git config user.email "actions@users.noreply.github.com"
+          git add tests/web/inventory_sorting_smoke.mjs
+          git commit -m "Migrate Inventory sorting smoke to row gutter"
+          git push origin HEAD:feat/f6e-sheet-selection-foundation
