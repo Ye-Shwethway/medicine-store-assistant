@@ -1,0 +1,50 @@
+name: One-shot F6E Sheet Smoke Compatibility Patcher
+
+on:
+  push:
+    branches:
+      - feat/f6e-sheet-selection-foundation
+    paths:
+      - '.github/workflows/f6e-sheet-smoke-compat-patcher.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: feat/f6e-sheet-selection-foundation
+      - name: Update legacy Inventory smoke for row-selector button
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path=Path('tests/web/inventory_view_engine_smoke.mjs')
+          text=path.read_text(encoding='utf-8')
+          old="""await page.locator('#inventorySelectVisible').check();
+          assert.equal(await page.locator('.inventory-row-check').isChecked(),true,'header checkbox should select visible rows');
+          assert.equal(await page.getByRole('button',{name:'Clear selection'}).isVisible(),true);
+          await page.getByRole('button',{name:'Clear selection'}).click();
+          assert.equal(await page.locator('.inventory-row-check').isChecked(),false,'Clear selection should clear visible row selection');
+          assert.equal(await page.locator('#inventorySelectionBar').isHidden(),true);"""
+          new="""await page.getByRole('button',{name:'Select visible rows'}).click();
+          assert.equal(await page.locator('#inventorySelectVisible').getAttribute('aria-pressed'),'true','corner selector should select visible rows');
+          assert.equal(await page.getByRole('button',{name:'Select row 1'}).getAttribute('aria-pressed'),'true','row selector should reflect whole-row selection');
+          assert.equal(await page.getByRole('button',{name:'Clear selection'}).isVisible(),true);
+          await page.getByRole('button',{name:'Clear selection'}).click();
+          assert.equal(await page.locator('#inventorySelectVisible').getAttribute('aria-pressed'),'false','Clear selection should clear visible row selection');
+          assert.equal(await page.getByRole('button',{name:'Select row 1'}).getAttribute('aria-pressed'),'false');
+          assert.equal(await page.locator('#inventorySelectionBar').isHidden(),true);"""
+          assert old in text
+          path.write_text(text.replace(old,new,1),encoding='utf-8')
+          PY
+          git diff --check
+      - name: Commit smoke compatibility update
+        run: |
+          git config user.name "MSA Sheet Smoke Patcher"
+          git config user.email "actions@users.noreply.github.com"
+          git add tests/web/inventory_view_engine_smoke.mjs
+          git commit -m "Update Inventory smoke for row selector gutter"
+          git push origin HEAD:feat/f6e-sheet-selection-foundation
