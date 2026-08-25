@@ -1,0 +1,173 @@
+name: One-shot Custom Table Builder v1 patch
+
+on:
+  push:
+    branches: [feat/f6e-custom-table-builder-v1]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: feat/f6e-custom-table-builder-v1
+      - name: Patch E2 builder and header labels
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p=Path(path); text=p.read_text(encoding='utf-8')
+              if old not in text:
+                  raise SystemExit(f'missing patch anchor in {path}: {old[:120]!r}')
+              p.write_text(text.replace(old,new,1),encoding='utf-8')
+
+          # Backend typed saved-view label metadata.
+          path='backend/app/inventory_saved_views.py'
+          replace_once(path,
+              '    fields: list[str] = Field(min_length=1, max_length=MAX_FIELDS)\n    column_widths: dict[str, int] = Field(default_factory=dict)',
+              '    fields: list[str] = Field(min_length=1, max_length=MAX_FIELDS)\n    column_labels: dict[str, str] = Field(default_factory=dict)\n    column_widths: dict[str, int] = Field(default_factory=dict)')
+          replace_once(path,
+              '    selected_fields = set(payload.definition.fields)\n    for field, width in payload.definition.column_widths.items():',
+              '''    selected_fields = set(payload.definition.fields)\n    normalized_labels: dict[str, str] = {}\n    for field, label in payload.definition.column_labels.items():\n        if field not in selected_fields or field not in FIELD_REGISTRY:\n            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Header label targets an invalid field: {field}")\n        normalized = label.strip()\n        if not normalized:\n            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Header label cannot be blank: {field}")\n        if len(normalized) > 120:\n            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Header label is too long: {field}")\n        normalized_labels[field] = normalized\n    payload.definition.column_labels = normalized_labels\n\n    for field, width in payload.definition.column_widths.items():''')
+
+          # Backend verifier.
+          path='backend/app/inventory_saved_views_verify.py'
+          replace_once(path,
+              '            "fields": ["local_item_name", "current_qty", "cms_code"],\n            "column_widths":',
+              '            "fields": ["local_item_name", "current_qty", "cms_code"],\n            "column_labels": {"local_item_name": "Medicine Name", "current_qty": "Balance"},\n            "column_widths":')
+          replace_once(path,
+              '    assert valid.definition.fields == ["local_item_name", "current_qty", "cms_code"]\n\n    _must_reject',
+              '    assert valid.definition.fields == ["local_item_name", "current_qty", "cms_code"]\n    assert valid.definition.column_labels["local_item_name"] == "Medicine Name"\n\n    bad_label = _payload()\n    bad_label.definition.column_labels = {"raw_sql": "Bad"}\n    _must_reject(bad_label)\n\n    blank_label = _payload()\n    blank_label.definition.column_labels = {"local_item_name": "   "}\n    _must_reject(blank_label)\n\n    _must_reject')
+          replace_once(path,
+              'print("inventory_saved_views_contract=pass typed_definition=pass owner_scope=pass no_raw_sql=pass immutable_base_provider=pass")',
+              'print("inventory_saved_views_contract=pass typed_definition=pass custom_headers=pass owner_scope=pass no_raw_sql=pass immutable_base_provider=pass")')
+
+          # Web state and controls.
+          path='backend/app/dashboard_assets/dashboard_inventory_views.js'
+          replace_once(path,
+              "columns:null,columnWidths:{},loading:false",
+              "columns:null,columnLabels:{},columnWidths:{},loading:false")
+          replace_once(path,
+              '<div class="inventory-saved-view-actions" aria-label="Saved view actions"><button class="secondary" id="inventorySaveView" type="button">Save view</button><button class="secondary" id="inventorySaveViewAs" type="button">Save as</button><button class="secondary" id="inventoryDeleteView" type="button" disabled>Delete view</button></div>',
+              '<div class="inventory-saved-view-actions" aria-label="Saved view actions"><button class="secondary" id="inventoryNewTable" type="button">New table</button><button class="secondary" id="inventoryEditTable" type="button" disabled>Edit table</button><button class="secondary" id="inventorySaveView" type="button">Save view</button><button class="secondary" id="inventorySaveViewAs" type="button">Save as</button><button class="secondary" id="inventoryDeleteView" type="button" disabled>Delete view</button></div>')
+          replace_once(path,
+              "presetSelect=$('#inventoryPresetSelect'),saveViewButton=$('#inventorySaveView'),saveViewAsButton=$('#inventorySaveViewAs'),deleteViewButton=$('#inventoryDeleteView'),search=",
+              "presetSelect=$('#inventoryPresetSelect'),newTableButton=$('#inventoryNewTable'),editTableButton=$('#inventoryEditTable'),saveViewButton=$('#inventorySaveView'),saveViewAsButton=$('#inventorySaveViewAs'),deleteViewButton=$('#inventoryDeleteView'),search=")
+          replace_once(path,
+              ".inventory-column-tools{display:grid;grid-template-columns:auto auto minmax(74px,1fr) auto;",
+              ".inventory-column-tools{display:grid;grid-template-columns:auto auto minmax(140px,1fr) minmax(74px,1fr) auto;")
+          replace_once(path,
+              ".inventory-column-tools input{min-width:0;width:100%;height:30px;padding:4px 6px;font-size:.7rem}",
+              ".inventory-column-tools input{min-width:0;width:100%;height:30px;padding:4px 6px;font-size:.7rem}.inventory-column-label{font-weight:700}")
+          replace_once(path,
+              "  function sortLabel(){return state.columnsRendered.find(col=>col.field===state.sortField)?.label||state.registry.find(field=>field.key===state.sortField)?.label||readableToken(state.sortField)}",
+              "  function columnLabel(field,fallback=''){const custom=String(state.columnLabels?.[field]||'').trim();return custom||fallback||state.registry.find(item=>item.key===field)?.label||readableToken(field)}\n  function sortLabel(){return columnLabel(state.sortField,state.columnsRendered.find(col=>col.field===state.sortField)?.label||state.registry.find(field=>field.key===state.sortField)?.label)}")
+          replace_once(path,
+              "label=esc(col.label);const content=col.sortable?",
+              "label=esc(columnLabel(col.field,col.label));const content=col.sortable?")
+          old_picker="""  function renderColumnPicker(view){const presetOrder=view.columns.map(c=>c.field),currentOrder=state.columns?.length?[...state.columns]:[...presetOrder],extras=state.registry.map(f=>f.key).filter(k=>!currentOrder.includes(k)),ordered=[...currentOrder,...extras],selected=new Set(state.columns||presetOrder),defs=new Map(state.registry.map(f=>[f.key,f])),presetWidths=new Map(view.columns.map(c=>[c.field,c.width]));columnGrid.innerHTML=ordered.map((key,index)=>{const def=defs.get(key);if(!def)return '';const width=state.columnWidths[key]||presetWidths.get(key)||120;return `<div class=\"inventory-column-option\" data-column-key=\"${esc(key)}\"><label class=\"inventory-column-check\"><input type=\"checkbox\" value=\"${esc(key)}\" ${selected.has(key)?'checked':''}><span class=\"inventory-column-option-main\"><strong>${esc(def.label)}</strong><small>${esc(def.kind)}</small></span></label><div class=\"inventory-column-tools\"><button class=\"secondary\" type=\"button\" data-column-move=\"up\" aria-label=\"Move ${esc(def.label)} up\" ${index===0?'disabled':''}>↑</button><button class=\"secondary\" type=\"button\" data-column-move=\"down\" aria-label=\"Move ${esc(def.label)} down\" ${index===ordered.length-1?'disabled':''}>↓</button><input type=\"number\" min=\"72\" max=\"520\" step=\"8\" value=\"${clampedWidth(width)}\" data-column-width aria-label=\"${esc(def.label)} width\"><button class=\"secondary\" type=\"button\" data-column-autofit>Auto-fit</button></div></div>`}).join('')}"""
+          new_picker="""  function renderColumnPicker(view){const presetOrder=view.columns.map(c=>c.field),currentOrder=state.columns?.length?[...state.columns]:[...presetOrder],allowed=new Set(presetOrder),extras=state.registry.map(f=>f.key).filter(k=>!currentOrder.includes(k)&&allowed.has(k)),ordered=[...currentOrder.filter(k=>allowed.has(k)),...extras],selected=new Set(state.columns||presetOrder),defs=new Map(state.registry.map(f=>[f.key,f])),presetWidths=new Map(view.columns.map(c=>[c.field,c.width]));columnGrid.innerHTML=ordered.map((key,index)=>{const def=defs.get(key);if(!def)return '';const width=state.columnWidths[key]||presetWidths.get(key)||120,label=columnLabel(key,def.label);return `<div class=\"inventory-column-option\" data-column-key=\"${esc(key)}\"><label class=\"inventory-column-check\"><input type=\"checkbox\" value=\"${esc(key)}\" ${selected.has(key)?'checked':''}><span class=\"inventory-column-option-main\"><strong>${esc(def.label)}</strong><small>${esc(def.kind)} · ${esc(key)}</small></span></label><div class=\"inventory-column-tools\"><button class=\"secondary\" type=\"button\" data-column-move=\"up\" aria-label=\"Move ${esc(def.label)} up\" ${index===0?'disabled':''}>↑</button><button class=\"secondary\" type=\"button\" data-column-move=\"down\" aria-label=\"Move ${esc(def.label)} down\" ${index===ordered.length-1?'disabled':''}>↓</button><input class=\"inventory-column-label\" type=\"text\" maxlength=\"120\" value=\"${esc(label)}\" data-column-label aria-label=\"${esc(def.label)} header name\"><input type=\"number\" min=\"72\" max=\"520\" step=\"8\" value=\"${clampedWidth(width)}\" data-column-width aria-label=\"${esc(def.label)} width\"><button class=\"secondary\" type=\"button\" data-column-autofit>Auto-fit</button></div></div>`}).join('')}"""
+          replace_once(path,old_picker,new_picker)
+          replace_once(path,
+              "  function renderSavedViewButtons(){deleteViewButton.disabled=!state.activeSavedViewId;saveViewButton.title=state.activeSavedViewId?'Update this custom view':'Create a custom view from the current system preset'}",
+              "  function renderSavedViewButtons(){deleteViewButton.disabled=!state.activeSavedViewId;editTableButton.disabled=!state.activeSavedViewId;saveViewButton.title=state.activeSavedViewId?'Update this custom table/view':'Save the current layout as a custom view'}")
+          replace_once(path,
+              "state.columns=Array.isArray(definition.fields)&&definition.fields.length?[...definition.fields]:null;state.columnWidths={...(definition.column_widths||{})};",
+              "state.columns=Array.isArray(definition.fields)&&definition.fields.length?[...definition.fields]:null;state.columnLabels={...(definition.column_labels||{})};state.columnWidths={...(definition.column_widths||{})};")
+          replace_once(path,
+              "return {name,base_preset:state.preset,definition:{fields,column_widths:widths,density:state.density,filters:",
+              "const labels=Object.fromEntries(fields.map(field=>[field,columnLabel(field)]).filter(([,label])=>String(label).trim()));return {name,base_preset:state.preset,definition:{fields,column_labels:labels,column_widths:widths,density:state.density,filters:")
+          replace_once(path,
+              "state.columns=null;state.columnWidths={};state.formatFills=new Map();",
+              "state.columns=null;state.columnLabels={};state.columnWidths={};state.formatFills=new Map();")
+          replace_once(path,
+              "const data=await api('/dashboard/api/inventory-view/rows?'+params.toString()),view=data.view,columns=data.columns||[],items=data.items||[];state.sortField",
+              "const data=await api('/dashboard/api/inventory-view/rows?'+params.toString()),view=data.view,columns=(data.columns||[]).map(col=>({...col,label:columnLabel(col.field,col.label)})),items=data.items||[];state.sortField")
+          replace_once(path,
+              "$('#inventoryViewDescription').textContent=custom?`Custom view · based on ${view.name} · presentation-only saved definition`:view.description;",
+              "$('#inventoryViewDescription').textContent=custom?`Custom table/view · row source ${view.name} · presentation-only saved definition`:view.description;")
+          # Replace every reset path that clears columns but not labels.
+          text=Path(path).read_text(encoding='utf-8')
+          text=text.replace("state.columns=null;state.columnWidths={};", "state.columns=null;state.columnLabels={};state.columnWidths={};")
+          Path(path).write_text(text,encoding='utf-8')
+          replace_once(path,
+              "$('#inventoryColumnsApply').addEventListener('click',()=>{const options=[...columnGrid.querySelectorAll('.inventory-column-option')],selected=options.filter(option=>option.querySelector('input[type=\"checkbox\"]:checked'));if(!selected.length)return;state.columns=selected.map(option=>option.dataset.columnKey);state.columnWidths=Object.fromEntries(selected.map(option=>[option.dataset.columnKey,clampedWidth(option.querySelector('[data-column-width]')?.value)]));state.offset=0;clearSheetSelection();columnsPanel.hidden=true;load()});",
+              "$('#inventoryColumnsApply').addEventListener('click',()=>{const options=[...columnGrid.querySelectorAll('.inventory-column-option')],selected=options.filter(option=>option.querySelector('input[type=\"checkbox\"]:checked'));if(!selected.length)return;state.columns=selected.map(option=>option.dataset.columnKey);state.columnLabels=Object.fromEntries(selected.map(option=>{const field=option.dataset.columnKey,def=state.registry.find(item=>item.key===field),value=String(option.querySelector('[data-column-label]')?.value||'').trim();return [field,value||def?.label||readableToken(field)]}));state.columnWidths=Object.fromEntries(selected.map(option=>[option.dataset.columnKey,clampedWidth(option.querySelector('[data-column-width]')?.value)]));state.offset=0;clearSheetSelection();columnsPanel.hidden=true;load()});")
+
+          builder_code=r'''
+  function openTableBuilder(existing=null){
+    const current=existing||null,sourceId=current?.base_preset||'main-stock',definition=current?.definition||{},backdrop=document.createElement('div');
+    backdrop.className='inventory-table-builder-backdrop';backdrop.style.cssText='position:fixed;inset:0;z-index:95;display:grid;place-items:center;padding:16px;background:rgba(12,20,34,.5);backdrop-filter:blur(4px)';
+    const dialog=document.createElement('section');dialog.setAttribute('role','dialog');dialog.setAttribute('aria-modal','true');dialog.setAttribute('aria-label',current?'Edit custom table':'Create custom table');dialog.style.cssText='box-sizing:border-box;width:min(760px,100%);max-height:calc(100dvh - 32px);overflow:auto;padding:18px;border:1px solid var(--border,#d9dde7);border-radius:18px;background:var(--card,#fff);box-shadow:0 24px 70px rgba(0,0,0,.28)';
+    dialog.innerHTML=`<div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start"><div><span style="font-size:.68rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;opacity:.65">Custom Table Builder</span><h3 style="margin:4px 0 2px">${current?'Edit table':'New table'}</h3><p style="margin:0;font-size:.74rem;opacity:.72">Map registered Inventory fields to your own columns. Header names are presentation-only.</p></div><button class="secondary" type="button" data-builder-close aria-label="Close">✕</button></div><div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin-top:16px"><label style="display:flex;flex-direction:column;gap:6px;font-size:.74rem;font-weight:800">Table name<input data-inventory-builder-name maxlength="120" value="${esc(current?.name||'')}" placeholder="e.g. Monthly Store View"></label><label style="display:flex;flex-direction:column;gap:6px;font-size:.74rem;font-weight:800">Row source<select data-inventory-builder-source ${current?'disabled':''}>${state.presets.map(view=>`<option value="${esc(view.view_id)}" ${view.view_id===sourceId?'selected':''}>${esc(view.name)} · ${esc(view.row_grain.replaceAll('_',' '))}</option>`).join('')}</select></label></div><div style="display:flex;justify-content:space-between;align-items:end;gap:10px;margin-top:18px"><div><strong style="font-size:.78rem">Columns</strong><div style="font-size:.68rem;opacity:.66">Select fields, reorder them, and edit the displayed header.</div></div><span data-builder-count style="font-size:.68rem;font-weight:800"></span></div><div data-inventory-builder-fields style="display:grid;gap:8px;margin-top:9px"></div><div style="display:grid;grid-template-columns:1fr 1.2fr;gap:10px;margin-top:16px"><button class="secondary" type="button" data-builder-cancel>Cancel</button><button type="button" data-inventory-builder-save>${current?'Save table changes':'Create table'}</button></div>`;
+    backdrop.appendChild(dialog);root.appendChild(backdrop);
+    const source=dialog.querySelector('[data-inventory-builder-source]'),fieldsBox=dialog.querySelector('[data-inventory-builder-fields]'),count=dialog.querySelector('[data-builder-count]'),nameInput=dialog.querySelector('[data-inventory-builder-name]'),save=dialog.querySelector('[data-inventory-builder-save]');
+    let ordered=Array.isArray(definition.fields)?[...definition.fields]:[],labels={...(definition.column_labels||{})};
+    const close=()=>backdrop.remove();dialog.querySelector('[data-builder-close]').addEventListener('click',close);dialog.querySelector('[data-builder-cancel]').addEventListener('click',close);backdrop.addEventListener('click',event=>{if(event.target===backdrop)close()});
+    function render(){const view=state.presets.find(item=>item.view_id===source.value)||state.presets[0],allowed=view?.columns?.map(col=>col.field)||[],selectedSet=new Set(ordered.filter(field=>allowed.includes(field))),order=[...ordered.filter(field=>allowed.includes(field)),...allowed.filter(field=>!ordered.includes(field))],defs=new Map(state.registry.map(item=>[item.key,item]));fieldsBox.innerHTML=order.map((field,index)=>{const def=defs.get(field);if(!def)return '';const checked=selectedSet.has(field),label=labels[field]||def.label;return `<div data-builder-field="${esc(field)}" style="display:grid;grid-template-columns:auto minmax(0,1fr) minmax(150px,1fr) auto auto;gap:8px;align-items:center;padding:9px;border:1px solid var(--border,#d9dde7);border-radius:10px"><input type="checkbox" data-builder-select value="${esc(field)}" aria-label="Use ${esc(def.label)} column" ${checked?'checked':''}><div style="min-width:0"><strong style="display:block;font-size:.74rem">${esc(def.label)}</strong><small style="display:block;overflow:hidden;text-overflow:ellipsis;font-size:.64rem;opacity:.65">Maps to ${esc(field)} · ${esc(def.data_type||'field')}</small></div><input type="text" maxlength="120" data-builder-label data-field="${esc(field)}" aria-label="${esc(def.label)} header name" value="${esc(label)}"><button class="secondary" type="button" data-builder-move="up" aria-label="Move ${esc(def.label)} up" ${index===0?'disabled':''}>↑</button><button class="secondary" type="button" data-builder-move="down" aria-label="Move ${esc(def.label)} down" ${index===order.length-1?'disabled':''}>↓</button></div>`}).join('');updateCount()}
+    function syncOrderedFromDom(){ordered=[...fieldsBox.querySelectorAll('[data-builder-field]')].filter(row=>row.querySelector('[data-builder-select]')?.checked).map(row=>row.dataset.builderField);fieldsBox.querySelectorAll('[data-builder-label]').forEach(input=>{labels[input.dataset.field]=String(input.value||'').trim()})}
+    function updateCount(){count.textContent=`${fieldsBox.querySelectorAll('[data-builder-select]:checked').length} selected`}
+    source.addEventListener('change',()=>{ordered=[];labels={};render()});fieldsBox.addEventListener('change',event=>{if(event.target.matches('[data-builder-select]'))updateCount()});fieldsBox.addEventListener('input',event=>{if(event.target.matches('[data-builder-label]'))labels[event.target.dataset.field]=event.target.value});fieldsBox.addEventListener('click',event=>{const button=event.target.closest('[data-builder-move]');if(!button)return;const row=button.closest('[data-builder-field]');if(button.dataset.builderMove==='up'&&row.previousElementSibling)fieldsBox.insertBefore(row,row.previousElementSibling);if(button.dataset.builderMove==='down'&&row.nextElementSibling)fieldsBox.insertBefore(row.nextElementSibling,row);syncOrderedFromDom();render()});
+    save.addEventListener('click',async()=>{syncOrderedFromDom();const name=String(nameInput.value||'').trim(),fields=[...ordered];if(!name){window.alert('Enter a table name.');nameInput.focus();return}if(!fields.length){window.alert('Select at least one column.');return}const columnLabels=Object.fromEntries(fields.map(field=>{const def=state.registry.find(item=>item.key===field),value=String(labels[field]||def?.label||field).trim();return [field,value||def?.label||readableToken(field)]}));const widths=Object.fromEntries(Object.entries(current?state.columnWidths:{}).filter(([field])=>fields.includes(field))),basePreset=source.value,filtersDef=current?{q:state.q,mapping_status:state.mappingStatus,source_classification:basePreset==='migration-review'?state.sourceClassification:'',review_reason:state.reviewReason}:{q:'',mapping_status:'',source_classification:'',review_reason:''},sortDef=current&&state.sortField?{field:state.sortField,direction:state.sortDir||'asc'}:{field:'',direction:null},payload={name,base_preset:basePreset,definition:{fields,column_labels:columnLabels,column_widths:widths,density:current?state.density:'comfortable',filters:filtersDef,sort:sortDef,fills:current?serializedFills(fields):[]}};save.disabled=true;try{const saved=await api(current?`/dashboard/api/inventory-view/saved-views/${current.view_id}`:'/dashboard/api/inventory-view/saved-views',{method:current?'PUT':'POST',body:JSON.stringify(payload)});await refreshSavedViews();const fresh=savedViewById(saved.view_id)||saved;applySavedViewDefinition(fresh);renderViewOptions();close();clearSheetSelection();drawer.hidden=true;renderActiveFilters();load()}catch(err){window.alert(err.message);save.disabled=false}});
+    render();setTimeout(()=>nameInput.focus(),0)
+  }
+'''
+          replace_once(path,"  function savedViewById(id){",builder_code+"\n  function savedViewById(id){")
+          replace_once(path,
+              "  saveViewAsButton.addEventListener('click',()=>saveCurrentView(true));",
+              "  newTableButton.addEventListener('click',()=>openTableBuilder(null));\n  editTableButton.addEventListener('click',()=>{const current=activeSavedView();if(current)openTableBuilder(current)});\n  saveViewAsButton.addEventListener('click',()=>saveCurrentView(true));")
+
+          # Browser proof for new table + editable headers, isolated from existing E1 flow.
+          path='tests/web/inventory_saved_views_smoke.mjs'
+          anchor="const page=await browser.newPage({viewport:{width:1280,height:800}});\nawait installPage(page);\n"
+          builder_test=r'''const builderPage=await browser.newPage({viewport:{width:1280,height:800}});
+await installPage(builderPage);
+await builderPage.locator('#inventoryNewTable').click();
+await builderPage.locator('[data-inventory-builder-name]').fill('My Custom Table');
+await builderPage.locator('[data-builder-select][value="local_item_name"]').check();
+await builderPage.locator('[data-builder-select][value="current_qty"]').check();
+await builderPage.locator('[data-builder-label][data-field="local_item_name"]').fill('Medicine Name');
+await builderPage.locator('[data-builder-label][data-field="current_qty"]').fill('Balance');
+await builderPage.locator('[data-inventory-builder-save]').click();
+await builderPage.locator('#inventoryPresetSelect option[value="custom:sv-1"]').waitFor({state:'attached'});
+await builderPage.getByText('Medicine Name',{exact:true}).waitFor();
+await builderPage.getByText('Balance',{exact:true}).waitFor();
+const builderCreated=await builderPage.evaluate(()=>window.__requests.find(item=>item.method==='POST'));
+assert.deepEqual(builderCreated.body.definition.fields,['local_item_name','current_qty']);
+assert.deepEqual(builderCreated.body.definition.column_labels,{local_item_name:'Medicine Name',current_qty:'Balance'});
+assert.equal(builderCreated.body.base_preset,'main-stock');
+assert.equal(builderCreated.body.definition.provider,undefined);
+await builderPage.locator('#inventoryEditTable').click();
+assert.equal(await builderPage.locator('[data-inventory-builder-name]').inputValue(),'My Custom Table');
+assert.equal(await builderPage.locator('[data-builder-label][data-field="local_item_name"]').inputValue(),'Medicine Name');
+await builderPage.locator('[data-builder-cancel]').click();
+await builderPage.close();
+
+const page=await browser.newPage({viewport:{width:1280,height:800}});
+await installPage(page);
+'''
+          replace_once(path,anchor,builder_test)
+          replace_once(path,
+              "console.log('inventory_saved_views=pass create=pass",
+              "console.log('inventory_saved_views=pass custom_table_builder=pass editable_headers=pass create=pass")
+
+          # Remove the temporary helper before committing the actual implementation.
+          PY
+      - name: Validate patch
+        run: |
+          python -m compileall -q backend/app
+          PYTHONPATH=backend python backend/app/inventory_saved_views_verify.py
+          node --check backend/app/dashboard_assets/dashboard_inventory_views.js
+      - name: Commit implementation and remove helper
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/one-shot-custom-table-builder-v1.yml
+          git add backend/app/inventory_saved_views.py backend/app/inventory_saved_views_verify.py backend/app/dashboard_assets/dashboard_inventory_views.js tests/web/inventory_saved_views_smoke.mjs
+          git commit -m "Implement Inventory Custom Table Builder v1"
+          git push origin HEAD:feat/f6e-custom-table-builder-v1
