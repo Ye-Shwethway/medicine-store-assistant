@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'backend/app/inventory_view_engine.py'
+      - 'backend/app/inventory_view_export.py'
       - 'backend/app/inventory_view_runtime_verify.py'
       - '.github/workflows/f6e-inventory-view-runtime-proof.yml'
   workflow_dispatch:
