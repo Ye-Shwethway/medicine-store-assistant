@@ -37,7 +37,7 @@ await page.getByRole('cell',{name:'Alpha'}).waitFor();
 const cell=(row,col)=>page.locator(`tbody tr:nth-child(${row+1}) td[data-col-index="${col}"]`);
 const fill=async name=>{
   await page.locator('#inventoryFillToggle').click();
-  await page.getByRole('button',{name,exact:true}).click();
+  await page.getByRole('menuitem',{name,exact:true}).click();
 };
 
 await cell(0,0).click();
@@ -46,7 +46,7 @@ assert.equal(await page.locator('#inventoryFillToggle').getAttribute('aria-label
 await page.locator('#inventoryFillToggle').click();
 assert.equal(await page.locator('#inventoryFillMenu .inventory-fill-menu-head strong').textContent(),'Fill color');
 assert.equal(await page.locator('#inventoryFillMenu .inventory-fill-option.secondary').count(),0,'derived color tiles must not reuse native secondary button styling');
-await page.getByRole('button',{name:'Yellow',exact:true}).click();
+await page.getByRole('menuitem',{name:'Yellow',exact:true}).click();
 assert.equal(await cell(0,0).getAttribute('data-user-fill'),'yellow');
 assert.match(await cell(0,0).getAttribute('style'),/background-color:\s*#fff1a8\s*!important/i,'runtime fill must be applied inline with important priority');
 const singleVisual=await cell(0,0).evaluate(el=>{const s=getComputedStyle(el);return {background:s.backgroundColor,boxShadow:s.boxShadow}});
@@ -84,8 +84,8 @@ assert.equal(await page.evaluate(()=>window.__copied),'Alpha','TSV copy remains 
 await page.setViewportSize({width:390,height:844});
 await page.getByRole('cell',{name:'Gamma'}).click();
 await page.locator('#inventoryFillToggle').click();
-assert.equal(await page.getByRole('button',{name:'Orange',exact:true}).isVisible(),true,'mobile fill palette must be reachable');
-await page.getByRole('button',{name:'Orange',exact:true}).click();
+assert.equal(await page.getByRole('menuitem',{name:'Orange',exact:true}).isVisible(),true,'mobile fill palette must be reachable');
+await page.getByRole('menuitem',{name:'Orange',exact:true}).click();
 assert.equal(await page.getByRole('cell',{name:'Gamma'}).getAttribute('data-user-fill'),'orange');
 
 await browser.close();
