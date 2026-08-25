@@ -9,10 +9,13 @@ files = [
     'tests/web/inventory_sheet_formatting_smoke.mjs',
 ]
 
+patched=[]
+skipped=[]
 for name in files:
     p = Path(name)
     s = p.read_text()
     if '/dashboard/api/inventory-view/saved-views' in s:
+        skipped.append(name)
         continue
     candidates = [
         ("    if(url==='/dashboard/api/inventory-view/presets')", "    if(url==='/dashboard/api/inventory-view/saved-views')return response({items:[],database_canonical:false,migration_baseline_accepted:false});\n    if(url==='/dashboard/api/inventory-view/presets')"),
@@ -21,8 +24,11 @@ for name in files:
     ]
     for old, new in candidates:
         if old in s:
-            s = s.replace(old, new, 1)
-            p.write_text(s)
+            p.write_text(s.replace(old,new,1))
+            patched.append(name)
             break
     else:
-        raise SystemExit(f'No fetch anchor found for {name}')
+        skipped.append(name)
+
+print('patched=' + ','.join(patched))
+print('skipped=' + ','.join(skipped))
