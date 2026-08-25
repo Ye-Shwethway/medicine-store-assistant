@@ -18,29 +18,28 @@ jobs:
         uses: actions/checkout@v5
         with:
           ref: feat/f6e-sheet-selection-foundation
-      - name: Apply Sheet Interaction v1 patch
+      - name: Normalize TSV row separators
         run: |
-          python scripts/patch_inventory_sheet_selection_v1.py
-          python scripts/fix_sheet_selection_escape.py
           python - <<'PY'
           from pathlib import Path
-          for name in ('ROADMAP.md','IMPLEMENTATION_PLAN.md','NEW_CHAT_BOOTSTRAP.md'):
-              path=Path(name)
-              path.write_text(path.read_text(encoding='utf-8').rstrip()+'\n',encoding='utf-8')
+          path=Path('backend/app/dashboard_assets/dashboard_inventory_views.js')
+          text=path.read_text(encoding='utf-8')
+          old="rows.join('\\\\n')"
+          old2=".join('\\\\n');count=indices.length"
+          assert old in text
+          assert old2 in text
+          text=text.replace(old,"rows.join('\\n')",1)
+          text=text.replace(old2,".join('\\n');count=indices.length",1)
+          path.write_text(text,encoding='utf-8')
           PY
-          git checkout -- .github/workflows/validate-inventory-view-engine.yml
-      - name: Verify patched source
+      - name: Verify source
         run: |
           node --check backend/app/dashboard_assets/dashboard_inventory_views.js
           git diff --check
-      - name: Commit implementation only
+      - name: Commit semantic fix
         run: |
           git config user.name "MSA Sheet Patcher"
           git config user.email "actions@users.noreply.github.com"
-          git add backend/app/dashboard_assets/dashboard_inventory_views.js \
-                  tests/web/inventory_sheet_selection_smoke.mjs \
-                  design-system/medicine-store-assistant/pages/dashboard.md \
-                  docs/design/WEB_SURFACE_OWNERSHIP.md \
-                  ROADMAP.md IMPLEMENTATION_PLAN.md NEW_CHAT_BOOTSTRAP.md
-          git commit -m "Implement Inventory Sheet Interaction Foundation v1"
+          git add backend/app/dashboard_assets/dashboard_inventory_views.js
+          git commit -m "Fix Inventory TSV range row separators"
           git push origin HEAD:feat/f6e-sheet-selection-foundation
