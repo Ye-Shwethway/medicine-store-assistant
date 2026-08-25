@@ -32,7 +32,8 @@ Treat newer verified repository/runtime/source evidence as authoritative over re
 - F6D shadow foundation for the current dataset is runtime-verified.
 - F6E Slice A/B/C/D are **complete and runtime-verified**.
 - Inventory Spreadsheet Focus Mode v1 is **complete and production-runtime verified**.
-- Current bounded target is **Spreadsheet Workbench v2 read/review ergonomics**.
+- Spreadsheet Workbench v2 filter chips, session layout tools, Copy TSV and validated server-side sorting are **complete and production-runtime verified**.
+- Current bounded target is **CSV export of the current validated projection/field-order/filter/sort state**.
 - PostgreSQL remains non-canonical: `database_canonical=false`, `migration_baseline_accepted=false`.
 - Google Sheet/source documents remain operational authority.
 
@@ -44,7 +45,13 @@ Key recent evidence:
 - PR #184: Ask AI modal control polish.
 - PR #185 merge `af461f2f4ddd329c81fd983955c26e905970e0af`: Spreadsheet Focus Mode v1.
 - Runtime checkpoint #186: Focus Mode v1 production evidence.
-- Deployment issue #26 confirms `status=success` for `af461f2f4ddd329c81fd983955c26e905970e0af` via run `32811537864`.
+- PR #188 merge `2012c2656032a274a185ba1e9ce63378aa95c182`: Workbench v2 filter chips, session column reorder/width/Auto-fit/Reset and Copy TSV.
+- Runtime checkpoint #189: PR #188 production evidence.
+- PR #190 merge `1ecbe7457166c6b1b29faf1a1a05a2d69e3e4756`: validated server-side sorting and sort-aware AI review context.
+- PR #192 merge `27d41d7ffbdcdf60252f591b7978bea02819527e`: F6E runtime-verifier sorting-signature compatibility.
+- Runtime checkpoint #191: server-side sorting delivery/runtime complete.
+- Runtime issue #166 at `27d41d7ffbdcdf60252f591b7978bea02819527e`, run `32815294689`: read-only Inventory proof success.
+- Deployment issue #26 at the same SHA, run `32815294706`: success.
 
 ## Locked architecture
 
@@ -98,18 +105,23 @@ The reusable View Engine currently provides:
 - explicit `Shadow inventory — not canonical` banner;
 - content-derived Inventory JS/CSS asset identity with no-store/no-cache delivery.
 
-Runtime baseline evidence:
+Latest read-only runtime baseline at main SHA `27d41d7ffbdcdf60252f591b7978bea02819527e`:
 
-- issue #166: Main Stock **799**, Migration Review **823**, quantity **72,009.000**, Products/Lots/transactions **670/799/679**, `ACTIVE_MATCH 0`, accepted prices **0**, mutation false, canonical flags false;
-- issue #171: Slice C production-delivery gate complete;
-- issues #176/#178: bounded Ask AI / Deep Review runtime checkpoints;
-- issue #186: Spreadsheet Focus Mode v1 runtime checkpoint.
+- Main Stock projected rows **799**;
+- Migration Review projected rows **823**;
+- Main Stock current quantity sum **72,009.000**;
+- Products/Lots/transactions **670/799/679**;
+- `ACTIVE_MATCH 0`;
+- accepted operational prices **0**;
+- `mutation=false`;
+- `database_canonical=false`;
+- `migration_baseline_accepted=false`.
 
 ## Slice D AI copilot — COMPLETE
 
 Current AI review behavior:
 
-1. Browser sends preset/filter/pagination coordinates and selected row indices to `/review-context`; server rehydrates the bounded review context.
+1. Browser sends preset/filter/pagination/sort coordinates and selected row indices to `/review-context`; server rehydrates the bounded review context.
 2. `Ask AI` explicitly opens AI Workspace Chat.
 3. A focused modal shows selected Inventory context and lets the user choose an agent.
 4. Agent list waits for the canonical AI Workspace list and can use the existing agents API as a fallback; failures expose Retry.
@@ -133,24 +145,29 @@ Production behavior:
 - existing review drawer / Ask AI / Deep Review remain compatible;
 - 390x844 Playwright behavior proof is green.
 
-PR #185 merge: `af461f2f4ddd329c81fd983955c26e905970e0af`. Deployment issue #26: `status=success`, run `32811537864`.
+PR #185 merge: `af461f2f4ddd329c81fd983955c26e905970e0af`.
 
-## CURRENT — Spreadsheet Workbench v2
+## Spreadsheet Workbench v2 — ACTIVE
 
-Keep the next slice read/review-only. Recommended bounded order:
+Already production-runtime verified:
 
-1. server-side validated sorting + visible sort indicators;
-2. active filter chips with per-chip clearing;
-3. column resize/reorder + Auto-fit / Reset layout;
-4. Copy selected as TSV + CSV export of the current validated projection;
-5. keyboard navigation/copy shortcuts after the core interaction model stabilizes;
-6. optional desktop split-pane review detail after table ergonomics are proven.
+1. active Search/Mapping/Source-class/Review-reason chips with per-chip clearing;
+2. session-only column reorder and width controls over registered fields;
+3. Auto-fit and Reset preset/layout;
+4. Copy selected visible rows as TSV;
+5. Product+Lot row selection keyed by Lot ID before Product ID;
+6. provider-owned validated server-side sorting with stable tie-breakers;
+7. sortable headers with `↕ / ▲ / ▼`, `aria-sort` and an active Sort chip;
+8. selection/drawer reset on order changes;
+9. Ask AI / Deep Review preserve exact sort field/direction for server rehydration.
 
-Do **not** add direct spreadsheet mutation yet. Saved layout persistence belongs to Slice E. Mutation-capable Excel-like editing belongs to the later typed editing substrate: `draft -> validation -> preview -> Confirm & Save -> typed command -> audit -> read-back`.
+The next bounded work is **CSV export of the current validated projection/field-order/filter/sort state**. Prefer server-side export using the same provider/registry/filter/sort contract rather than DOM-only facts. Do not permit arbitrary SQL/raw field expressions. Define and enforce a bounded export row limit and `no-store` delivery. After CSV export, consider a one-click Clear all and then keyboard navigation/copy shortcuts.
+
+Saved layout persistence belongs to Slice E. Mutation-capable Excel-like editing belongs to the later typed editing substrate: `draft -> validation -> preview -> Confirm & Save -> typed command -> audit -> read-back`.
 
 ## Next sequence
 
-1. complete Spreadsheet Workbench v2 read/review ergonomics;
+1. complete Spreadsheet Workbench v2 with validated CSV export, then optional clear-all / keyboard / split-pane ergonomics;
 2. persist saved user-defined view definitions and build View Builder;
 3. resolve HOLD rows/mapping exceptions through reviewed typed actions when explicitly authorized;
 4. add Daily Usage monthly-pivot preset;

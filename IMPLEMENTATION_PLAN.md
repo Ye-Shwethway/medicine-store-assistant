@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Implementation Plan
 
-Status: **F6C architecture is locked. F6D shadow foundation is runtime-verified. F6E Slice A/B/C/D are complete and runtime-verified through the configurable read-only Inventory View Engine, generic Web renderer, source/CMS review workspace, bounded Ask AI context and Deep Review handoff. Inventory Spreadsheet Focus Mode v1 is production-runtime verified. Current bounded target: Spreadsheet Workbench v2 read/review ergonomics. PostgreSQL remains non-canonical.**
+Status: **F6C architecture is locked. F6D shadow foundation is runtime-verified. F6E Slice A/B/C/D are complete and runtime-verified through the configurable read-only Inventory View Engine, generic Web renderer, source/CMS review workspace, bounded Ask AI context and Deep Review handoff. Inventory Spreadsheet Focus Mode v1 is production-runtime verified. Spreadsheet Workbench v2 sorting/filter/layout/TSV read-review ergonomics are now production-runtime verified. Current bounded target: CSV export of the current validated projection/filter/sort state. PostgreSQL remains non-canonical.**
 
 ## 1. Global rules
 
@@ -131,24 +131,41 @@ Evidence chain includes PRs #175, #177, #179, #180, #181, #183, #184 and runtime
 - [x] Deployment issue #26 confirmed `status=success` for that SHA via run `32811537864`.
 - [x] Runtime checkpoint issue #186 records the evidence.
 
-### 5.6 Spreadsheet Workbench v2 — CURRENT
+### 5.6 Spreadsheet Workbench v2 — ACTIVE
 
 Keep v2 read/review-only. Do not add direct cell mutation yet.
 
-- [ ] Add server-side validated sort parameters and visible sort indicators.
-- [ ] Add active filter chips with per-chip removal and `Clear all` behavior.
-- [ ] Add column resize/reorder controls over registered fields only.
-- [ ] Add Auto-fit and Reset layout actions.
-- [ ] Add Copy selected as TSV for direct paste into Excel/Google Sheets.
-- [ ] Add CSV export for the current validated projection/filter/sort state.
-- [ ] Add keyboard navigation/copy shortcuts after sort/layout interactions are stable.
+Completed + runtime-verified:
+
+- [x] Server-side validated sort parameters and visible sort indicators, backed by provider-owned static allowlists and stable tie-breakers.
+- [x] Preserve exact sort state in server-rehydrated Ask AI / Deep Review context.
+- [x] Active Search/Mapping/Source-class/Review-reason filter chips with per-chip removal.
+- [x] Session-only column reorder and width controls over registered fields only.
+- [x] Auto-fit and Reset preset/layout actions.
+- [x] Copy selected visible rows as TSV for direct paste into Excel/Google Sheets.
+- [x] Product+Lot selection identity prefers Lot ID so multiple lots of one Product remain independently selectable.
+- [x] Preserve Focus mode, existing review behavior and read-only/non-canonical authority boundaries.
+
+Evidence:
+
+- PR #188 merge `2012c2656032a274a185ba1e9ce63378aa95c182` + runtime issue #189: filter chips, session layout, Auto-fit/Reset and Copy TSV.
+- PR #190 merge `1ecbe7457166c6b1b29faf1a1a05a2d69e3e4756`: validated server-side sorting.
+- PR #192 merge `27d41d7ffbdcdf60252f591b7978bea02819527e`: runtime-verifier compatibility after sorting helper signatures changed.
+- Runtime issue #191: sorting delivery/runtime checkpoint completed.
+- Runtime issue #166 at `27d41d7ffbdcdf60252f591b7978bea02819527e`, run `32815294689`: Main Stock **799**, Migration Review **823**, quantity **72,009.000**, Products/Lots/transactions **670/799/679**, active matches/prices **0/0**, mutation false and canonical flags false.
+- Deployment issue #26 at `27d41d7ffbdcdf60252f591b7978bea02819527e`, run `32815294706`: success.
+
+Next bounded work:
+
+- [ ] Add CSV export for the current validated projection/field-order/filter/sort state.
+- [ ] Add one-click Clear all for Search + review filters + sort state if retained as a useful workbench action; per-chip clearing is already complete.
+- [ ] Add keyboard navigation/copy shortcuts after export and core sort/layout interactions are stable.
 - [ ] Add optional desktop split-pane review detail after core table ergonomics are proven.
-- [ ] Keep all operations read-only/non-canonical.
 
 ### 5.7 Slice E — saved custom views
 
 - [ ] Persist user-defined view definitions.
-- [ ] View Builder: row grain, Store scope, field selection/order, labels, widths, filter/sort/group/formatting.
+- [ ] View Builder: row grain, Store scope, field selection/order, labels, widths, filters/sorts/groups/formatting.
 - [ ] Persist user-owned layout preferences such as column order/width/density/sort where appropriate.
 - [ ] Duplicate a system preset into a user-owned view without mutating the system preset.
 - [ ] Never permit arbitrary SQL/raw DB expressions.
@@ -176,4 +193,4 @@ Keep v2 read/review-only. Do not add direct cell mutation yet.
 
 ## 7. Immediate boundary
 
-The immediate target is **Spreadsheet Workbench v2 read/review ergonomics**, not inventory mutation. Sorting/filtering/layout/copy/export features must operate over validated registered projections. Do not create accepted CMS mappings, push prices, mutate inventory, accept the migration baseline, or promote PostgreSQL as part of this workbench slice.
+The immediate target is **CSV export over the validated Spreadsheet Workbench v2 projection/filter/sort contract**, not inventory mutation. Export/clear-all/keyboard features must operate over validated registered projections. Do not create accepted CMS mappings, push prices, mutate inventory, accept the migration baseline, or promote PostgreSQL as part of this workbench slice.
