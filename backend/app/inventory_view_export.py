@@ -64,7 +64,7 @@ def _export_rows(
         review_reason=review_reason,
         sort_field=sort_field,
         sort_dir=sort_dir,
-        limit=MAX_CSV_EXPORT_ROWS,
+        limit=MAX_CSV_EXPORT_ROWS + 1,
         offset=0,
     )
 
@@ -100,10 +100,10 @@ def inventory_view_export_csv(
         sort_field=normalized_sort_field,
         sort_dir=normalized_sort_dir,
     )
-    if len(rows) >= MAX_CSV_EXPORT_ROWS:
+    if len(rows) > MAX_CSV_EXPORT_ROWS:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"CSV export reached the {MAX_CSV_EXPORT_ROWS}-row safety cap; narrow the current filters before exporting.",
+            detail=f"CSV export exceeds the {MAX_CSV_EXPORT_ROWS}-row safety cap; narrow the current filters before exporting.",
         )
 
     csv_text = _serialize_csv(columns, rows)
