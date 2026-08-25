@@ -233,8 +233,28 @@ Runtime issue #166, run `32821445117`, verified Main Stock **799** rows with Exc
 
 Do not present shadow DB as canonical. Formatted Excel export is now a verified globally reusable read-only substrate. Remaining Workbench v2 ergonomics and later View Builder work must continue to operate over validated registered projections and must not accept CMS mappings/prices, mutate inventory, accept the migration baseline or promote PostgreSQL.
 
-## Inventory Sheet Interaction Foundation v1 — ACTIVE
+## Inventory Sheet Interaction Foundation v1 — COMPLETE + PRODUCTION VERIFIED
 
 Current bounded target after formatted Excel export: convert the Inventory Workbench from row-click inspection to a sheet-selection model before Saved Custom Views / View Builder. Contract: `docs/design/INVENTORY_SHEET_INTERACTION_V1.md`.
 
 Authorized v1 scope: active cell, rectangular cell range, desktop drag / Shift range, Arrow + Shift+Arrow keyboard movement, dedicated whole-row selector gutter, explicit Details action, selection-aware TSV copy, and preservation of whole-row Ask AI / Deep Review semantics. Cell click must no longer open details. Selection remains session-only/read-only. Fill colors and persistent formatting are the next Sheet Formatting slice, not part of this v1.
+
+
+## Inventory Sheet Formatting v1 — IMPLEMENTED + CI VERIFIED
+
+Contract: `docs/design/INVENTORY_SHEET_FORMATTING_V1.md`. PR #203 adds session-only spreadsheet presentation formatting over the existing authoritative Inventory renderer.
+
+Implemented behavior:
+
+- bounded Fill palette: Yellow, Light green, Light red, Light blue, Orange and Gray;
+- apply fill to one cell, a rectangular range, or selected whole rows across visible registered columns;
+- Clear fill affects only the current selection;
+- formatting identity is semantic `(rowIdentity, fieldKey)` rather than DOM position, so sort/re-render does not move color to the wrong row/field;
+- REVIEW / CONFLICT system semantics remain independently visible through status text plus warning stripe;
+- active/selected cell outline remains visible over user fill;
+- Copy TSV remains value-only;
+- Ask AI / Deep Review remain whole-row-only and formatting metadata is not review evidence;
+- mobile 390x844 Fill palette behavior is covered by Playwright;
+- formatting remains session-only. Persistence/export of user formatting is deferred to Saved Custom Views / View Builder.
+
+CI at PR #203 is green for backend, Web reliability and Inventory View Engine, including the dedicated Sheet Formatting browser smoke. Production merge/deploy evidence is pending. No inventory, CMS mapping, pricing, migration-baseline or canonicality mutation is introduced.
