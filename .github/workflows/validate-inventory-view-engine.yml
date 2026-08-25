@@ -46,6 +46,18 @@ jobs:
           PY
       - name: Verify Inventory JavaScript syntax
         run: node --check backend/app/dashboard_assets/dashboard_inventory_views.js
+      - name: Verify Ask AI waits for loaded agents
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          source = Path('backend/app/dashboard_assets/dashboard_inventory_views.js').read_text(encoding='utf-8')
+          assert 'async function waitForChatAgents' in source
+          assert "const loading=options.length===1&&/Loading/i.test" in source
+          assert 'async function addChatStarter' in source
+          assert 'const canonicalAgent=await waitForChatAgents()' in source
+          assert 'await addChatStarter(context,card)' in source
+          print('inventory_agent_loader_race_guard=pass')
+          PY
 
   inventory-browser-smoke:
     runs-on: ubuntu-latest
