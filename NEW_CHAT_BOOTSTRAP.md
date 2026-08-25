@@ -42,6 +42,7 @@ Treat newer verified repository/runtime/source evidence as authoritative over re
 
 Key recent evidence:
 
+- PR #199 merge `4d407e5d01343deb3da9a8a0f82f6122e989035f`: Inventory quantity/date display format polish; runtime run `32821445117`; deploy run `32821445217`.
 - Slice C runtime issue #171.
 - Slice D runtime checkpoints #176 and #178.
 - PR #183: focused Ask AI modal with reliable agent loading and fresh-chat flow.
@@ -193,6 +194,20 @@ Mutation-capable Excel-like editing belongs to the later typed editing substrate
 5. add typed draft/preview/Confirm & Save editing;
 6. deterministic reorder baseline + reorder presets;
 7. only then advance migration baseline/read/write/canonical promotion gates with explicit evidence.
+
+### Inventory display/export format polish — COMPLETE + RUNTIME VERIFIED
+
+PR #199 merge `4d407e5d01343deb3da9a8a0f82f6122e989035f` refined presentation without changing inventory semantics:
+
+- Excel quantity fields use whole-number display format `0`;
+- Excel price fields use decimal display format `0.00`;
+- Excel Expiry Date uses `mmm-yy` (for example `Mar-26`);
+- the global `ExcelColumn` contract accepts caller-owned `number_format`, keeping the reusable renderer area-agnostic;
+- Inventory Web date display defaults to `DD-MM-YYYY`;
+- the Web toolbar provides `DD-MM-YYYY`, `MM-DD-YYYY`, `YYYY-MM-DD`, and `DD-MMM-YYYY` display choices;
+- the selected Web date format is display-only and persists locally across reopen; underlying ISO dates/query semantics are unchanged.
+
+Runtime issue #166, run `32821445117`, verified Main Stock **799** rows with Excel formats `expiry=mmm-yy`, `qty=0`, `price=0.00`, `mutation=false`, `database_canonical=false`, `migration_baseline_accepted=false`. Deployment issue #26, run `32821445217`, verified production deployment success at the same SHA.
 
 ## Immediate boundary
 

@@ -85,3 +85,13 @@ These are shared defaults, not Inventory-only styling. Future export consumers m
 Excel export is read-only. It must not accept mappings, update catalogue prices, mutate inventory, accept a migration baseline, or promote PostgreSQL.
 
 Source strings beginning with formula-significant characters such as `=`, `+`, `-`, or `@` must remain literal cell text. The generic renderer is the final defense for this workbook-level safety property.
+
+## Caller-owned display formats
+
+`ExcelColumn.number_format` is an optional presentation contract owned by the calling area. The global renderer must not infer domain-specific meaning from field names. Inventory currently supplies:
+
+- quantity fields: `0`;
+- price fields: `0.00`;
+- Expiry Date: `mmm-yy`.
+
+This affects workbook display only; it does not round/rewrite source values or change inventory semantics. Inventory Web date formatting is a separate display-only browser preference, defaulting to `DD-MM-YYYY`; underlying ISO date values remain unchanged.
