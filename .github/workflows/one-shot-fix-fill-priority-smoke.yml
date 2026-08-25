@@ -1,0 +1,32 @@
+name: One-shot Fix Fill Priority Smoke
+on:
+  push:
+    branches: [fix/inventory-fill-runtime-ux]
+    paths: ['.github/workflows/one-shot-fix-fill-priority-smoke.yml']
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: fix/inventory-fill-runtime-ux
+      - name: Assert fill priority without serialization coupling
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('tests/web/inventory_sheet_formatting_smoke.mjs')
+          s=p.read_text()
+          old="assert.match(await cell(0,0).getAttribute('style'),/background-color:\\s*#fff1a8\\s*!important/i,'runtime fill must be applied inline with important priority');"
+          new="const inlineFill=await cell(0,0).evaluate(el=>({value:el.style.getPropertyValue('background-color'),priority:el.style.getPropertyPriority('background-color')}));\nassert.equal(inlineFill.priority,'important','runtime fill must have important inline priority');\nassert.ok(inlineFill.value,'runtime fill must have an inline background color value');"
+          if s.count(old)!=1: raise SystemExit('priority assertion anchor mismatch')
+          p.write_text(s.replace(old,new,1))
+          PY
+          node --check tests/web/inventory_sheet_formatting_smoke.mjs
+          git diff --check
+          git config user.name 'Mr. Thorne'
+          git config user.email '85703541+Ye-Shwethway@users.noreply.github.com'
+          git add tests/web/inventory_sheet_formatting_smoke.mjs
+          git commit -m 'Make Inventory fill priority smoke serialization-safe'
+          git push origin HEAD:fix/inventory-fill-runtime-ux
