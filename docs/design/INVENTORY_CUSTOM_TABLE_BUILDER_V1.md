@@ -154,3 +154,7 @@ Behavior-level proof must cover:
 9. verify Excel export uses user labels and the saved order;
 10. verify owner scoping and no inventory/CMS/canonical mutation;
 11. verify mobile access to create/edit controls.
+
+## Current delivery checkpoint
+
+PR #209 implementation and export-parity behavior passed exact-head Inventory View Engine, backend, and Web production-reliability CI at `0cee74672beb369ff745cb451801d8df550224fa`. The subsequent continuity-doc synchronization commit was docs-only. This checkpoint touch exists only to trigger a human-authored exact-head CI pass after GitHub gated the bot-authored docs commit as `action_required`; it changes no E2 runtime contract or authority boundary.
