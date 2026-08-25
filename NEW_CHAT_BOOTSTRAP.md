@@ -216,3 +216,12 @@ Do not present shadow DB as canonical. The current workbench may sort/filter/rea
 ## Current bounded target — Inventory Sheet Interaction Foundation v1
 
 Formatted Excel export is complete and production-runtime verified. The active Inventory work is now `docs/design/INVENTORY_SHEET_INTERACTION_V1.md`: cell-first selection, rectangular ranges, keyboard navigation, whole-row selector gutter, explicit Details, and selection-aware copy. Do not restore row-wide click-to-open behavior. Whole-row selection remains the only source for Ask AI / Deep Review row context. Fill colors/persistent formatting follow after this v1; Saved Custom Views / View Builder follows the sheet interaction/formatting foundation. All current work remains read-only and PostgreSQL remains non-canonical.
+
+
+## Latest Inventory Sheet Formatting checkpoint
+
+Inventory Sheet Interaction Foundation v1 is production-verified through PR #202 / main `3e94b8496c9d8e9cfcd7da54415b1307e0b7a9ed`, including visible active-cell selection state.
+
+The next slice, Inventory Sheet Formatting v1, is implemented on PR #203 and CI-verified. It adds session-only fill formatting for cells/ranges/whole rows with a bounded six-color palette and Clear fill. Formatting is keyed by stable row identity + registered field, system REVIEW/CONFLICT signals remain visible, Copy TSV remains value-only, and Ask AI / Deep Review remain whole-row/server-rehydrated. Persistent formatting and styled custom-view export belong to Saved Custom Views / View Builder, not this slice. Production merge/deploy evidence for PR #203 is pending.
+
+Authority remains unchanged: Google/source documents operationally authoritative; PostgreSQL shadow/noncanonical; `database_canonical=false`; `migration_baseline_accepted=false`; no inventory/CMS/price mutation authorized by this work.

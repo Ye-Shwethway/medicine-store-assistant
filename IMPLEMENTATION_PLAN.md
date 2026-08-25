@@ -217,14 +217,32 @@ Runtime issue #166, run `32821445117`, verified Main Stock **799** rows with Exc
 
 ### 5.6A Inventory Sheet Interaction Foundation v1 — ACTIVE
 
-- [ ] Single click/tap selects a data cell without opening details.
-- [ ] Desktop pointer drag and Shift+click create a rectangular range.
-- [ ] Arrow keys move the active cell; Shift+Arrow extends the range.
-- [ ] Dedicated row-selector gutter selects one/contiguous whole rows.
-- [ ] Explicit Details / Enter opens the selected row drawer.
-- [ ] Copy TSV supports selected cell rectangles and whole rows.
-- [ ] Ask AI / Deep Review remain whole-row-only and server-rehydrated.
-- [ ] Mobile 390x844 tap/scroll behavior is proven.
-- [ ] No mutation/canonicality change.
+- [x] Single click/tap selects a data cell without opening details.
+- [x] Desktop pointer drag and Shift+click create a rectangular range.
+- [x] Arrow keys move the active cell; Shift+Arrow extends the range.
+- [x] Dedicated row-selector gutter selects one/contiguous whole rows.
+- [x] Explicit Details / Enter opens the selected row drawer.
+- [x] Copy TSV supports selected cell rectangles and whole rows.
+- [x] Ask AI / Deep Review remain whole-row-only and server-rehydrated.
+- [x] Mobile 390x844 tap/scroll behavior is proven.
+- [x] No mutation/canonicality change.
 
 Contract: `docs/design/INVENTORY_SHEET_INTERACTION_V1.md`. Sheet Formatting (fill/clear fill) follows only after this selection foundation is stable. Saved Custom Views / View Builder follows the sheet interaction/formatting foundation.
+
+
+### 5.6B Inventory Sheet Formatting v1 — IMPLEMENTED + CI VERIFIED
+
+- [x] Session-only formatting metadata keyed by stable row identity + registered field key.
+- [x] Fill one cell, rectangular ranges, and selected whole rows across visible registered columns.
+- [x] Bounded accessible palette: Yellow, Light green, Light red, Light blue, Orange, Gray.
+- [x] Clear fill for the current selection only.
+- [x] Preserve active/selected cell outline over user fill.
+- [x] Preserve REVIEW / CONFLICT system signal independently from user fill.
+- [x] Preserve formatting identity through sort/re-render.
+- [x] Keep Copy TSV value-only and AI review formatting-blind.
+- [x] Prove mobile 390x844 Fill palette behavior.
+- [x] No inventory/CMS/baseline/canonicality mutation.
+- [ ] Persist formatting only when Saved Custom Views / View Builder owns the user view definition.
+- [ ] Export persisted custom-view formatting through the existing reusable Excel renderer only after the persistence contract is defined.
+
+Contract: `docs/design/INVENTORY_SHEET_FORMATTING_V1.md`. PR #203 CI is green; production deployment evidence is pending.
