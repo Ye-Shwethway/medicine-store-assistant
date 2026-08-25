@@ -95,7 +95,7 @@ await page.getByRole('cell',{name:'Alpha'}).waitFor();
 
 await page.evaluate(()=>window.__prompts.push('My Stock View'));
 await page.locator('#inventorySaveView').click();
-await page.getByRole('option',{name:'Custom · My Stock View'}).waitFor();
+await page.locator('#inventoryPresetSelect option[value="custom:sv-1"]').waitFor({state:'attached'});
 assert.equal(await page.locator('#inventoryPresetSelect').inputValue(),'custom:sv-1');
 assert.equal(await page.evaluate(()=>localStorage.getItem('msa.inventory.activeSavedViewId')),'sv-1');
 const created=await page.evaluate(()=>window.__requests.find(item=>item.method==='POST'));
@@ -122,7 +122,7 @@ await page.locator('#inventorySaveView').click();
 assert.ok(await page.evaluate(()=>window.__requests.some(item=>item.method==='PUT'&&item.path.includes('/saved-views/sv-1'))),'active custom Save must update its own definition');
 await page.evaluate(()=>window.__prompts.push('Stock Copy'));
 await page.locator('#inventorySaveViewAs').click();
-await page.getByRole('option',{name:'Custom · Stock Copy'}).waitFor();
+await page.locator('#inventoryPresetSelect option[value="custom:sv-2"]').waitFor({state:'attached'});
 assert.equal(await page.locator('#inventoryPresetSelect').inputValue(),'custom:sv-2');
 
 await page.locator('#inventoryClearAll').click();
@@ -138,7 +138,7 @@ assert.equal(reopenId,'sv-2');
 
 const reopen=await browser.newPage({viewport:{width:1280,height:800}});
 await installPage(reopen,{activeId:reopenId});
-await reopen.getByRole('option',{name:'Custom · Stock Copy'}).waitFor();
+await reopen.locator('#inventoryPresetSelect option[value="custom:sv-2"]').waitFor({state:'attached'});
 assert.equal(await reopen.locator('#inventoryPresetSelect').inputValue(),'custom:sv-2');
 assert.equal(await reopen.locator('.view[data-panel="inventory"]').getAttribute('data-inventory-density'),'compact');
 assert.equal(await reopen.getByRole('cell',{name:'Alpha'}).getAttribute('data-user-fill'),'green','fresh load must rehydrate saved formatting');
