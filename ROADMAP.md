@@ -180,20 +180,20 @@ Evidence:
 
 Next bounded order:
 
-1. optional one-click Clear all for Search + review filters + sort state if it materially improves the workbench;
-2. keyboard navigation/copy shortcuts after the export/sort/layout substrate is stable;
-3. optional desktop split-pane review detail after table ergonomics are proven;
-4. then Slice E saved custom views / View Builder.
+1. Saved View Persistence Foundation is complete and production verified through PR #207.
+2. Custom Table Builder v1 is implemented on PR #209 with exact-head CI green; merge/deploy/runtime proof is the next gate.
+3. Optional desktop split-pane review detail remains deferred and is not a blocker for Slice E.
+4. Calculated/derived columns require a later typed safe-expression design; arbitrary SQL/raw expressions remain forbidden.
 
-User-owned persistence of layouts belongs to Slice E rather than being hard-coded into v2.
+### Slice E — saved custom views / Custom Table Builder — ACTIVE
 
-### Slice E — saved custom views
-
-- persist user-defined view definitions;
-- View Builder for row grain, Store scope, fields/order, labels, widths, filters/sorts/groups/formatting;
-- duplicate a system preset into a user-owned view without mutating the system preset;
-- user-created table/view export reuses the same global Excel renderer rather than adding a second export stack;
-- never permit arbitrary SQL/raw DB expressions.
+- E1 persists authenticated user-owned saved view definitions, field order, widths, density, filters/sort and presentation-only fills; production verified through PR #207 / main `82abd4f83a5e6a88af8714983a91b151fc5c642e`.
+- E2 adds a first-class `New table` builder over allowlisted server-owned row sources.
+- users select/remove/reorder registered mapped fields and edit header labels independently of stable field keys; labels persist as bounded presentation-only `column_labels`.
+- existing custom tables reopen in `Edit table`; system presets remain immutable.
+- custom-table Excel export resolves the saved base preset and preserves current rendered field order/header labels through the existing global renderer.
+- PR #209 exact-head CI is green at `0cee74672beb369ff745cb451801d8df550224fa`; production merge/deploy proof remains pending.
+- calculated/derived columns remain deferred to a typed safe-expression slice.
 
 ### Slice F — Daily Usage + typed editing
 
