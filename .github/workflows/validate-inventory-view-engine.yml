@@ -6,11 +6,15 @@ on:
     paths:
       - 'backend/app/inventory_view_engine.py'
       - 'backend/app/inventory_view_engine_verify.py'
+      - 'backend/app/inventory_view_export.py'
+      - 'backend/app/inventory_view_export_verify.py'
       - 'backend/app/main.py'
       - 'backend/app/dashboard_assets/dashboard_inventory_views.js'
       - 'backend/app/dashboard_assets/dashboard_inventory_views.css'
+      - 'backend/app/dashboard_assets/dashboard_inventory_export.js'
       - 'tests/web/inventory_view_engine_smoke.mjs'
       - 'tests/web/inventory_sorting_smoke.mjs'
+      - 'tests/web/inventory_csv_export_smoke.mjs'
       - '.github/workflows/validate-inventory-view-engine.yml'
 
 permissions:
@@ -26,11 +30,14 @@ jobs:
         run: python -m pip install --disable-pip-version-check -q -r backend/requirements.txt
       - name: Verify registry and presets
         run: PYTHONPATH=backend python -m app.inventory_view_engine_verify
+      - name: Verify CSV export contract
+        run: PYTHONPATH=backend python -m app.inventory_view_export_verify
       - name: Verify router contract and main binding
         run: |
           PYTHONPATH=backend python - <<'PY'
           from pathlib import Path
           from app.inventory_view_engine import router
+          from app.inventory_view_export import router as export_router
           paths = {getattr(route, 'path', None) for route in router.routes}
           required = {
               '/dashboard/api/inventory-view/registry',
@@ -40,13 +47,20 @@ jobs:
           }
           missing = required - paths
           assert not missing, sorted(missing)
+          export_paths = {getattr(route, 'path', None) for route in export_router.routes}
+          assert '/dashboard/api/inventory-view/export.csv' in export_paths
           main_source = Path('backend/app/main.py').read_text(encoding='utf-8')
           assert 'from app.inventory_view_engine import router as inventory_view_router' in main_source
+          assert 'from app.inventory_view_export import router as inventory_view_export_router' in main_source
           assert 'app.include_router(inventory_view_router)' in main_source
-          print('inventory_view_routes=pass review_context_route=pass main_binding=pass')
+          assert 'app.include_router(inventory_view_export_router)' in main_source
+          assert 'dashboard_inventory_export.js' in main_source
+          print('inventory_view_routes=pass review_context_route=pass csv_export_route=pass main_binding=pass')
           PY
       - name: Verify Inventory JavaScript syntax
-        run: node --check backend/app/dashboard_assets/dashboard_inventory_views.js
+        run: |
+          node --check backend/app/dashboard_assets/dashboard_inventory_views.js
+          node --check backend/app/dashboard_assets/dashboard_inventory_export.js
       - name: Verify Ask AI waits for loaded agents
         run: |
           python - <<'PY'
@@ -73,3 +87,5 @@ jobs:
         run: node tests/web/inventory_view_engine_smoke.mjs
       - name: Run Inventory server sorting smoke
         run: node tests/web/inventory_sorting_smoke.mjs
+      - name: Run Inventory CSV export smoke
+        run: node tests/web/inventory_csv_export_smoke.mjs

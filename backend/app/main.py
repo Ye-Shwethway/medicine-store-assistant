@@ -23,6 +23,7 @@ from app.db import database_readiness
 from app.email_recovery import router as email_recovery_router
 from app.email_recovery_page import router as email_recovery_page_router
 from app.inventory_view_engine import router as inventory_view_router
+from app.inventory_view_export import router as inventory_view_export_router
 from app.mcp_agent_binding import router as mcp_agent_binding_router
 from app.mcp_oauth import router as mcp_oauth_router
 from app.mcp_server import mcp, mcp_http_app
@@ -52,6 +53,7 @@ AGENT_POLISH_ASSET_VERSION = asset_bundle_version(ASSET_DIR, "dashboard_agent_po
 MCP_BINDING_ASSET_VERSION = asset_bundle_version(ASSET_DIR, "dashboard_mcp_binding.js", "dashboard_mcp_binding.css")
 AUDIT_ASSET_VERSION = asset_bundle_version(ASSET_DIR, "dashboard_audit.js", "dashboard_audit.css")
 INVENTORY_VIEW_ASSET_VERSION = asset_bundle_version(ASSET_DIR, "dashboard_inventory_views.js", "dashboard_inventory_views.css")
+INVENTORY_EXPORT_ASSET_VERSION = asset_bundle_version(ASSET_DIR, "dashboard_inventory_export.js")
 
 
 @asynccontextmanager
@@ -177,7 +179,8 @@ def dashboard_shell_with_saved_model_assets() -> HTMLResponse:
         f'<script src="/dashboard/assets/dashboard_multi_agent_live_export.js?v={MULTI_AGENT_LIVE_EXPORT_ASSET_VERSION}" defer></script>\n'
         f'<script src="/dashboard/assets/dashboard_mcp_binding.js?v={MCP_BINDING_ASSET_VERSION}" defer></script>\n'
         f'<script src="/dashboard/assets/dashboard_audit.js?v={AUDIT_ASSET_VERSION}" defer></script>\n'
-        f'<script src="/dashboard/assets/dashboard_inventory_views.js?v={INVENTORY_VIEW_ASSET_VERSION}" defer></script>\n</body>',
+        f'<script src="/dashboard/assets/dashboard_inventory_views.js?v={INVENTORY_VIEW_ASSET_VERSION}" defer></script>\n'
+        f'<script src="/dashboard/assets/dashboard_inventory_export.js?v={INVENTORY_EXPORT_ASSET_VERSION}" defer></script>\n</body>',
         1,
     )
     response = HTMLResponse(html)
@@ -291,9 +294,15 @@ def inventory_view_js() -> FileResponse:
     return _asset_file("dashboard_inventory_views.js", "text/javascript")
 
 
+@app.get("/dashboard/assets/dashboard_inventory_export.js", include_in_schema=False)
+def inventory_export_js() -> FileResponse:
+    return _asset_file("dashboard_inventory_export.js", "text/javascript")
+
+
 app.include_router(dashboard_login_router)
 app.include_router(dashboard_router)
 app.include_router(inventory_view_router)
+app.include_router(inventory_view_export_router)
 app.include_router(email_recovery_page_router)
 app.include_router(user_management_router)
 app.include_router(agent_management_router)
