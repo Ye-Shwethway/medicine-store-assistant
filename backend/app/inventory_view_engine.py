@@ -12,6 +12,7 @@ from app.shadow_read_api import _query
 router = APIRouter(prefix="/dashboard/api/inventory-view", tags=["inventory-view"])
 
 FieldKind = Literal["ENTITY_FIELD", "COMPUTED_FIELD", "COMMAND_EDITABLE_FIELD", "DISPLAY_HELPER"]
+SortDirection = Literal["asc", "desc"]
 REVIEW_CONTEXT_PRESETS = {"migration-review", "cms-mapping-review"}
 MAX_REVIEW_CONTEXT_ROWS = 20
 
@@ -54,6 +55,8 @@ class InventoryReviewContextInput(BaseModel):
     mapping_status: str | None = Field(default=None, max_length=64)
     source_classification: str | None = Field(default=None, max_length=64)
     review_reason: str | None = Field(default=None, max_length=255)
+    sort_field: str | None = Field(default=None, max_length=80)
+    sort_dir: str | None = Field(default=None, max_length=8)
     selected_indices: list[int] = Field(min_length=1, max_length=MAX_REVIEW_CONTEXT_ROWS)
 
 
@@ -154,6 +157,66 @@ SYSTEM_PRESETS: dict[str, ViewDefinition] = {
 }
 
 
+# Client sort keys never become SQL identifiers. Every sortable field resolves through a
+# provider-owned expression below, and direction is normalized to the two literal values.
+PROVIDER_SORT_FIELDS: dict[str, dict[str, str]] = {
+    "lot_balance": {
+        "display_no": "COALESCE(p.display_order, 2147483647)",
+        "product_id": "p.product_id",
+        "lot_id": "pl.lot_id",
+        "local_item_name": "lower(p.local_name)",
+        "expiry_date": "pl.expiry_date",
+        "unit": "lower(COALESCE(p.default_unit,''))",
+        "store_code": "lower(s.code)",
+        "opening_qty": "COALESCE(o.opening_qty,0)",
+        "received_qty": "COALESCE(r.received_qty,0)",
+        "usage_qty": "COALESCE(u.usage_qty,0)",
+        "current_qty": "COALESCE(b.current_qty,0)",
+        "cms_code": "lower(COALESCE(map.cms_code_snapshot,''))",
+        "cms_name": "lower(COALESCE(map.cms_name_snapshot,''))",
+        "mapping_status": "COALESCE(map.mapping_status,'')",
+        "catalogue_price": "ci.selling_price",
+        "accepted_operational_price": "map.accepted_operational_price",
+    },
+    "migration_review": {
+        "source_row_no": "msr.source_row_no",
+        "local_item_name": "lower(COALESCE(msr.payload->>'product_name_candidate', msr.payload->>'item_name',''))",
+        "expiry_date": "NULLIF(msr.payload->>'expiry_date','')::date",
+        "unit": "lower(COALESCE(msr.payload->>'unit',''))",
+        "source_current_qty": "NULLIF(msr.payload->>'stock_status_today','')::numeric(18,3)",
+        "current_qty": "COALESCE(b.current_qty,0)",
+        "cms_code": "lower(COALESCE(map.cms_code_snapshot, msr.payload->>'serial_code',''))",
+        "cms_name": "lower(COALESCE(map.cms_name_snapshot, msr.payload->>'cs_name',''))",
+        "mapping_status": "COALESCE(map.mapping_status,'')",
+        "source_classification": "COALESCE(msr.classification,'')",
+        "review_reason": "lower(COALESCE(msr.review_reason,''))",
+    },
+    "cms_mapping_review": {
+        "product_id": "p.product_id",
+        "local_item_name": "lower(p.local_name)",
+        "unit": "lower(COALESCE(p.default_unit,''))",
+        "cms_code": "lower(COALESCE(map.cms_code_snapshot,''))",
+        "cms_name": "lower(COALESCE(map.cms_name_snapshot,''))",
+        "mapping_status": "COALESCE(map.mapping_status,'')",
+        "catalogue_price": "ci.selling_price",
+        "accepted_operational_price": "map.accepted_operational_price",
+        "review_reason": "lower(COALESCE(map.review_reason,''))",
+    },
+}
+
+DEFAULT_ORDER_BY: dict[str, str] = {
+    "lot_balance": "COALESCE(p.display_order, 2147483647), lower(p.local_name), pl.expiry_date NULLS LAST, pl.lot_id",
+    "migration_review": "msr.source_row_no",
+    "cms_mapping_review": "COALESCE(p.display_order, 2147483647), lower(p.local_name), p.product_id",
+}
+
+SORT_TIE_BREAKERS: dict[str, str] = {
+    "lot_balance": "COALESCE(p.display_order, 2147483647), lower(p.local_name), pl.expiry_date NULLS LAST, pl.lot_id",
+    "migration_review": "msr.source_row_no",
+    "cms_mapping_review": "COALESCE(p.display_order, 2147483647), lower(p.local_name), p.product_id",
+}
+
+
 def _no_store(response: Response) -> None:
     response.headers["Cache-Control"] = "no-store"
     response.headers["Pragma"] = "no-cache"
@@ -187,6 +250,30 @@ def _normalize_optional(value: str | None) -> str | None:
     return value.strip() if value and value.strip() else None
 
 
+def _normalize_sort(provider: str, sort_field: str | None, sort_dir: str | None) -> tuple[str | None, SortDirection | None]:
+    field = _normalize_optional(sort_field)
+    direction_raw = _normalize_optional(sort_dir)
+    if not field:
+        if direction_raw:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="sort_dir requires sort_field")
+        return None, None
+    provider_fields = PROVIDER_SORT_FIELDS.get(provider)
+    if provider_fields is None or field not in provider_fields:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Inventory field is not sortable for this view: {field}")
+    direction = (direction_raw or "asc").lower()
+    if direction not in {"asc", "desc"}:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="sort_dir must be asc or desc")
+    return field, direction  # type: ignore[return-value]
+
+
+def _order_by_clause(provider: str, sort_field: str | None, sort_dir: SortDirection | None) -> str:
+    if not sort_field:
+        return DEFAULT_ORDER_BY[provider]
+    expression = PROVIDER_SORT_FIELDS[provider][sort_field]
+    direction = "ASC" if sort_dir == "asc" else "DESC"
+    return f"{expression} {direction} NULLS LAST, {SORT_TIE_BREAKERS[provider]}"
+
+
 def _review_context_view(preset: str) -> ViewDefinition:
     view = SYSTEM_PRESETS.get(preset)
     if view is None:
@@ -211,10 +298,19 @@ def _select_review_context_rows(
     ]
 
 
-def _main_stock_rows(*, q: str | None, mapping_status: str | None, limit: int, offset: int) -> list[dict[str, Any]]:
+def _main_stock_rows(
+    *,
+    q: str | None,
+    mapping_status: str | None,
+    sort_field: str | None,
+    sort_dir: SortDirection | None,
+    limit: int,
+    offset: int,
+) -> list[dict[str, Any]]:
     params: dict[str, Any] = {"limit": limit, "offset": offset}
     search_clause = ""
     mapping_clause = ""
+    order_by = _order_by_clause("lot_balance", sort_field, sort_dir)
     if q:
         params["q"] = q
         search_clause = "AND (p.local_name ILIKE '%' || :q || '%' OR COALESCE(map.cms_code_snapshot,'') ILIKE '%' || :q || '%' OR COALESCE(map.cms_name_snapshot,'') ILIKE '%' || :q || '%')"
@@ -276,7 +372,7 @@ def _main_stock_rows(*, q: str | None, mapping_status: str | None, limit: int, o
         LEFT JOIN current_mapping map ON map.product_id=p.product_id
         LEFT JOIN cms_catalogue_items ci ON ci.catalogue_item_id=map.catalogue_item_id
         WHERE p.active {search_clause} {mapping_clause}
-        ORDER BY COALESCE(p.display_order, 2147483647), lower(p.local_name), pl.expiry_date NULLS LAST, pl.lot_id
+        ORDER BY {order_by}
         LIMIT :limit OFFSET :offset
         """,
         params,
@@ -289,6 +385,8 @@ def _migration_review_rows(
     mapping_status: str | None,
     source_classification: str | None,
     review_reason: str | None,
+    sort_field: str | None,
+    sort_dir: SortDirection | None,
     limit: int,
     offset: int,
 ) -> list[dict[str, Any]]:
@@ -297,6 +395,7 @@ def _migration_review_rows(
     mapping_clause = ""
     classification_clause = ""
     reason_clause = ""
+    order_by = _order_by_clause("migration_review", sort_field, sort_dir)
     if q:
         params["q"] = q
         search_clause = "AND (COALESCE(msr.payload->>'item_name','') ILIKE '%' || :q || '%' OR COALESCE(msr.payload->>'serial_code','') ILIKE '%' || :q || '%' OR COALESCE(msr.review_reason,'') ILIKE '%' || :q || '%')"
@@ -344,7 +443,7 @@ def _migration_review_rows(
         LEFT JOIN inventory_location_balances b ON b.store_id=s.store_id AND b.lot_id=pl.lot_id
         LEFT JOIN current_mapping map ON map.product_id=p.product_id
         WHERE msr.source_sheet='Main Stock' {search_clause} {mapping_clause} {classification_clause} {reason_clause}
-        ORDER BY msr.source_row_no
+        ORDER BY {order_by}
         LIMIT :limit OFFSET :offset
         """,
         params,
@@ -356,6 +455,8 @@ def _cms_mapping_review_rows(
     q: str | None,
     mapping_status: str | None,
     review_reason: str | None,
+    sort_field: str | None,
+    sort_dir: SortDirection | None,
     limit: int,
     offset: int,
 ) -> list[dict[str, Any]]:
@@ -363,6 +464,7 @@ def _cms_mapping_review_rows(
     search_clause = ""
     mapping_clause = ""
     reason_clause = ""
+    order_by = _order_by_clause("cms_mapping_review", sort_field, sort_dir)
     if q:
         params["q"] = q
         search_clause = "AND (p.local_name ILIKE '%' || :q || '%' OR COALESCE(map.cms_code_snapshot,'') ILIKE '%' || :q || '%' OR COALESCE(map.cms_name_snapshot,'') ILIKE '%' || :q || '%' OR COALESCE(map.review_reason,'') ILIKE '%' || :q || '%')"
@@ -397,7 +499,7 @@ def _cms_mapping_review_rows(
         JOIN current_mapping map ON map.product_id=p.product_id
         LEFT JOIN cms_catalogue_items ci ON ci.catalogue_item_id=map.catalogue_item_id
         WHERE p.active {search_clause} {mapping_clause} {reason_clause}
-        ORDER BY COALESCE(p.display_order, 2147483647), lower(p.local_name), p.product_id
+        ORDER BY {order_by}
         LIMIT :limit OFFSET :offset
         """,
         params,
@@ -411,17 +513,28 @@ def _render_provider(
     mapping_status: str | None,
     source_classification: str | None,
     review_reason: str | None,
+    sort_field: str | None,
+    sort_dir: SortDirection | None,
     limit: int,
     offset: int,
 ) -> list[dict[str, Any]]:
     if provider == "lot_balance":
-        return _main_stock_rows(q=q, mapping_status=mapping_status, limit=limit, offset=offset)
+        return _main_stock_rows(
+            q=q,
+            mapping_status=mapping_status,
+            sort_field=sort_field,
+            sort_dir=sort_dir,
+            limit=limit,
+            offset=offset,
+        )
     if provider == "migration_review":
         return _migration_review_rows(
             q=q,
             mapping_status=mapping_status,
             source_classification=source_classification,
             review_reason=review_reason,
+            sort_field=sort_field,
+            sort_dir=sort_dir,
             limit=limit,
             offset=offset,
         )
@@ -430,6 +543,8 @@ def _render_provider(
             q=q,
             mapping_status=mapping_status,
             review_reason=review_reason,
+            sort_field=sort_field,
+            sort_dir=sort_dir,
             limit=limit,
             offset=offset,
         )
@@ -467,6 +582,8 @@ def inventory_view_rows(
     mapping_status: str | None = Query(default=None, max_length=64),
     source_classification: str | None = Query(default=None, max_length=64),
     review_reason: str | None = Query(default=None, max_length=255),
+    sort_field: str | None = Query(default=None, max_length=80),
+    sort_dir: str | None = Query(default=None, max_length=8),
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
 ) -> dict[str, Any]:
@@ -479,16 +596,20 @@ def inventory_view_rows(
     normalized_mapping_status = _normalize_optional(mapping_status)
     normalized_source_classification = _normalize_optional(source_classification)
     normalized_review_reason = _normalize_optional(review_reason)
+    normalized_sort_field, normalized_sort_dir = _normalize_sort(view.provider, sort_field, sort_dir)
     provider_rows = _render_provider(
         view.provider,
         q=normalized_q,
         mapping_status=normalized_mapping_status,
         source_classification=normalized_source_classification,
         review_reason=normalized_review_reason,
+        sort_field=normalized_sort_field,
+        sort_dir=normalized_sort_dir,
         limit=limit,
         offset=offset,
     )
     selected = [{column.field: row.get(column.field) for column in columns} for row in provider_rows]
+    sortable_fields = PROVIDER_SORT_FIELDS[view.provider]
     return {
         "view": _serialize_view(view),
         "columns": [
@@ -496,6 +617,7 @@ def inventory_view_rows(
                 **asdict(column),
                 "label": column.label or FIELD_REGISTRY[column.field].label,
                 "field_definition": asdict(FIELD_REGISTRY[column.field]),
+                "sortable": column.field in sortable_fields,
             }
             for column in columns
         ],
@@ -509,6 +631,7 @@ def inventory_view_rows(
             "source_classification": normalized_source_classification,
             "review_reason": normalized_review_reason,
         },
+        "sort": {"field": normalized_sort_field, "direction": normalized_sort_dir},
         "read_only": True,
         "customizable_projection": True,
         "database_canonical": False,
@@ -524,12 +647,15 @@ def inventory_review_context(payload: InventoryReviewContextInput, response: Res
     normalized_mapping_status = _normalize_optional(payload.mapping_status)
     normalized_source_classification = _normalize_optional(payload.source_classification)
     normalized_review_reason = _normalize_optional(payload.review_reason)
+    normalized_sort_field, normalized_sort_dir = _normalize_sort(view.provider, payload.sort_field, payload.sort_dir)
     provider_rows = _render_provider(
         view.provider,
         q=normalized_q,
         mapping_status=normalized_mapping_status,
         source_classification=normalized_source_classification if payload.preset == "migration-review" else None,
         review_reason=normalized_review_reason,
+        sort_field=normalized_sort_field,
+        sort_dir=normalized_sort_dir,
         limit=payload.limit,
         offset=payload.offset,
     )
@@ -557,6 +683,7 @@ def inventory_review_context(payload: InventoryReviewContextInput, response: Res
             "source_classification": normalized_source_classification if payload.preset == "migration-review" else None,
             "review_reason": normalized_review_reason,
         },
+        "sort": {"field": normalized_sort_field, "direction": normalized_sort_dir},
         "page": {"limit": payload.limit, "offset": payload.offset},
         "selected_indices": payload.selected_indices,
         "selected_count": len(rows),
