@@ -53,15 +53,15 @@ Do not present test snapshot counts as live canonical stock KPIs.
 
 Primary workflow:
 
-1. search;
-2. filter;
-3. scan spreadsheet-style rows;
-4. open detail drawer;
-5. inspect provenance/status;
+1. search/filter and scan spreadsheet-style rows;
+2. click/tap a data cell to make it the active sheet cell;
+3. extend rectangular ranges with desktop drag / Shift and keyboard arrows;
+4. use the dedicated row-selector gutter for one or more whole rows;
+5. open item provenance/status through explicit `Details` or the keyboard Enter shortcut rather than row-wide click;
 6. optionally expand the table into focus mode;
 7. return to Inventory or Overview without losing navigation context.
 
-Current inventory phase is read-only. Do not show fake inventory edit/save buttons.
+Cell/range selection is presentation-only. Whole-row selection remains the bounded source for existing server-rehydrated Ask AI / Deep Review context. Current inventory phase is read-only. Do not show fake inventory edit/save buttons.
 
 Desktop columns must remain aligned through a shared table grid. Use visible vertical and horizontal borders similar to the working Google Sheet. Mobile may use local horizontal table scrolling rather than crushing columns until the later mobile inventory redesign is authorized.
 

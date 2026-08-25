@@ -232,3 +232,9 @@ Runtime issue #166, run `32821445117`, verified Main Stock **799** rows with Exc
 ## Immediate boundary
 
 Do not present shadow DB as canonical. Formatted Excel export is now a verified globally reusable read-only substrate. Remaining Workbench v2 ergonomics and later View Builder work must continue to operate over validated registered projections and must not accept CMS mappings/prices, mutate inventory, accept the migration baseline or promote PostgreSQL.
+
+## Inventory Sheet Interaction Foundation v1 — ACTIVE
+
+Current bounded target after formatted Excel export: convert the Inventory Workbench from row-click inspection to a sheet-selection model before Saved Custom Views / View Builder. Contract: `docs/design/INVENTORY_SHEET_INTERACTION_V1.md`.
+
+Authorized v1 scope: active cell, rectangular cell range, desktop drag / Shift range, Arrow + Shift+Arrow keyboard movement, dedicated whole-row selector gutter, explicit Details action, selection-aware TSV copy, and preservation of whole-row Ask AI / Deep Review semantics. Cell click must no longer open details. Selection remains session-only/read-only. Fill colors and persistent formatting are the next Sheet Formatting slice, not part of this v1.

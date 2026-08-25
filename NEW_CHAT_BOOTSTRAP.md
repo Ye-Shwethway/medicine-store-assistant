@@ -212,3 +212,7 @@ Runtime issue #166, run `32821445117`, verified Main Stock **799** rows with Exc
 ## Immediate boundary
 
 Do not present shadow DB as canonical. The current workbench may sort/filter/rearrange/copy/export validated projections, including globally reusable formatted Excel output, but must not create accepted CMS mappings, push catalogue prices, mutate inventory, accept the migration baseline, or promote PostgreSQL.
+
+## Current bounded target — Inventory Sheet Interaction Foundation v1
+
+Formatted Excel export is complete and production-runtime verified. The active Inventory work is now `docs/design/INVENTORY_SHEET_INTERACTION_V1.md`: cell-first selection, rectangular ranges, keyboard navigation, whole-row selector gutter, explicit Details, and selection-aware copy. Do not restore row-wide click-to-open behavior. Whole-row selection remains the only source for Ask AI / Deep Review row context. Fill colors/persistent formatting follow after this v1; Saved Custom Views / View Builder follows the sheet interaction/formatting foundation. All current work remains read-only and PostgreSQL remains non-canonical.
