@@ -240,7 +240,7 @@ Current bounded target after formatted Excel export: convert the Inventory Workb
 Authorized v1 scope: active cell, rectangular cell range, desktop drag / Shift range, Arrow + Shift+Arrow keyboard movement, dedicated whole-row selector gutter, explicit Details action, selection-aware TSV copy, and preservation of whole-row Ask AI / Deep Review semantics. Cell click must no longer open details. Selection remains session-only/read-only. Fill colors and persistent formatting are the next Sheet Formatting slice, not part of this v1.
 
 
-## Inventory Sheet Formatting v1 — IMPLEMENTED + CI VERIFIED
+## Inventory Sheet Formatting v1 — COMPLETE + PRODUCTION VERIFIED
 
 Contract: `docs/design/INVENTORY_SHEET_FORMATTING_V1.md`. PR #203 adds session-only spreadsheet presentation formatting over the existing authoritative Inventory renderer.
 
@@ -257,4 +257,4 @@ Implemented behavior:
 - mobile 390x844 Fill palette behavior is covered by Playwright;
 - formatting remains session-only. Persistence/export of user formatting is deferred to Saved Custom Views / View Builder.
 
-CI at PR #203 is green for backend, Web reliability and Inventory View Engine, including the dedicated Sheet Formatting browser smoke. Production merge/deploy evidence is pending. No inventory, CMS mapping, pricing, migration-baseline or canonicality mutation is introduced.
+PR #203 merged as `20f4b67ff79ea52838401c35ad19ad25da68c2a2`. Backend, Web reliability and Inventory View Engine CI were green on the final PR head, including the dedicated Sheet Formatting browser smoke. Production deploy run `32831427749` completed successfully and deployment issue #26 published `status=success` with `source_sha=20f4b67ff79ea52838401c35ad19ad25da68c2a2`. No inventory, CMS mapping, pricing, migration-baseline or canonicality mutation is introduced.
