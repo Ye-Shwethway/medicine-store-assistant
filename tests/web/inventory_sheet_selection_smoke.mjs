@@ -3,6 +3,7 @@ import path from 'node:path';
 import { chromium } from 'playwright';
 
 const script=path.join(process.cwd(),'backend/app/dashboard_assets/dashboard_inventory_views.js');
+const stylesheet=path.join(process.cwd(),'backend/app/dashboard_assets/dashboard_inventory_views.css');
 const browser=await chromium.launch({headless:true});
 const page=await browser.newPage({viewport:{width:1280,height:800}});
 await page.setContent('<main id="msa"><section class="view" data-panel="inventory"></section></main>');
@@ -23,6 +24,7 @@ await page.evaluate(()=>{
     throw new Error('Unexpected '+requestPath);
   };
 });
+await page.addStyleTag({path:stylesheet});
 await page.addScriptTag({path:script});
 await page.getByText('Alpha',{exact:true}).waitFor();
 
@@ -33,11 +35,14 @@ assert.equal(await page.locator('#inventoryReviewDrawer').isHidden(),true,'cell 
 assert.equal(await cell(0,0).getAttribute('aria-selected'),'true');
 const activeVisual=await cell(0,0).evaluate(el=>{const s=getComputedStyle(el);return {background:s.backgroundColor,boxShadow:s.boxShadow}});
 assert.notEqual(activeVisual.background,'rgba(0, 0, 0, 0)','active cell must have a visible fill');
-assert.match(activeVisual.boxShadow,/rgb|color|inset/i,'active cell must have a visible selection outline');
+assert.notEqual(activeVisual.background,'rgb(255, 255, 255)','active cell fill must differ from the sheet background');
+assert.match(activeVisual.boxShadow,/inset/i,'active cell must have a visible inset selection outline');
 
 await cell(1,1).click({modifiers:['Shift']});
 assert.match(await page.locator('#inventorySelectionCount').textContent(),/2×2 range · 4 cells/);
 assert.equal(await cell(1,1).getAttribute('aria-selected'),'true');
+const rangeVisual=await cell(0,0).evaluate(el=>{const s=getComputedStyle(el);return {background:s.backgroundColor,boxShadow:s.boxShadow}});
+assert.notEqual(rangeVisual.background,'rgb(255, 255, 255)','selected range cells must remain visibly filled');
 await page.getByRole('button',{name:'Copy TSV'}).click();
 assert.equal(await page.evaluate(()=>window.__copied),'Alpha\t10\nBeta\t20','range copy must contain real TSV row breaks');
 
@@ -78,17 +83,20 @@ assert.equal(await page.locator('#inventorySelectionBar').isHidden(),true);
 await cell(0,1).click();
 assert.equal(await page.locator('#inventorySelectionCount').textContent(),'1 cell selected');
 await page.locator('#inventoryViewSearch').fill('Alpha');
-await page.waitForTimeout(260);
+await page.locator('#inventoryViewSearch').press('Enter');
 assert.equal(await page.locator('#inventorySelectionBar').isHidden(),true,'search coordinate changes must clear stale selection');
 await page.locator('#inventoryViewSearch').fill('');
-await page.waitForTimeout(260);
+await page.locator('#inventoryViewSearch').press('Enter');
+await page.getByText('Alpha',{exact:true}).waitFor();
 
 await page.setViewportSize({width:390,height:844});
 await cell(0,1).click();
 assert.equal(await page.locator('#inventoryReviewDrawer').isHidden(),true);
 assert.equal(await page.locator('#inventorySelectionCount').textContent(),'1 cell selected');
+const mobileVisual=await cell(0,1).evaluate(el=>{const s=getComputedStyle(el);return {background:s.backgroundColor,boxShadow:s.boxShadow}});
+assert.notEqual(mobileVisual.background,'rgb(255, 255, 255)','mobile active cell must remain visibly filled');
 const touchTarget=await row1.boundingBox();
 assert.ok(touchTarget&&touchTarget.height>=40,'row selector remains a practical touch target');
 
 await browser.close();
-console.log('inventory_sheet_selection=pass cell_click=pass range=pass drag=pass keyboard=pass rows=pass details=explicit copy=pass stale_selection=cleared mobile=pass');
+console.log('inventory_sheet_selection=pass cell_click=pass visible_state=pass range=pass drag=pass keyboard=pass rows=pass details=explicit copy=pass stale_selection=cleared mobile=pass');
