@@ -7,8 +7,11 @@ from app.inventory_view_engine import (
     FIELD_REGISTRY,
     InventoryReviewContextInput,
     MAX_REVIEW_CONTEXT_ROWS,
+    PROVIDER_SORT_FIELDS,
     REVIEW_CONTEXT_PRESETS,
     SYSTEM_PRESETS,
+    _normalize_sort,
+    _order_by_clause,
     _resolve_columns,
     _review_context_view,
     _select_review_context_rows,
@@ -59,6 +62,8 @@ def main() -> None:
 
     InventoryReviewContextInput(
         preset="migration-review",
+        sort_field="local_item_name",
+        sort_dir="desc",
         selected_indices=list(range(MAX_REVIEW_CONTEXT_ROWS)),
     )
     try:
@@ -105,12 +110,46 @@ def main() -> None:
     else:
         raise AssertionError("out-of-page review-context index must be rejected")
 
+    # Sorting is provider-owned and strictly allowlisted. Client values never become SQL expressions.
+    assert "local_item_name" in PROVIDER_SORT_FIELDS["lot_balance"]
+    assert "current_qty" in PROVIDER_SORT_FIELDS["lot_balance"]
+    assert "source_row_no" in PROVIDER_SORT_FIELDS["migration_review"]
+    assert "catalogue_price" in PROVIDER_SORT_FIELDS["cms_mapping_review"]
+    field, direction = _normalize_sort("cms_mapping_review", "catalogue_price", "DESC")
+    assert field == "catalogue_price" and direction == "desc"
+    clause = _order_by_clause("cms_mapping_review", field, direction)
+    assert clause.startswith("ci.selling_price DESC NULLS LAST")
+    assert "p.product_id" in clause
+    default_field, default_direction = _normalize_sort("migration_review", None, None)
+    assert default_field is None and default_direction is None
+    assert _order_by_clause("migration_review", default_field, default_direction) == "msr.source_row_no"
+
+    for bad_field in ("raw_sql_expression", "local_item_name desc; drop table products"):
+        try:
+            _normalize_sort("cms_mapping_review", bad_field, "asc")
+        except HTTPException as exc:
+            assert exc.status_code == 400
+        else:
+            raise AssertionError("unknown or SQL-like sort field must be rejected")
+    try:
+        _normalize_sort("cms_mapping_review", "local_item_name", "sideways")
+    except HTTPException as exc:
+        assert exc.status_code == 400
+    else:
+        raise AssertionError("invalid sort direction must be rejected")
+    try:
+        _normalize_sort("cms_mapping_review", None, "desc")
+    except HTTPException as exc:
+        assert exc.status_code == 400
+    else:
+        raise AssertionError("sort direction without sort field must be rejected")
+
     assert not any(field.editable for field in FIELD_REGISTRY.values())
     print(
         "inventory_view_engine=pass presets=3 cms_mapping_review=pass "
         "generic_field_selection=pass arbitrary_field_rejected=pass "
         "review_context=pass max_rows=20 selection_limit=pass "
-        "server_selection=pass read_only=pass"
+        "server_selection=pass server_sort_allowlist=pass invalid_sort_rejected=pass read_only=pass"
     )
 
 
