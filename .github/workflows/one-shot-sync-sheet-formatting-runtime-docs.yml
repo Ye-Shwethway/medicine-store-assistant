@@ -1,0 +1,46 @@
+name: One-shot Sync Sheet Formatting Runtime Docs
+on:
+  push:
+    branches: [docs/inventory-sheet-formatting-runtime]
+    paths: ['.github/workflows/one-shot-sync-sheet-formatting-runtime-docs.yml']
+permissions:
+  contents: write
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: docs/inventory-sheet-formatting-runtime
+      - name: Record production runtime evidence
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          sha='20f4b67ff79ea52838401c35ad19ad25da68c2a2'
+          run='32831427749'
+
+          p=Path('ROADMAP.md')
+          s=p.read_text()
+          s=s.replace('## Inventory Sheet Formatting v1 — IMPLEMENTED + CI VERIFIED','## Inventory Sheet Formatting v1 — COMPLETE + PRODUCTION VERIFIED',1)
+          s=s.replace('CI at PR #203 is green for backend, Web reliability and Inventory View Engine, including the dedicated Sheet Formatting browser smoke. Production merge/deploy evidence is pending. No inventory, CMS mapping, pricing, migration-baseline or canonicality mutation is introduced.',f'PR #203 merged as `{sha}`. Backend, Web reliability and Inventory View Engine CI were green on the final PR head, including the dedicated Sheet Formatting browser smoke. Production deploy run `{run}` completed successfully and deployment issue #26 published `status=success` with `source_sha={sha}`. No inventory, CMS mapping, pricing, migration-baseline or canonicality mutation is introduced.',1)
+          p.write_text(s)
+
+          p=Path('IMPLEMENTATION_PLAN.md')
+          s=p.read_text()
+          s=s.replace('### 5.6B Inventory Sheet Formatting v1 — IMPLEMENTED + CI VERIFIED','### 5.6B Inventory Sheet Formatting v1 — COMPLETE + PRODUCTION VERIFIED',1)
+          s=s.replace('Contract: `docs/design/INVENTORY_SHEET_FORMATTING_V1.md`. PR #203 CI is green; production deployment evidence is pending.',f'Contract: `docs/design/INVENTORY_SHEET_FORMATTING_V1.md`. PR #203 merged as `{sha}`; production deploy run `{run}` succeeded and issue #26 confirmed the exact deployed SHA.',1)
+          p.write_text(s)
+
+          p=Path('NEW_CHAT_BOOTSTRAP.md')
+          s=p.read_text()
+          s=s.replace('The next slice, Inventory Sheet Formatting v1, is implemented on PR #203 and CI-verified.',f'Inventory Sheet Formatting v1 is complete and production-verified through PR #203 / main `{sha}`.',1)
+          s=s.replace('Persistent formatting and styled custom-view export belong to Saved Custom Views / View Builder, not this slice. Production merge/deploy evidence for PR #203 is pending.',f'Persistent formatting and styled custom-view export belong to Saved Custom Views / View Builder, not this slice. Production deploy run `{run}` succeeded and deployment issue #26 confirmed `source_sha={sha}`.',1)
+          p.write_text(s)
+          PY
+          git diff --check
+          git config user.name 'Mr. Thorne'
+          git config user.email '85703541+Ye-Shwethway@users.noreply.github.com'
+          git add ROADMAP.md IMPLEMENTATION_PLAN.md NEW_CHAT_BOOTSTRAP.md
+          git commit -m 'Record Sheet Formatting production runtime proof'
+          git push origin HEAD:docs/inventory-sheet-formatting-runtime
