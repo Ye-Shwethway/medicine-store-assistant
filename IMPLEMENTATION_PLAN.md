@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Implementation Plan
 
-Status: **F6C architecture is locked. F6D shadow foundation is runtime-verified. F6E Slice A/B/C are complete and runtime-verified through the configurable read-only Inventory View Engine, generic Web renderer, CMS Mapping Review, source-vs-shadow review workspace, filters, highlighting, selection context and detail drawer. PostgreSQL remains non-canonical. Current bounded target: Slice D embedded Inventory AI copilot context + deep-review handoff.**
+Status: **F6C architecture is locked. F6D shadow foundation is runtime-verified. F6E Slice A/B/C/D are complete and runtime-verified through the configurable read-only Inventory View Engine, generic Web renderer, source/CMS review workspace, bounded Ask AI context and Deep Review handoff. Inventory Spreadsheet Focus Mode v1 is production-runtime verified. Current bounded target: Spreadsheet Workbench v2 read/review ergonomics. PostgreSQL remains non-canonical.**
 
 ## 1. Global rules
 
@@ -62,7 +62,7 @@ HOLDs remain unresolved rather than guessed: 14 inventory-semantic review rows, 
 - accepted operational prices **0**;
 - replay created **0** additional mapping rows.
 
-## 5. F6E — Inventory View Engine
+## 5. F6E — Inventory View Engine + Workbench
 
 ### 5.1 Slice A — registry + generic read projection — COMPLETE + RUNTIME VERIFIED
 
@@ -93,42 +93,78 @@ HOLDs remain unresolved rather than guessed: 14 inventory-semantic review rows, 
 - [x] Row-click review detail drawer.
 - [x] Migration Review source-vs-shadow quantity comparison.
 - [x] CMS mapping/current catalogue/accepted-price evidence detail.
+- [x] Human-friendly presentation of structured CMS review reasons while preserving raw evidence.
 - [x] Mobile full-width drawer and responsive review controls.
-- [x] PR #172 merged at `9d030f357a5c3c89e20c4ebba9a702920a227220`.
-- [x] Deployment issue #26 confirmed `status=success` for that merge via run `32769124095`.
-- [x] Runtime proof recorded in issue #171; mutation false and canonical flags remain false.
-- [x] Post-verification polish PR #173 humanizes structured CMS `review_reason` JSON in table/drawer presentation while preserving raw evidence and read-only semantics; CI green, merge `3d7ad88fbd7634571a317cc9b4b5b4c084d77695`.
+- [x] Production runtime evidence recorded in issue #171; mutation false and canonical flags remain false.
 
 Slice C introduced **no** accepted CMS mapping, price mutation, inventory mutation, migration-baseline acceptance or DB canonical promotion.
 
-### 5.4 Slice D — AI copilot — CURRENT
+### 5.4 Slice D — bounded AI copilot — COMPLETE + RUNTIME VERIFIED
 
-- [ ] Define a bounded `Inventory Review Context` payload containing current preset/view metadata, active filters, selected rows and allowed source/review evidence only.
-- [ ] Add an embedded Inventory assistant entry point that can explain/rank/summarize selected review evidence.
-- [ ] Reuse existing native AI Workspace/internal-agent runtime rather than creating a second inference stack.
-- [ ] Add Deep Review handoff that creates/opens durable AI Workspace multi-agent review context from the selected Inventory rows.
-- [ ] Preserve read-only context by default; AI cannot accept mappings, prices or inventory changes.
-- [ ] Durable Owner/authorized typed acceptance remains a later mutation gate.
-- [ ] Add behavior/runtime proof that context handoff contains only the intended selected evidence and canonical flags remain false.
+- [x] Define bounded `Inventory Review Context` containing view metadata, active filters, pagination coordinates, selected row indices and server-rehydrated allowed review evidence.
+- [x] Browser sends selection coordinates rather than treating DOM row facts as canonical context.
+- [x] Add `Ask AI` entry point for selected Migration Review / CMS Mapping Review evidence.
+- [x] Reuse existing native AI Workspace/internal-agent runtime rather than creating a second inference stack.
+- [x] Ask AI explicitly opens Chat and creates a **fresh** conversation only after the user selects an agent.
+- [x] Selected review prompt is prefilled but never auto-sent; model execution still requires explicit Send.
+- [x] Add focused modal with selected-row summary, reliable agent loading/retry, Cancel and explicit Start new chat.
+- [x] Add Deep Review handoff into the existing Owner Multi-Agent REVIEW workspace.
+- [x] Deep Review prefills durable work title/task and exposes quick REVIEW preset / role / explicit-run controls without auto-running.
+- [x] Preserve read-only context: AI cannot accept mappings, prices or inventory changes.
+- [x] Durable Owner/authorized typed acceptance remains a later mutation gate.
+- [x] Browser/runtime proof verifies bounded context and false canonical flags.
 
-### 5.5 Slice E — saved custom views
+Evidence chain includes PRs #175, #177, #179, #180, #181, #183, #184 and runtime checkpoints #176/#178. Deployment issue #26 confirmed deployed descendants.
+
+### 5.5 Inventory Spreadsheet Focus Mode v1 — COMPLETE + RUNTIME VERIFIED
+
+- [x] Near-fullscreen Focus mode for the Inventory workbench.
+- [x] Explicit Exit focus and `Escape` exit behavior.
+- [x] Preserve View/Search/Filters/Columns controls in focused mode.
+- [x] Comfortable/Compact table density toggle.
+- [x] Header checkbox for Select visible rows with checked/indeterminate synchronization.
+- [x] Rename ambiguous `Clear` action to explicit `Clear selection`.
+- [x] Freeze selection column and first visible data column during horizontal scrolling.
+- [x] Preserve existing Ask AI / Deep Review interactions.
+- [x] 390x844 Playwright proof for focus viewport, select-visible, clear-selection, density and frozen columns.
+- [x] PR #185 merged at `af461f2f4ddd329c81fd983955c26e905970e0af`.
+- [x] Deployment issue #26 confirmed `status=success` for that SHA via run `32811537864`.
+- [x] Runtime checkpoint issue #186 records the evidence.
+
+### 5.6 Spreadsheet Workbench v2 — CURRENT
+
+Keep v2 read/review-only. Do not add direct cell mutation yet.
+
+- [ ] Add server-side validated sort parameters and visible sort indicators.
+- [ ] Add active filter chips with per-chip removal and `Clear all` behavior.
+- [ ] Add column resize/reorder controls over registered fields only.
+- [ ] Add Auto-fit and Reset layout actions.
+- [ ] Add Copy selected as TSV for direct paste into Excel/Google Sheets.
+- [ ] Add CSV export for the current validated projection/filter/sort state.
+- [ ] Add keyboard navigation/copy shortcuts after sort/layout interactions are stable.
+- [ ] Add optional desktop split-pane review detail after core table ergonomics are proven.
+- [ ] Keep all operations read-only/non-canonical.
+
+### 5.7 Slice E — saved custom views
 
 - [ ] Persist user-defined view definitions.
 - [ ] View Builder: row grain, Store scope, field selection/order, labels, widths, filter/sort/group/formatting.
+- [ ] Persist user-owned layout preferences such as column order/width/density/sort where appropriate.
 - [ ] Duplicate a system preset into a user-owned view without mutating the system preset.
 - [ ] Never permit arbitrary SQL/raw DB expressions.
 
-### 5.6 Slice F — Daily Usage + editing
+### 5.8 Slice F — Daily Usage + editing
 
 - [ ] Daily Usage monthly-pivot system preset over normalized dated usage events.
 - [ ] spreadsheet-like `draft -> validation -> preview -> Confirm & Save -> typed command -> audit -> read-back` editing.
 - [ ] direct current-balance overwrite blocked/translated to explicit adjustment workflow.
+- [ ] only after this typed editing substrate exists may Excel-like inline editing/paste workflows gain mutation semantics.
 
 ## 6. Later sequence
 
-1. Complete Slice D embedded Inventory AI copilot + deep-review handoff.
-2. Resolve HOLD inventory rows and reviewed CMS mapping exceptions through typed reviewed actions.
-3. Persist saved user-defined views / View Builder.
+1. Complete Spreadsheet Workbench v2 read/review ergonomics.
+2. Persist saved user-defined views / View Builder.
+3. Resolve HOLD inventory rows and reviewed CMS mapping exceptions through typed reviewed actions when explicitly authorized.
 4. Daily Usage monthly-pivot preset + typed editing flow.
 5. Deterministic reorder baseline engine and reorder presets.
 6. Dual verification of real operational events.
@@ -140,4 +176,4 @@ Slice C introduced **no** accepted CMS mapping, price mutation, inventory mutati
 
 ## 7. Immediate boundary
 
-The immediate target is **Slice D Inventory AI copilot context/handoff**, not inventory mutation. The AI receives bounded review context and may explain, summarize, rank or propose only. Do not create accepted CMS mappings, push prices, mutate inventory, accept the migration baseline, or promote PostgreSQL as part of Slice D.
+The immediate target is **Spreadsheet Workbench v2 read/review ergonomics**, not inventory mutation. Sorting/filtering/layout/copy/export features must operate over validated registered projections. Do not create accepted CMS mappings, push prices, mutate inventory, accept the migration baseline, or promote PostgreSQL as part of this workbench slice.
