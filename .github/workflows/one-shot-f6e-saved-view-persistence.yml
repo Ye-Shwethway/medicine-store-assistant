@@ -28,3 +28,4 @@ jobs:
           git add backend/app/main.py backend/app/dashboard_assets/dashboard_inventory_views.js
           git commit -m 'Integrate Inventory saved view persistence UI'
           git push origin HEAD:feat/f6e-saved-view-persistence
+# rerun after validation workflow sync
