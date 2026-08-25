@@ -1,0 +1,36 @@
+name: One-shot Inspect Sheet Formatting
+on:
+  push:
+    branches: [feat/inventory-sheet-formatting-v1]
+    paths: ['.github/workflows/one-shot-inspect-sheet-formatting.yml']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: feat/inventory-sheet-formatting-v1
+      - name: Print Inventory renderer insertion contexts
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('backend/app/dashboard_assets/dashboard_inventory_views.js')
+          s=p.read_text()
+          needles=['function renderSelection','function renderTable','function renderRows','function copySelected','inventoryClearSelection','copySelected.addEventListener','tbody.addEventListener','table.addEventListener','function clearSelection','function selection','function setCell','cellRange']
+          for needle in needles:
+              print('\n###',needle)
+              start=0
+              found=False
+              while True:
+                  i=s.find(needle,start)
+                  if i<0: break
+                  found=True
+                  a=max(0,i-900); b=min(len(s),i+2200)
+                  print(s[a:b])
+                  print('\n---')
+                  start=i+len(needle)
+              if not found: print('NOT FOUND')
+          PY
