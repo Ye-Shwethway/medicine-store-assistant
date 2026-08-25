@@ -20,6 +20,7 @@ class ExcelColumn:
     label: str
     data_type: str = "string"
     preferred_width: float | None = None
+    number_format: str | None = None
 
 
 @dataclass(frozen=True)
@@ -57,7 +58,6 @@ def _safe_table_name(name: str) -> str:
 
 def _literal_text(value: Any) -> str:
     text = str(value)
-    # Excel must never interpret source/user strings as executable formulas.
     if text.lstrip().startswith(("=", "+", "-", "@")):
         return "'" + text
     return text
@@ -79,7 +79,7 @@ def _excel_value(value: Any, data_type: str) -> Any:
     return _literal_text(value)
 
 
-def _number_format(data_type: str) -> str | None:
+def _default_number_format(data_type: str) -> str | None:
     if data_type == "integer":
         return "0"
     if data_type in {"decimal", "number"}:
@@ -153,7 +153,7 @@ def build_excel_workbook(spec: ExcelWorkbookSpec) -> bytes:
             cell = worksheet.cell(row=row_number, column=column_number)
             cell.alignment = BODY_ALIGNMENT
             cell.border = GRID_BORDER
-            number_format = _number_format(column.data_type)
+            number_format = column.number_format or _default_number_format(column.data_type)
             if number_format:
                 cell.number_format = number_format
 
