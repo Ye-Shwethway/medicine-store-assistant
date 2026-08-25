@@ -1,0 +1,165 @@
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import { chromium } from 'playwright';
+
+const script=path.join(process.cwd(),'backend/app/dashboard_assets/dashboard_inventory_views.js');
+const stylesheet=path.join(process.cwd(),'backend/app/dashboard_assets/dashboard_inventory_views.css');
+const browser=await chromium.launch({headless:true});
+
+const baseItems=[
+  {lot_id:'l1',local_item_name:'Alpha',current_qty:10,cms_code:'C1'},
+  {lot_id:'l2',local_item_name:'Beta',current_qty:20,cms_code:'C2'},
+  {lot_id:'l3',local_item_name:'Gamma',current_qty:30,cms_code:'C3'},
+];
+const registry=[
+  {key:'local_item_name',label:'Items',data_type:'string',kind:'ENTITY_FIELD'},
+  {key:'current_qty',label:'Current Qty',data_type:'decimal',kind:'COMPUTED_FIELD'},
+  {key:'cms_code',label:'CMS Code',data_type:'string',kind:'ENTITY_FIELD'},
+];
+const preset={view_id:'main-stock',name:'Main Stock',description:'Saved view proof',row_grain:'PRODUCT_LOT',store_scope:'MAIN',columns:[{field:'local_item_name',label:'Items',width:180},{field:'current_qty',label:'Current Qty',width:120},{field:'cms_code',label:'CMS Code',width:120}]};
+let savedViews=[];
+let requests=[];
+let nextId=1;
+
+async function installPage(page,{activeId=''}={}){
+  await page.setContent('<main id="msa"><section class="view" data-panel="inventory"></section></main>');
+  await page.evaluate(({baseItems,registry,preset,initialSaved,activeId})=>{
+    window.__savedViews=structuredClone(initialSaved);
+    window.__requests=[];
+    window.__nextId=window.__savedViews.length+1;
+    window.__prompts=[];
+    window.__alerts=[];
+    window.prompt=()=>window.__prompts.shift()??null;
+    window.confirm=()=>true;
+    window.alert=message=>window.__alerts.push(String(message));
+    if(activeId)localStorage.setItem('msa.inventory.activeSavedViewId',activeId);else localStorage.removeItem('msa.inventory.activeSavedViewId');
+    Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async()=>{}}});
+    const json=(value,status=200)=>Promise.resolve({ok:status>=200&&status<300,status,json:async()=>value});
+    window.fetch=async (url,opts={})=>{
+      const requestPath=String(url);
+      const method=String(opts.method||'GET').toUpperCase();
+      if(requestPath.includes('/saved-views')){
+        window.__requests.push({method,path:requestPath,body:opts.body?JSON.parse(opts.body):null});
+        const idMatch=requestPath.match(/\/saved-views\/([^/?]+)/);
+        if(method==='GET')return json({items:structuredClone(window.__savedViews),database_canonical:false,migration_baseline_accepted:false});
+        if(method==='POST'){
+          const body=JSON.parse(opts.body);
+          const saved={view_id:`sv-${window.__nextId++}`,name:body.name,base_preset:body.base_preset,definition:body.definition,system_preset:false,created_at:'2026-08-25T00:00:00Z',updated_at:'2026-08-25T00:00:00Z'};
+          window.__savedViews.push(saved);
+          return json(structuredClone(saved),201);
+        }
+        if(method==='PUT'&&idMatch){
+          const body=JSON.parse(opts.body),id=idMatch[1],index=window.__savedViews.findIndex(item=>item.view_id===id);
+          if(index<0)return json({detail:'Saved view not found'},404);
+          window.__savedViews[index]={...window.__savedViews[index],name:body.name,base_preset:body.base_preset,definition:body.definition,updated_at:'2026-08-25T00:01:00Z'};
+          return json(structuredClone(window.__savedViews[index]));
+        }
+        if(method==='DELETE'&&idMatch){
+          const id=idMatch[1];
+          window.__savedViews=window.__savedViews.filter(item=>item.view_id!==id);
+          return json(null,204);
+        }
+      }
+      if(requestPath.includes('/presets'))return json({items:[preset]});
+      if(requestPath.includes('/registry'))return json({fields:registry});
+      if(requestPath.includes('/rows')){
+        const params=new URL(requestPath,'https://example.test').searchParams;
+        const requested=(params.get('fields')||'local_item_name,current_qty,cms_code').split(',').filter(Boolean);
+        let items=[...baseItems];
+        const q=(params.get('q')||'').toLowerCase();
+        if(q)items=items.filter(item=>item.local_item_name.toLowerCase().includes(q)||item.cms_code.toLowerCase().includes(q));
+        if(params.get('sort_field')==='local_item_name'&&params.get('sort_dir')==='desc')items.reverse();
+        const columns=requested.map(field=>{const def=registry.find(item=>item.key===field);return {field,label:def?.label||field,sortable:true,width:field==='local_item_name'?180:120,field_definition:def||{key:field,data_type:'string'}}});
+        return json({view:preset,columns,items,sort:{field:params.get('sort_field'),direction:params.get('sort_dir')}});
+      }
+      throw new Error(`Unexpected ${method} ${requestPath}`);
+    };
+  },{baseItems,registry,preset,initialSaved:savedViews,activeId});
+  await page.addStyleTag({path:stylesheet});
+  await page.addScriptTag({path:script});
+  await page.getByRole('cell',{name:'Alpha'}).waitFor();
+}
+
+const page=await browser.newPage({viewport:{width:1280,height:800}});
+await installPage(page);
+
+// Build presentation state worth persisting.
+await page.locator('#inventoryDensityToggle').click();
+assert.equal(await page.locator('.view[data-panel="inventory"]').getAttribute('data-inventory-density'),'compact');
+await page.getByRole('cell',{name:'Alpha'}).click();
+await page.locator('#inventoryFillToggle').click();
+await page.getByRole('menuitem',{name:'Green',exact:true}).click();
+assert.equal(await page.getByRole('cell',{name:'Alpha'}).getAttribute('data-user-fill'),'green');
+await page.getByRole('button',{name:/Sort by Items/}).click();
+await page.locator('#inventoryViewSearch').fill('Alpha');
+await page.waitForTimeout(260);
+await page.getByRole('cell',{name:'Alpha'}).waitFor();
+
+// Create from immutable system preset.
+await page.evaluate(()=>window.__prompts.push('My Stock View'));
+await page.locator('#inventorySaveView').click();
+await page.getByRole('option',{name:'Custom · My Stock View'}).waitFor();
+assert.equal(await page.locator('#inventoryPresetSelect').inputValue(),'custom:sv-1');
+assert.equal(await page.evaluate(()=>localStorage.getItem('msa.inventory.activeSavedViewId')),'sv-1');
+const created=await page.evaluate(()=>window.__requests.find(item=>item.method==='POST'));
+assert.ok(created,'Save view must POST a server-owned definition');
+assert.equal(created.body.name,'My Stock View');
+assert.equal(created.body.base_preset,'main-stock');
+assert.equal(created.body.definition.density,'compact');
+assert.equal(created.body.definition.filters.q,'Alpha');
+assert.deepEqual(created.body.definition.sort,{field:'local_item_name',direction:'asc'});
+assert.ok(created.body.definition.fills.some(fill=>fill.row_key==='l1'&&fill.field==='local_item_name'&&fill.fill==='green'),'fill metadata must persist by row identity + field');
+assert.equal(created.body.definition.provider,undefined,'client must not persist provider/SQL authority');
+
+// Switching away and back must rehydrate the server definition.
+await page.locator('#inventoryPresetSelect').selectOption('main-stock');
+await page.getByRole('cell',{name:'Alpha'}).waitFor();
+assert.equal(await page.locator('#inventoryViewSearch').inputValue(),'');
+await page.locator('#inventoryPresetSelect').selectOption('custom:sv-1');
+await page.getByRole('cell',{name:'Alpha'}).waitFor();
+assert.equal(await page.locator('#inventoryViewSearch').inputValue(),'Alpha');
+assert.equal(await page.locator('.view[data-panel="inventory"]').getAttribute('data-inventory-density'),'compact');
+assert.equal(await page.getByRole('cell',{name:'Alpha'}).getAttribute('data-user-fill'),'green');
+assert.match(await page.locator('#inventoryViewDescription').textContent(),/Custom view · based on Main Stock/);
+
+// Existing custom Save is PUT; Save as creates another custom view.
+await page.locator('#inventorySaveView').click();
+assert.ok(await page.evaluate(()=>window.__requests.some(item=>item.method==='PUT'&&item.path.includes('/saved-views/sv-1'))),'active custom Save must update its own definition');
+await page.evaluate(()=>window.__prompts.push('Stock Copy'));
+await page.locator('#inventorySaveViewAs').click();
+await page.getByRole('option',{name:'Custom · Stock Copy'}).waitFor();
+assert.equal(await page.locator('#inventoryPresetSelect').inputValue(),'custom:sv-2');
+
+// Clear all resets query/sort but not formatting or saved definition identity.
+await page.locator('#inventoryClearAll').click();
+await page.getByRole('cell',{name:'Alpha'}).waitFor();
+assert.equal(await page.locator('#inventoryViewSearch').inputValue(),'');
+assert.equal(await page.locator('#inventoryActiveFilters').getByText('Sort:',{exact:false}).count(),0);
+assert.equal(await page.getByRole('cell',{name:'Alpha'}).getAttribute('data-user-fill'),'green','Clear all must not clear user fill');
+assert.equal(await page.locator('#inventoryPresetSelect').inputValue(),'custom:sv-2','Clear all must not delete the active saved view');
+
+// Persist server state for a fresh-page/reopen proof.
+savedViews=await page.evaluate(()=>structuredClone(window.__savedViews));
+const reopenId=await page.evaluate(()=>localStorage.getItem('msa.inventory.activeSavedViewId'));
+assert.equal(reopenId,'sv-2');
+
+const reopen=await browser.newPage({viewport:{width:1280,height:800}});
+await installPage(reopen,{activeId:reopenId});
+await reopen.getByRole('option',{name:'Custom · Stock Copy'}).waitFor();
+assert.equal(await reopen.locator('#inventoryPresetSelect').inputValue(),'custom:sv-2');
+assert.equal(await reopen.locator('.view[data-panel="inventory"]').getAttribute('data-inventory-density'),'compact');
+assert.equal(await reopen.getByRole('cell',{name:'Alpha'}).getAttribute('data-user-fill'),'green','fresh load must rehydrate saved formatting');
+
+// Mobile controls remain usable; delete falls back to immutable base preset.
+await reopen.setViewportSize({width:390,height:844});
+assert.equal(await reopen.locator('#inventorySaveView').isVisible(),true);
+assert.equal(await reopen.locator('#inventorySaveViewAs').isVisible(),true);
+assert.equal(await reopen.locator('#inventoryDeleteView').isVisible(),true);
+await reopen.locator('#inventoryDeleteView').click();
+await reopen.getByRole('cell',{name:'Alpha'}).waitFor();
+assert.equal(await reopen.locator('#inventoryPresetSelect').inputValue(),'main-stock');
+assert.equal(await reopen.evaluate(()=>localStorage.getItem('msa.inventory.activeSavedViewId')),null);
+assert.ok(await reopen.evaluate(()=>window.__requests.some(item=>item.method==='DELETE'&&item.path.includes('/saved-views/sv-2'))));
+
+await browser.close();
+console.log('inventory_saved_views=pass create=pass readback=pass custom_selector=pass rehydrate=pass update=pass save_as=pass clear_all_isolated=pass reopen=pass mobile=pass delete_fallback=pass owner_api_boundary=server mutation_inventory=false');
