@@ -54,7 +54,7 @@ def main() -> None:
 
     export_kwargs = dict(
         preset="main-stock",
-        fields="local_item_name,current_qty,cms_code",
+        fields="local_item_name,expiry_date,current_qty,catalogue_price,cms_code",
         q=None,
         mapping_status=None,
         source_classification=None,
@@ -71,20 +71,23 @@ def main() -> None:
     assert xlsx_response.headers["x-msa-migration-baseline-accepted"] == "false"
     workbook = load_workbook(io.BytesIO(xlsx_response.body), data_only=False)
     worksheet = workbook["Main Stock"]
-    xlsx_headers = [worksheet.cell(row=1, column=index).value for index in range(1, 4)]
-    assert xlsx_headers == ["Items", "Current Qty", "CMS Code"], xlsx_headers
+    xlsx_headers = [worksheet.cell(row=1, column=index).value for index in range(1, 6)]
+    assert xlsx_headers == ["Items", "Expiry Date", "Current Qty", "Catalogue Price", "CMS Code"], xlsx_headers
     assert worksheet.max_row - 1 == 799, worksheet.max_row - 1
     assert worksheet.freeze_panes == "A2"
     assert worksheet["A1"].font.bold is True
     assert worksheet["A1"].alignment.wrap_text is True
     assert worksheet["A2"].border.left.style == "thin"
+    assert worksheet["B2"].number_format == "mmm-yy", worksheet["B2"].number_format
+    assert worksheet["C2"].number_format == "0", worksheet["C2"].number_format
+    assert worksheet["D2"].number_format == "0.00", worksheet["D2"].number_format
     assert len(worksheet.tables) == 1
 
     csv_response = inventory_view_export_csv(**export_kwargs)
     csv_text = csv_response.body.decode("utf-8")
     assert csv_text.startswith("\ufeff")
     csv_records = list(csv.reader(io.StringIO(csv_text.removeprefix("\ufeff"))))
-    assert csv_records[0] == ["Items", "Current Qty", "CMS Code"], csv_records[0]
+    assert csv_records[0] == xlsx_headers, csv_records[0]
     assert len(csv_records) - 1 == 799, len(csv_records) - 1
 
     result = {
@@ -102,13 +105,16 @@ def main() -> None:
         "excel_export_sheet": worksheet.title,
         "excel_export_sort": "local_item_name:asc",
         "excel_export_freeze_panes": str(worksheet.freeze_panes),
+        "excel_expiry_number_format": worksheet["B2"].number_format,
+        "excel_qty_number_format": worksheet["C2"].number_format,
+        "excel_price_number_format": worksheet["D2"].number_format,
         "csv_compat_rows": len(csv_records) - 1,
         "mutation": False,
         "database_canonical": False,
         "migration_baseline_accepted": False,
     }
     print(json.dumps(result, sort_keys=True))
-    print("inventory_view_runtime=pass excel_export=pass csv_compat=pass mutation=false database_canonical=false")
+    print("inventory_view_runtime=pass excel_export=pass excel_formats=pass csv_compat=pass mutation=false database_canonical=false")
 
 
 if __name__ == "__main__":
