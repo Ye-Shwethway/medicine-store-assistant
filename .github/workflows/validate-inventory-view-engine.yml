@@ -10,6 +10,7 @@ on:
       - 'backend/app/dashboard_assets/dashboard_inventory_views.js'
       - 'backend/app/dashboard_assets/dashboard_inventory_views.css'
       - 'tests/web/inventory_view_engine_smoke.mjs'
+      - 'tests/web/inventory_sorting_smoke.mjs'
       - '.github/workflows/validate-inventory-view-engine.yml'
 
 permissions:
@@ -70,3 +71,5 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Run configurable Inventory browser interaction smoke
         run: node tests/web/inventory_view_engine_smoke.mjs
+      - name: Run Inventory server sorting smoke
+        run: node tests/web/inventory_sorting_smoke.mjs
