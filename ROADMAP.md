@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Project Roadmap
 
-Status: **F6C Canonical Inventory Foundation is locked. F6D shadow foundation is runtime-verified. F6E Slice A/B/C/D are complete and runtime-verified through the configurable read-only Inventory View Engine, review workspace, bounded AI handoff and Deep Review integration. Inventory Spreadsheet Focus Mode v1 is production-runtime verified. Spreadsheet Workbench v2 sorting/filter/layout/TSV ergonomics are now production-runtime verified. Current bounded target: CSV export over the validated projection/filter/sort contract. PostgreSQL remains non-canonical.**
+Status: **F6C Canonical Inventory Foundation is locked. F6D shadow foundation is runtime-verified. F6E Slice A/B/C/D are complete and runtime-verified through the configurable read-only Inventory View Engine, review workspace, bounded AI handoff and Deep Review integration. Inventory Spreadsheet Focus Mode v1 is production-runtime verified. Spreadsheet Workbench v2 sorting/filter/layout/TSV ergonomics, validated CSV compatibility export, and globally reusable formatted Excel export are now production-runtime verified. PostgreSQL remains non-canonical.**
 
 The live Google workbook/source documents remain operationally authoritative. `migration_baseline_accepted=false`; `database_canonical=false`.
 
@@ -34,6 +34,7 @@ Canonical architecture:
 - `docs/architecture/CONFIGURABLE_OPERATIONAL_VIEW_ENGINE.md`
 - `docs/architecture/MAIN_STOCK_DAILY_USAGE_MATERIALIZATION.md`
 - `docs/architecture/INVENTORY_VIEW_ENGINE_V1.md`
+- `docs/architecture/REUSABLE_EXCEL_EXPORT.md`
 
 ## Canonicality / authority boundary
 
@@ -145,7 +146,7 @@ Production evidence: issue #186 and deployment issue #26 `status=success` for `a
 
 ### Spreadsheet Workbench v2 — ACTIVE
 
-The first two bounded v2 passes are now complete and production-runtime verified while remaining read/review-only.
+The read/review-only v2 foundation is now production-runtime verified through sorting, filter/layout ergonomics, TSV copy, validated CSV compatibility export, and formatted Excel export.
 
 Completed behavior:
 
@@ -159,23 +160,30 @@ Completed behavior:
 - visible `↕ / ▲ / ▼` sort indicators and `aria-sort` state;
 - active Sort chip;
 - selection/drawer reset when ordering changes;
-- Ask AI / Deep Review preserve exact sort field/direction so server rehydration resolves selected indices against the same sorted page.
+- Ask AI / Deep Review preserve exact sort field/direction so server rehydration resolves selected indices against the same sorted page;
+- server-side CSV compatibility export preserves current validated field order/filter/sort state with a 5,000-row hard cap and no silent truncation;
+- user-facing `Export Excel` produces a formatted `.xlsx` workbook from the same validated projection/filter/sort contract;
+- the Excel workbook renderer is globally reusable and independent of Inventory-specific providers/presets, so later user-created View Builder tables and other MSA tabular areas can use the same export module;
+- current preset exports use the existing preset name and current visible structure;
+- Excel presentation baseline includes blue header with white bold text, wrap text, typed numeric/date cells, bounded content-aware column widths/row heights, thin borders/grid appearance, freeze pane `A2`, visible gridlines and Excel Table filters;
+- source strings that begin with formula-significant characters are preserved as literal text.
 
 Evidence:
 
 - PR #188 merge `2012c2656032a274a185ba1e9ce63378aa95c182`, runtime issue #189: filter chips, session layout, Auto-fit/Reset and TSV copy.
 - PR #190 merge `1ecbe7457166c6b1b29faf1a1a05a2d69e3e4756`: validated server-side sorting.
 - PR #192 merge `27d41d7ffbdcdf60252f591b7978bea02819527e`: runtime-verifier compatibility after sorting helper signatures changed.
-- issue #191: sorting runtime checkpoint completed.
-- issue #166 / run `32815294689`: read-only runtime proof passed at `27d41d7ffbdcdf60252f591b7978bea02819527e` with Main Stock **799**, Migration Review **823**, quantity **72,009.000**, Products/Lots/transactions **670/799/679**, active matches/prices **0/0**, mutation false, canonical flags false.
-- deployment issue #26 / run `32815294706`: success at the same SHA.
+- PR #194 merge `db22884e2d5ad7c27ada1ae80ea14913fb90a148`: validated CSV export substrate.
+- PR #195 merge `5451e5e698a379f4fbfcf3a9944903746ae5a075`: CSV runtime proof.
+- PR #197 merge `8a73fb856a05d347f32c5158034fb7435a9cf82f`: reusable formatted Excel export and Inventory `Export Excel` UI.
+- issue #166 / run `32818308165`: Excel runtime proof passed at `8a73fb856a05d347f32c5158034fb7435a9cf82f` with `Main Stock`, **799** exported rows, columns `Items / Current Qty / CMS Code`, `A2` freeze pane, `local_item_name:asc`, Main Stock **799**, Migration Review **823**, quantity **72,009.000**, Products/Lots/transactions **670/799/679**, active matches/prices **0/0**, mutation false, canonical flags false.
 
 Next bounded order:
 
-1. CSV export of the current validated projection/field-order/filter/sort state;
-2. optional one-click Clear all for Search + review filters + sort state if it materially improves the workbench;
-3. keyboard navigation/copy shortcuts after export and core interaction behavior are stable;
-4. optional desktop split-pane review detail after table ergonomics are proven.
+1. optional one-click Clear all for Search + review filters + sort state if it materially improves the workbench;
+2. keyboard navigation/copy shortcuts after the export/sort/layout substrate is stable;
+3. optional desktop split-pane review detail after table ergonomics are proven;
+4. then Slice E saved custom views / View Builder.
 
 User-owned persistence of layouts belongs to Slice E rather than being hard-coded into v2.
 
@@ -184,6 +192,7 @@ User-owned persistence of layouts belongs to Slice E rather than being hard-code
 - persist user-defined view definitions;
 - View Builder for row grain, Store scope, fields/order, labels, widths, filters/sorts/groups/formatting;
 - duplicate a system preset into a user-owned view without mutating the system preset;
+- user-created table/view export reuses the same global Excel renderer rather than adding a second export stack;
 - never permit arbitrary SQL/raw DB expressions.
 
 ### Slice F — Daily Usage + typed editing
@@ -194,8 +203,8 @@ User-owned persistence of layouts belongs to Slice E rather than being hard-code
 
 ## Subsequent path
 
-1. Complete Spreadsheet Workbench v2 read/review ergonomics.
-2. Persist saved user-defined view definitions / View Builder.
+1. Complete remaining Spreadsheet Workbench v2 read/review ergonomics.
+2. Persist saved user-defined view definitions / View Builder, reusing the global Excel export module.
 3. Resolve HOLD inventory rows and reviewed CMS mapping exceptions through typed reviewed actions when that mutation slice is explicitly authorized.
 4. Add Daily Usage monthly-pivot preset + typed editing flow.
 5. Add deterministic reorder baseline engine and reorder presets.
@@ -204,8 +213,8 @@ User-owned persistence of layouts belongs to Slice E rather than being hard-code
 8. Promote selected DB read paths.
 9. Promote controlled write operation classes one at a time.
 10. Explicit DB canonicality promotion only after migration/recovery/reconciliation/write gates pass.
-11. Sheet mirror/rebuild, exports, Flutter/Telegram expansion and further automation.
+11. Sheet mirror/rebuild, additional exports, Flutter/Telegram expansion and further automation.
 
 ## Immediate boundary
 
-Do not present shadow DB as canonical. The immediate target is **CSV export over the validated Spreadsheet Workbench v2 projection/filter/sort contract**, not write promotion. Export, optional clear-all, keyboard navigation and later split-pane review may improve the workbench but must not accept CMS mappings/prices, mutate inventory, accept the migration baseline or promote PostgreSQL.
+Do not present shadow DB as canonical. Formatted Excel export is now a verified globally reusable read-only substrate. Remaining Workbench v2 ergonomics and later View Builder work must continue to operate over validated registered projections and must not accept CMS mappings/prices, mutate inventory, accept the migration baseline or promote PostgreSQL.
