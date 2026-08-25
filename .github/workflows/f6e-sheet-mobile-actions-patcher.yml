@@ -1,0 +1,39 @@
+name: One-shot F6E Sheet Mobile Actions Patcher
+
+on:
+  push:
+    branches:
+      - feat/f6e-sheet-selection-foundation
+    paths:
+      - '.github/workflows/f6e-sheet-mobile-actions-patcher.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: feat/f6e-sheet-selection-foundation
+      - name: Preserve balanced mobile review actions
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path=Path('backend/app/dashboard_assets/dashboard_inventory_views.js')
+          text=path.read_text(encoding='utf-8')
+          old='.inventory-selection-actions #inventoryCopySelected{grid-column:1/-1}}'
+          new='.inventory-selection-actions #inventoryDetails,.inventory-selection-actions #inventoryCopySelected{grid-column:1/-1}}'
+          assert old in text
+          path.write_text(text.replace(old,new,1),encoding='utf-8')
+          PY
+          node --check backend/app/dashboard_assets/dashboard_inventory_views.js
+          git diff --check
+      - name: Commit mobile action layout
+        run: |
+          git config user.name "MSA Sheet UI Patcher"
+          git config user.email "actions@users.noreply.github.com"
+          git add backend/app/dashboard_assets/dashboard_inventory_views.js
+          git commit -m "Balance Inventory sheet actions on mobile"
+          git push origin HEAD:feat/f6e-sheet-selection-foundation
