@@ -1,0 +1,34 @@
+name: One-shot Fix Saved View Option Smoke
+on:
+  push:
+    branches:
+      - feat/f6e-saved-view-persistence
+    paths:
+      - .github/workflows/one-shot-fix-saved-view-option-smoke.yml
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: feat/f6e-saved-view-persistence
+      - name: Use attached-state proof for select options
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('tests/web/inventory_saved_views_smoke.mjs')
+          s=p.read_text()
+          s=s.replace("await page.getByRole('option',{name:'Custom · My Stock View'}).waitFor();","await page.locator('#inventoryPresetSelect option[value=\"custom:sv-1\"]').waitFor({state:'attached'});")
+          s=s.replace("await page.getByRole('option',{name:'Custom · Stock Copy'}).waitFor();","await page.locator('#inventoryPresetSelect option[value=\"custom:sv-2\"]').waitFor({state:'attached'});",1)
+          s=s.replace("await reopen.getByRole('option',{name:'Custom · Stock Copy'}).waitFor();","await reopen.locator('#inventoryPresetSelect option[value=\"custom:sv-2\"]').waitFor({state:'attached'});")
+          p.write_text(s)
+          PY
+          node --check tests/web/inventory_saved_views_smoke.mjs
+          git diff --check
+          git config user.name 'Mr. Thorne'
+          git config user.email '85703541+Ye-Shwethway@users.noreply.github.com'
+          git add tests/web/inventory_saved_views_smoke.mjs
+          git commit -m 'Make Saved View option smoke DOM-semantic'
+          git push origin HEAD:feat/f6e-saved-view-persistence
