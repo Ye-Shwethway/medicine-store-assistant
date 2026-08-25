@@ -1,6 +1,6 @@
 # Medicine Store Assistant — Implementation Plan
 
-Status: **F6C architecture is locked. F6D shadow foundation is runtime-verified. F6E Slice A/B/C/D are complete and runtime-verified through the configurable read-only Inventory View Engine, generic Web renderer, source/CMS review workspace, bounded Ask AI context and Deep Review handoff. Inventory Spreadsheet Focus Mode v1 is production-runtime verified. Spreadsheet Workbench v2 sorting/filter/layout/TSV read-review ergonomics are now production-runtime verified. Current bounded target: CSV export of the current validated projection/filter/sort state. PostgreSQL remains non-canonical.**
+Status: **F6C architecture is locked. F6D shadow foundation is runtime-verified. F6E Slice A/B/C/D are complete and runtime-verified through the configurable read-only Inventory View Engine, generic Web renderer, source/CMS review workspace, bounded Ask AI context and Deep Review handoff. Inventory Spreadsheet Focus Mode v1 is production-runtime verified. Spreadsheet Workbench v2 sorting/filter/layout/TSV ergonomics, validated CSV compatibility export, and globally reusable formatted Excel export are now production-runtime verified. PostgreSQL remains non-canonical.**
 
 ## 1. Global rules
 
@@ -145,21 +145,26 @@ Completed + runtime-verified:
 - [x] Copy selected visible rows as TSV for direct paste into Excel/Google Sheets.
 - [x] Product+Lot selection identity prefers Lot ID so multiple lots of one Product remain independently selectable.
 - [x] Preserve Focus mode, existing review behavior and read-only/non-canonical authority boundaries.
+- [x] Server-side CSV compatibility export over the validated registered-field/filter/sort projection, bounded to 5,000 rows with no silent truncation.
+- [x] Globally reusable formatted Excel renderer in `backend/app/tabular_excel_export.py`; it is independent of Inventory providers/presets and accepts ordered typed tabular data.
+- [x] Inventory `Export Excel` uses the current preset name/visible field order/filter/sort state and produces `.xlsx` with blue/white wrapped header, typed numeric/date cells, bounded auto sizing, wrapped row heights, thin grid borders, freeze pane `A2`, visible gridlines and Excel Table filters.
+- [x] Formula-significant source strings remain literal text in generated workbooks.
+- [x] Current Excel renderer is deliberately reusable by later user-owned View Builder tables and other MSA export areas; domain-specific data selection/authorization remains outside the renderer.
 
 Evidence:
 
 - PR #188 merge `2012c2656032a274a185ba1e9ce63378aa95c182` + runtime issue #189: filter chips, session layout, Auto-fit/Reset and Copy TSV.
 - PR #190 merge `1ecbe7457166c6b1b29faf1a1a05a2d69e3e4756`: validated server-side sorting.
 - PR #192 merge `27d41d7ffbdcdf60252f591b7978bea02819527e`: runtime-verifier compatibility after sorting helper signatures changed.
-- Runtime issue #191: sorting delivery/runtime checkpoint completed.
-- Runtime issue #166 at `27d41d7ffbdcdf60252f591b7978bea02819527e`, run `32815294689`: Main Stock **799**, Migration Review **823**, quantity **72,009.000**, Products/Lots/transactions **670/799/679**, active matches/prices **0/0**, mutation false and canonical flags false.
-- Deployment issue #26 at `27d41d7ffbdcdf60252f591b7978bea02819527e`, run `32815294706`: success.
+- PR #194 merge `db22884e2d5ad7c27ada1ae80ea14913fb90a148`: validated server-side CSV export substrate.
+- PR #195 merge `5451e5e698a379f4fbfcf3a9944903746ae5a075`: CSV runtime proof.
+- PR #197 merge `8a73fb856a05d347f32c5158034fb7435a9cf82f`: reusable formatted Excel export and Inventory Web `Export Excel` control.
+- Runtime issue #166 / run `32818308165`: Excel export proof passed at `8a73fb856a05d347f32c5158034fb7435a9cf82f` with sheet `Main Stock`, columns `Items / Current Qty / CMS Code`, **799** exported rows, `A2` freeze pane, sort `local_item_name:asc`, Main Stock **799**, Migration Review **823**, quantity **72,009.000**, Products/Lots/transactions **670/799/679**, active matches/prices **0/0**, mutation false and canonical flags false.
 
 Next bounded work:
 
-- [ ] Add CSV export for the current validated projection/field-order/filter/sort state.
 - [ ] Add one-click Clear all for Search + review filters + sort state if retained as a useful workbench action; per-chip clearing is already complete.
-- [ ] Add keyboard navigation/copy shortcuts after export and core sort/layout interactions are stable.
+- [ ] Add keyboard navigation/copy shortcuts after the export/sort/layout substrate is stable.
 - [ ] Add optional desktop split-pane review detail after core table ergonomics are proven.
 
 ### 5.7 Slice E — saved custom views
@@ -168,6 +173,7 @@ Next bounded work:
 - [ ] View Builder: row grain, Store scope, field selection/order, labels, widths, filters/sorts/groups/formatting.
 - [ ] Persist user-owned layout preferences such as column order/width/density/sort where appropriate.
 - [ ] Duplicate a system preset into a user-owned view without mutating the system preset.
+- [ ] Route user-created tabular views through the same reusable Excel export renderer instead of implementing a second export stack.
 - [ ] Never permit arbitrary SQL/raw DB expressions.
 
 ### 5.8 Slice F — Daily Usage + editing
@@ -179,8 +185,8 @@ Next bounded work:
 
 ## 6. Later sequence
 
-1. Complete Spreadsheet Workbench v2 read/review ergonomics.
-2. Persist saved user-defined views / View Builder.
+1. Complete remaining Spreadsheet Workbench v2 read/review ergonomics.
+2. Persist saved user-defined views / View Builder, reusing the global Excel renderer for export.
 3. Resolve HOLD inventory rows and reviewed CMS mapping exceptions through typed reviewed actions when explicitly authorized.
 4. Daily Usage monthly-pivot preset + typed editing flow.
 5. Deterministic reorder baseline engine and reorder presets.
@@ -189,8 +195,8 @@ Next bounded work:
 8. Selected DB read-path promotion.
 9. Controlled write promotion per operation class.
 10. Explicit DB canonicality promotion.
-11. Sheet mirror/rebuild, exports, Flutter/Telegram and further automation.
+11. Sheet mirror/rebuild, additional exports, Flutter/Telegram and further automation.
 
 ## 7. Immediate boundary
 
-The immediate target is **CSV export over the validated Spreadsheet Workbench v2 projection/filter/sort contract**, not inventory mutation. Export/clear-all/keyboard features must operate over validated registered projections. Do not create accepted CMS mappings, push prices, mutate inventory, accept the migration baseline, or promote PostgreSQL as part of this workbench slice.
+Formatted Excel export is now part of the verified read-only Workbench substrate and is globally reusable for future tabular export consumers. The next Inventory work remains ergonomic/read-only unless a later mutation slice is explicitly authorized. Do not create accepted CMS mappings, push prices, mutate inventory, accept the migration baseline, or promote PostgreSQL as part of these workbench improvements.

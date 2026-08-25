@@ -22,7 +22,8 @@ Before changing code/config/schema/runtime, read:
 10. `docs/architecture/INVENTORY_VIEW_ENGINE_V1.md`
 11. `docs/architecture/MAIN_STOCK_DAILY_USAGE_MATERIALIZATION.md`
 12. `docs/architecture/REORDER_BASELINE_AND_AI_ENHANCEMENT.md`
-13. latest F6D/F6E checkpoints and current runtime evidence issues/PRs.
+13. `docs/architecture/REUSABLE_EXCEL_EXPORT.md`
+14. latest F6D/F6E checkpoints and current runtime evidence issues/PRs.
 
 Treat newer verified repository/runtime/source evidence as authoritative over remembered chat context.
 
@@ -32,8 +33,10 @@ Treat newer verified repository/runtime/source evidence as authoritative over re
 - F6D shadow foundation for the current dataset is runtime-verified.
 - F6E Slice A/B/C/D are **complete and runtime-verified**.
 - Inventory Spreadsheet Focus Mode v1 is **complete and production-runtime verified**.
-- Spreadsheet Workbench v2 filter chips, session layout tools, Copy TSV and validated server-side sorting are **complete and production-runtime verified**.
-- Current bounded target is **CSV export of the current validated projection/field-order/filter/sort state**.
+- Spreadsheet Workbench v2 filter chips, session layout tools, Copy TSV, validated server-side sorting, CSV compatibility export and formatted Excel export are **complete and production-runtime verified**.
+- Inventory now exposes **Export Excel** rather than CSV as the user-facing export action.
+- The `.xlsx` renderer is a **globally reusable tabular export module**, not an Inventory-only serializer; later user-created View Builder tables and other MSA areas should reuse it.
+- Current system-preset exports use the preset name and current visible registered field order/filter/sort structure.
 - PostgreSQL remains non-canonical: `database_canonical=false`, `migration_baseline_accepted=false`.
 - Google Sheet/source documents remain operational authority.
 
@@ -50,8 +53,10 @@ Key recent evidence:
 - PR #190 merge `1ecbe7457166c6b1b29faf1a1a05a2d69e3e4756`: validated server-side sorting and sort-aware AI review context.
 - PR #192 merge `27d41d7ffbdcdf60252f591b7978bea02819527e`: F6E runtime-verifier sorting-signature compatibility.
 - Runtime checkpoint #191: server-side sorting delivery/runtime complete.
-- Runtime issue #166 at `27d41d7ffbdcdf60252f591b7978bea02819527e`, run `32815294689`: read-only Inventory proof success.
-- Deployment issue #26 at the same SHA, run `32815294706`: success.
+- PR #194 merge `db22884e2d5ad7c27ada1ae80ea14913fb90a148`: validated server-side CSV compatibility export.
+- PR #195 merge `5451e5e698a379f4fbfcf3a9944903746ae5a075`: CSV export runtime proof.
+- PR #197 merge `8a73fb856a05d347f32c5158034fb7435a9cf82f`: globally reusable formatted Excel export + Inventory `Export Excel` UI.
+- Runtime issue #166 / run `32818308165` at `8a73fb856a05d347f32c5158034fb7435a9cf82f`: Excel export success with `Main Stock`, **799** rows, columns `Items / Current Qty / CMS Code`, freeze pane `A2`, sort `local_item_name:asc`, mutation false and canonical flags false.
 
 ## Locked architecture
 
@@ -66,6 +71,7 @@ Rules:
 - Main Stock/Daily Usage are projections, not canonical worksheet-shaped tables;
 - Main Stock, Daily Usage, Migration Review and CMS Mapping Review are system presets over one reusable View Engine;
 - user-defined sheet-style views later bind columns to registered semantic fields/computations/typed commands, never arbitrary SQL/raw DB expressions;
+- reusable Excel export accepts already-authorized typed tabular projections and owns workbook presentation only; it does not query data or decide authorization/domain semantics;
 - AI improves workflows but is not an availability dependency;
 - CMS Code alone never proves local Product identity.
 
@@ -105,7 +111,7 @@ The reusable View Engine currently provides:
 - explicit `Shadow inventory — not canonical` banner;
 - content-derived Inventory JS/CSS asset identity with no-store/no-cache delivery.
 
-Latest read-only runtime baseline at main SHA `27d41d7ffbdcdf60252f591b7978bea02819527e`:
+Latest read-only runtime baseline at main SHA `8a73fb856a05d347f32c5158034fb7435a9cf82f`:
 
 - Main Stock projected rows **799**;
 - Migration Review projected rows **823**;
@@ -113,6 +119,11 @@ Latest read-only runtime baseline at main SHA `27d41d7ffbdcdf60252f591b7978bea02
 - Products/Lots/transactions **670/799/679**;
 - `ACTIVE_MATCH 0`;
 - accepted operational prices **0**;
+- formatted Excel export rows **799**;
+- Excel export sheet `Main Stock`;
+- Excel export columns `Items / Current Qty / CMS Code`;
+- Excel freeze pane `A2`;
+- CSV compatibility rows **799**;
 - `mutation=false`;
 - `database_canonical=false`;
 - `migration_baseline_accepted=false`.
@@ -130,6 +141,8 @@ Current AI review behavior:
 7. `Deep Review` opens the existing Owner Multi-Agent REVIEW workspace, prefills title/task and exposes quick REVIEW-preset / role / explicit-run controls.
 8. Deep Review never silently selects a preset or runs a review.
 9. No AI path can accept a mapping/price/inventory change.
+
+AI Workspace general UX work is not the current slice; the current product focus remains the Inventory section.
 
 ## Inventory Spreadsheet Focus Mode v1 — COMPLETE
 
@@ -159,16 +172,22 @@ Already production-runtime verified:
 6. provider-owned validated server-side sorting with stable tie-breakers;
 7. sortable headers with `↕ / ▲ / ▼`, `aria-sort` and an active Sort chip;
 8. selection/drawer reset on order changes;
-9. Ask AI / Deep Review preserve exact sort field/direction for server rehydration.
+9. Ask AI / Deep Review preserve exact sort field/direction for server rehydration;
+10. validated server-side CSV compatibility export with registered field/filter/sort state and a 5,000-row no-truncation cap;
+11. user-facing `Export Excel` over the same validated projection/filter/sort contract;
+12. globally reusable `.xlsx` renderer with blue/white wrapped header, typed cells, bounded auto sizing, thin borders/grid appearance, freeze pane `A2`, visible gridlines and Excel Table filters;
+13. formula-significant source strings remain literal text in the workbook.
 
-The next bounded work is **CSV export of the current validated projection/field-order/filter/sort state**. Prefer server-side export using the same provider/registry/filter/sort contract rather than DOM-only facts. Do not permit arbitrary SQL/raw field expressions. Define and enforce a bounded export row limit and `no-store` delivery. After CSV export, consider a one-click Clear all and then keyboard navigation/copy shortcuts.
+The reusable renderer lives in `backend/app/tabular_excel_export.py` and is intentionally domain-agnostic. Current Inventory presets are the first consumer. Later user-owned View Builder tables and other MSA tabular areas must reuse this renderer rather than creating parallel Excel-export implementations.
 
-Saved layout persistence belongs to Slice E. Mutation-capable Excel-like editing belongs to the later typed editing substrate: `draft -> validation -> preview -> Confirm & Save -> typed command -> audit -> read-back`.
+Next bounded Inventory work: consider one-click Clear all, then keyboard navigation/copy shortcuts, then optional desktop split-pane review detail. Saved layout persistence and user-created tables belong to Slice E.
+
+Mutation-capable Excel-like editing belongs to the later typed editing substrate: `draft -> validation -> preview -> Confirm & Save -> typed command -> audit -> read-back`.
 
 ## Next sequence
 
-1. complete Spreadsheet Workbench v2 with validated CSV export, then optional clear-all / keyboard / split-pane ergonomics;
-2. persist saved user-defined view definitions and build View Builder;
+1. complete remaining Spreadsheet Workbench v2 read/review ergonomics: optional clear-all / keyboard / split-pane;
+2. persist saved user-defined view definitions and build View Builder, reusing global Excel export;
 3. resolve HOLD rows/mapping exceptions through reviewed typed actions when explicitly authorized;
 4. add Daily Usage monthly-pivot preset;
 5. add typed draft/preview/Confirm & Save editing;
@@ -177,4 +196,4 @@ Saved layout persistence belongs to Slice E. Mutation-capable Excel-like editing
 
 ## Immediate boundary
 
-Do not present shadow DB as canonical. The current workbench slice may sort/filter/rearrange/copy/export validated projections but must not create accepted CMS mappings, push catalogue prices, mutate inventory, accept the migration baseline, or promote PostgreSQL.
+Do not present shadow DB as canonical. The current workbench may sort/filter/rearrange/copy/export validated projections, including globally reusable formatted Excel output, but must not create accepted CMS mappings, push catalogue prices, mutate inventory, accept the migration baseline, or promote PostgreSQL.
