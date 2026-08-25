@@ -31,6 +31,9 @@ await cell(0,0).click();
 assert.equal(await page.locator('#inventorySelectionCount').textContent(),'1 cell selected');
 assert.equal(await page.locator('#inventoryReviewDrawer').isHidden(),true,'cell click must not open details');
 assert.equal(await cell(0,0).getAttribute('aria-selected'),'true');
+const activeVisual=await cell(0,0).evaluate(el=>{const s=getComputedStyle(el);return {background:s.backgroundColor,boxShadow:s.boxShadow}});
+assert.notEqual(activeVisual.background,'rgba(0, 0, 0, 0)','active cell must have a visible fill');
+assert.match(activeVisual.boxShadow,/rgb|color|inset/i,'active cell must have a visible selection outline');
 
 await cell(1,1).click({modifiers:['Shift']});
 assert.match(await page.locator('#inventorySelectionCount').textContent(),/2×2 range · 4 cells/);
