@@ -1,0 +1,70 @@
+name: One-shot Fix Inventory Fill Runtime UX
+on:
+  push:
+    branches: [fix/inventory-fill-runtime-ux]
+    paths: ['.github/workflows/one-shot-fix-inventory-fill-runtime-ux.yml']
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: fix/inventory-fill-runtime-ux
+      - name: Patch fill runtime and derived palette UX
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('backend/app/dashboard_assets/dashboard_inventory_views.js')
+          s=p.read_text()
+
+          old_css='.inventory-selection-copy span{max-width:680px}.inventory-selection-actions{position:relative}.inventory-selection-actions #inventoryDetails{min-width:88px}.inventory-fill-menu[hidden]{display:none!important}.inventory-fill-menu{position:absolute;right:0;top:calc(100% + 7px);z-index:24;display:grid;grid-template-columns:repeat(2,minmax(118px,1fr));gap:6px;width:min(320px,82vw);padding:8px;border:1px solid var(--border,#d9dde7);border-radius:11px;background:var(--card,#fff);box-shadow:0 14px 32px rgba(0,0,0,.16)}.inventory-fill-menu button{display:flex;align-items:center;gap:8px;justify-content:flex-start;min-height:40px;padding:7px 9px}.inventory-fill-swatch{width:18px;height:18px;flex:0 0 auto;border:1px solid color-mix(in srgb,#000 14%,transparent);border-radius:4px}'
+          new_css='.inventory-selection-copy span{max-width:680px}.inventory-selection-actions{position:relative}.inventory-selection-actions #inventoryDetails{min-width:88px}.inventory-fill-trigger{display:inline-flex!important;align-items:center;gap:7px;border-style:dashed!important;background:color-mix(in srgb,var(--accent,#2f6fed) 4%,var(--card,#fff))!important}.inventory-fill-trigger::before{content:\'\';width:12px;height:12px;border-radius:3px;border:1px solid color-mix(in srgb,var(--accent,#2f6fed) 55%,var(--border,#d9dde7));background:linear-gradient(135deg,#f4c542 0 33%,#63b77d 33% 66%,#79aef2 66%)}.inventory-fill-trigger::after{content:\'▾\';font-size:.68rem;opacity:.62}.inventory-fill-menu[hidden]{display:none!important}.inventory-fill-menu{position:absolute;right:0;top:calc(100% + 7px);z-index:24;width:min(286px,82vw);padding:10px;border:1px solid color-mix(in srgb,var(--accent,#2f6fed) 18%,var(--border,#d9dde7));border-radius:12px;background:var(--card,#fff);box-shadow:0 14px 32px rgba(0,0,0,.16)}.inventory-fill-menu-head{display:flex;flex-direction:column;gap:2px;padding:1px 2px 9px;border-bottom:1px solid color-mix(in srgb,var(--border,#d9dde7) 72%,transparent);margin-bottom:8px}.inventory-fill-menu-head strong{font-size:.78rem}.inventory-fill-menu-head span{font-size:.66rem;opacity:.65}.inventory-fill-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}.inventory-fill-option{display:grid!important;place-items:center;gap:5px;min-height:58px!important;padding:7px 5px!important;border:1px solid color-mix(in srgb,var(--border,#d9dde7) 78%,transparent)!important;border-radius:9px!important;background:color-mix(in srgb,var(--card,#fff) 96%,var(--accent,#2f6fed))!important;color:inherit!important;font:inherit!important;font-size:.66rem!important;font-weight:700!important;box-shadow:none!important}.inventory-fill-option:hover{border-color:color-mix(in srgb,var(--accent,#2f6fed) 38%,var(--border,#d9dde7))!important;background:color-mix(in srgb,var(--accent,#2f6fed) 5%,var(--card,#fff))!important}.inventory-fill-option:focus-visible{outline:2px solid color-mix(in srgb,var(--accent,#2f6fed) 55%,transparent);outline-offset:2px}.inventory-fill-none{display:flex!important;align-items:center;justify-content:center;gap:7px;width:100%;min-height:38px!important;margin-top:8px;padding:6px 8px!important;border:0!important;border-top:1px solid color-mix(in srgb,var(--border,#d9dde7) 72%,transparent)!important;border-radius:0!important;background:transparent!important;color:var(--muted,#667085)!important;font:inherit!important;font-size:.7rem!important;font-weight:700!important}.inventory-fill-none::before{content:\'×\';display:grid;place-items:center;width:17px;height:17px;border:1px solid currentColor;border-radius:4px;font-size:.72rem}.inventory-fill-swatch{width:22px;height:22px;flex:0 0 auto;border:1px solid color-mix(in srgb,#000 14%,transparent);border-radius:5px}'
+          if s.count(old_css)!=1: raise SystemExit('fill css anchor mismatch')
+          s=s.replace(old_css,new_css,1)
+
+          old_actions='<div class="inventory-selection-actions"><button class="secondary" id="inventoryDetails" type="button">Details</button><button class="secondary" id="inventoryAskAI" type="button">Ask AI</button><button class="secondary" id="inventoryDeepReview" type="button">Deep Review</button><button class="secondary" id="inventoryFillToggle" type="button" aria-expanded="false">Fill</button><div class="inventory-fill-menu" id="inventoryFillMenu" aria-label="Fill colors" hidden><button class="secondary" type="button" data-fill-token="yellow"><span class="inventory-fill-swatch" data-fill-swatch="yellow" aria-hidden="true"></span>Yellow</button><button class="secondary" type="button" data-fill-token="green"><span class="inventory-fill-swatch" data-fill-swatch="green" aria-hidden="true"></span>Light green</button><button class="secondary" type="button" data-fill-token="red"><span class="inventory-fill-swatch" data-fill-swatch="red" aria-hidden="true"></span>Light red</button><button class="secondary" type="button" data-fill-token="blue"><span class="inventory-fill-swatch" data-fill-swatch="blue" aria-hidden="true"></span>Light blue</button><button class="secondary" type="button" data-fill-token="orange"><span class="inventory-fill-swatch" data-fill-swatch="orange" aria-hidden="true"></span>Orange</button><button class="secondary" type="button" data-fill-token="gray"><span class="inventory-fill-swatch" data-fill-swatch="gray" aria-hidden="true"></span>Gray</button></div><button class="secondary" id="inventoryClearFill" type="button">Clear fill</button><button class="secondary" id="inventoryCopySelected" type="button">Copy TSV</button><button class="secondary" id="inventoryClearSelection" type="button">Clear selection</button></div>'
+          new_actions='<div class="inventory-selection-actions"><button class="secondary" id="inventoryDetails" type="button">Details</button><button class="secondary" id="inventoryAskAI" type="button">Ask AI</button><button class="secondary" id="inventoryDeepReview" type="button">Deep Review</button><button class="secondary inventory-fill-trigger" id="inventoryFillToggle" type="button" aria-expanded="false" aria-haspopup="menu">Fill</button><div class="inventory-fill-menu" id="inventoryFillMenu" role="menu" aria-label="Fill color" hidden><div class="inventory-fill-menu-head"><strong>Fill color</strong><span>Presentation only · does not change inventory data</span></div><div class="inventory-fill-grid"><button class="inventory-fill-option" type="button" role="menuitem" data-fill-token="yellow"><span class="inventory-fill-swatch" data-fill-swatch="yellow" aria-hidden="true"></span><span>Yellow</span></button><button class="inventory-fill-option" type="button" role="menuitem" data-fill-token="green"><span class="inventory-fill-swatch" data-fill-swatch="green" aria-hidden="true"></span><span>Green</span></button><button class="inventory-fill-option" type="button" role="menuitem" data-fill-token="red"><span class="inventory-fill-swatch" data-fill-swatch="red" aria-hidden="true"></span><span>Red</span></button><button class="inventory-fill-option" type="button" role="menuitem" data-fill-token="blue"><span class="inventory-fill-swatch" data-fill-swatch="blue" aria-hidden="true"></span><span>Blue</span></button><button class="inventory-fill-option" type="button" role="menuitem" data-fill-token="orange"><span class="inventory-fill-swatch" data-fill-swatch="orange" aria-hidden="true"></span><span>Orange</span></button><button class="inventory-fill-option" type="button" role="menuitem" data-fill-token="gray"><span class="inventory-fill-swatch" data-fill-swatch="gray" aria-hidden="true"></span><span>Gray</span></button></div><button class="inventory-fill-none" id="inventoryClearFill" type="button" role="menuitem">No fill</button></div><button class="secondary" id="inventoryCopySelected" type="button">Copy TSV</button><button class="secondary" id="inventoryClearSelection" type="button">Clear selection</button></div>'
+          if s.count(old_actions)!=1: raise SystemExit('actions anchor mismatch')
+          s=s.replace(old_actions,new_actions,1)
+
+          old_apply="function applyVisibleFormatting(){tbody.querySelectorAll('td[data-row-index][data-col-index]').forEach(cell=>{const token=fillTokenFor(Number(cell.dataset.rowIndex),Number(cell.dataset.colIndex));if(token)cell.dataset.userFill=token;else cell.removeAttribute('data-user-fill')})}"
+          new_apply="const FILL_COLORS={yellow:'#fff1a8',green:'#cfead6',red:'#f3d0d0',blue:'#d3e4fb',orange:'#f7ddbb',gray:'#dfe2e7'};\n  function applyVisibleFormatting(){tbody.querySelectorAll('td[data-row-index][data-col-index]').forEach(cell=>{const token=fillTokenFor(Number(cell.dataset.rowIndex),Number(cell.dataset.colIndex));if(token){cell.dataset.userFill=token;cell.style.setProperty('background-color',FILL_COLORS[token]||'','important')}else{cell.removeAttribute('data-user-fill');cell.style.removeProperty('background-color')}})}"
+          if s.count(old_apply)!=1: raise SystemExit('format apply anchor mismatch')
+          s=s.replace(old_apply,new_apply,1)
+
+          # Rendered cells must immediately receive the same authoritative inline fill, not wait for a later event.
+          old_render="${fill?` data-user-fill=\"${esc(fill)}\"`:''} tabindex=\"${active?'0':'-1'}\""
+          new_render="${fill?` data-user-fill=\"${esc(fill)}\" style=\"background-color:${FILL_COLORS[fill]||''}!important;${width?`width:${width}px;min-width:${width}px;max-width:${width}px`:''}\"`:` style=\"${width?`width:${width}px;min-width:${width}px;max-width:${width}px`:''}\"`} tabindex=\"${active?'0':'-1'}\""
+          if s.count(old_render)!=1: raise SystemExit('render fill anchor mismatch')
+          s=s.replace(old_render,new_render,1)
+          # Remove the now-duplicated style attribute later in the td template.
+          dup=' class=\"${colIndex===0?\'inventory-frozen-first \':\'\'}${cellClass(col.field,value)}${selected?\' inventory-cell-selected\':\'\'}${active?\' inventory-cell-active\':\'\'}\" style=\"${width?`width:${width}px;min-width:${width}px;max-width:${width}px`:\'\'}\" title='
+          rep=' class=\"${colIndex===0?\'inventory-frozen-first \':\'\'}${cellClass(col.field,value)}${selected?\' inventory-cell-selected\':\'\'}${active?\' inventory-cell-active\':\'\'}\" title='
+          if s.count(dup)!=1: raise SystemExit('duplicate style anchor mismatch')
+          s=s.replace(dup,rep,1)
+
+          p.write_text(s)
+
+          t=Path('tests/web/inventory_sheet_formatting_smoke.mjs')
+          x=t.read_text()
+          x=x.replace("await fill('Yellow');\nassert.equal(await cell(0,0).getAttribute('data-user-fill'),'yellow');","await fill('Yellow');\nassert.equal(await cell(0,0).getAttribute('data-user-fill'),'yellow');\nassert.match(await cell(0,0).getAttribute('style'),/background-color:\s*#fff1a8\s*!important/i,'runtime fill must be applied inline with important priority');")
+          x=x.replace("await fill('Light green');","await fill('Green');")
+          x=x.replace("await fill('Light blue');","await fill('Blue');")
+          x=x.replace("await page.getByRole('button',{name:'Clear fill',exact:true}).click();","await page.getByRole('button',{name:'Fill',exact:true}).click();\nawait page.getByRole('menuitem',{name:'No fill',exact:true}).click();")
+          marker="await page.getByRole('cell',{name:'Alpha'}).waitFor();\n"
+          add="await page.getByRole('cell',{name:'Alpha'}).waitFor();\nassert.equal(await page.locator('#inventoryFillToggle').getAttribute('aria-haspopup'),'menu');\nawait page.getByRole('button',{name:'Fill',exact:true}).click();\nassert.equal(await page.locator('#inventoryFillMenu .inventory-fill-menu-head strong').textContent(),'Fill color');\nassert.equal(await page.locator('#inventoryFillMenu .inventory-fill-option.secondary').count(),0,'derived color tiles must not reuse native secondary button styling');\nawait page.getByRole('button',{name:'Fill',exact:true}).click();\n"
+          if marker not in x: raise SystemExit('test marker mismatch')
+          x=x.replace(marker,add,1)
+          t.write_text(x)
+          PY
+          node --check backend/app/dashboard_assets/dashboard_inventory_views.js
+          node --check tests/web/inventory_sheet_formatting_smoke.mjs
+          git diff --check
+          git config user.name 'Mr. Thorne'
+          git config user.email '85703541+Ye-Shwethway@users.noreply.github.com'
+          git add backend/app/dashboard_assets/dashboard_inventory_views.js tests/web/inventory_sheet_formatting_smoke.mjs
+          git commit -m 'Fix Inventory fill runtime and palette hierarchy'
+          git push origin HEAD:fix/inventory-fill-runtime-ux
