@@ -24,7 +24,7 @@ await page.evaluate(()=>{
     throw new Error('Unexpected '+requestPath);
   };
 });
-await page.addStyleTag({path:stylesheet});
+const selectionStylesheet=await page.addStyleTag({path:stylesheet});
 await page.addScriptTag({path:script});
 await page.getByText('Alpha',{exact:true}).waitFor();
 
@@ -43,10 +43,10 @@ assert.match(await page.locator('#inventorySelectionCount').textContent(),/2×2 
 assert.equal(await cell(1,1).getAttribute('aria-selected'),'true');
 const rangeVisual=await cell(0,0).evaluate(el=>{const s=getComputedStyle(el);return {background:s.backgroundColor,boxShadow:s.boxShadow}});
 assert.notEqual(rangeVisual.background,'rgb(255, 255, 255)','selected range cells must remain visibly filled');
+await selectionStylesheet.evaluate(el=>el.remove());
 await page.getByRole('button',{name:'Copy TSV'}).click();
 assert.equal(await page.evaluate(()=>window.__copied),'Alpha\t10\nBeta\t20','range copy must contain real TSV row breaks');
 
-await cell(1,1).click();
 await cell(1,1).focus();
 await page.keyboard.press('ArrowRight');
 assert.equal(await cell(1,2).getAttribute('aria-selected'),'true');
@@ -90,6 +90,7 @@ await page.locator('#inventoryViewSearch').fill('');
 await page.waitForTimeout(260);
 await page.getByText('Alpha',{exact:true}).waitFor();
 
+await page.addStyleTag({path:stylesheet});
 await page.setViewportSize({width:390,height:844});
 await cell(0,1).click();
 assert.equal(await page.locator('#inventoryReviewDrawer').isHidden(),true);
