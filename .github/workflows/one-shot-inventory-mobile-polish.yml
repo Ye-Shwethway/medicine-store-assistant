@@ -1,0 +1,34 @@
+name: One-shot Inventory mobile polish
+
+on:
+  push:
+    branches:
+      - fix/inventory-mobile-builder-polish
+    paths:
+      - scripts/apply_inventory_mobile_polish.py
+      - .github/workflows/one-shot-inventory-mobile-polish.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Apply polish patch
+        run: python scripts/apply_inventory_mobile_polish.py
+      - name: Verify syntax/contracts
+        run: |
+          python -m py_compile backend/app/inventory_view_export.py backend/app/inventory_view_export_verify.py
+          node --check backend/app/dashboard_assets/dashboard_inventory_views.js
+          node --check backend/app/dashboard_assets/dashboard_inventory_export.js
+          PYTHONPATH=backend python backend/app/inventory_view_export_verify.py
+      - name: Commit patch and remove helpers
+        run: |
+          rm scripts/apply_inventory_mobile_polish.py .github/workflows/one-shot-inventory-mobile-polish.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Polish Inventory custom table mobile UX and export names"
+          git push
