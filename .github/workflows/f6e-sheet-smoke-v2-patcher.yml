@@ -1,0 +1,56 @@
+name: One-shot F6E Legacy Smoke Sheet Grammar Patcher
+
+on:
+  push:
+    branches:
+      - feat/f6e-sheet-selection-foundation
+    paths:
+      - '.github/workflows/f6e-sheet-smoke-v2-patcher.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: feat/f6e-sheet-selection-foundation
+      - name: Migrate legacy smoke to sheet selection grammar
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path=Path('tests/web/inventory_view_engine_smoke.mjs')
+          text=path.read_text(encoding='utf-8')
+
+          old="await page.locator('.inventory-row-check').check();"
+          assert text.count(old)==2, text.count(old)
+          text=text.replace(old,"await page.getByRole('button',{name:'Select row 1'}).click();",1)
+
+          old_detail="await page.locator('#inventoryViewTable tbody tr').first().click();\nassert.equal(await page.locator('#inventoryReviewDrawer').isVisible(),true);"
+          new_detail="await page.getByRole('button',{name:'Details'}).click();\nassert.equal(await page.locator('#inventoryReviewDrawer').isVisible(),true);"
+          assert old_detail in text
+          text=text.replace(old_detail,new_detail,1)
+
+          old_cms="await page.locator('#inventoryViewTable tbody tr').first().click();\nconst drawerText=await page.locator('#inventoryDrawerBody').textContent();"
+          new_cms="await page.getByRole('button',{name:'Select row 1'}).click();\nawait page.getByRole('button',{name:'Details'}).click();\nconst drawerText=await page.locator('#inventoryDrawerBody').textContent();"
+          assert old_cms in text
+          text=text.replace(old_cms,new_cms,1)
+
+          # CMS row is still selected after closing Details; do not toggle it off before Ask AI.
+          old_ai="await page.locator('.inventory-row-check').check();\nawait page.getByRole('button',{name:'Ask AI'}).click();"
+          assert old_ai in text
+          text=text.replace(old_ai,"assert.equal(await page.getByRole('button',{name:'Select row 1'}).getAttribute('aria-pressed'),'true');\nawait page.getByRole('button',{name:'Ask AI'}).click();",1)
+
+          assert '.inventory-row-check' not in text
+          path.write_text(text,encoding='utf-8')
+          PY
+          git diff --check
+      - name: Commit regression smoke migration
+        run: |
+          git config user.name "MSA Sheet Smoke Patcher"
+          git config user.email "actions@users.noreply.github.com"
+          git add tests/web/inventory_view_engine_smoke.mjs
+          git commit -m "Migrate Inventory regression smoke to sheet grammar"
+          git push origin HEAD:feat/f6e-sheet-selection-foundation
