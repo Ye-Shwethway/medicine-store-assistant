@@ -58,6 +58,7 @@ assert.equal(await page.locator('th[data-field="local_item_name"]').getAttribute
 
 await nameSort.click();
 await page.waitForFunction(()=>window.__requests.filter(x=>x.includes('/rows?')).at(-1)?.includes('sort_field=local_item_name')&&window.__requests.filter(x=>x.includes('/rows?')).at(-1)?.includes('sort_dir=asc'));
+await page.waitForFunction(()=>document.querySelector('th[data-field="local_item_name"]')?.getAttribute('aria-sort')==='ascending');
 assert.equal(await page.locator('th[data-field="local_item_name"]').getAttribute('aria-sort'),'ascending');
 let names=await page.locator('#inventoryViewTable tbody tr td[data-field="local_item_name"]').allTextContents();
 assert.deepEqual(names.map(x=>x.trim()),['Alpha Tablet','Zebra Tablet']);
@@ -66,6 +67,7 @@ assert.ok((await page.locator('#inventoryActiveFilters').textContent()).includes
 
 await page.locator('[data-sort-field="local_item_name"]').click();
 await page.waitForFunction(()=>window.__requests.filter(x=>x.includes('/rows?')).at(-1)?.includes('sort_dir=desc'));
+await page.waitForFunction(()=>document.querySelector('th[data-field="local_item_name"]')?.getAttribute('aria-sort')==='descending');
 assert.equal(await page.locator('th[data-field="local_item_name"]').getAttribute('aria-sort'),'descending');
 names=await page.locator('#inventoryViewTable tbody tr td[data-field="local_item_name"]').allTextContents();
 assert.deepEqual(names.map(x=>x.trim()),['Zebra Tablet','Alpha Tablet']);
@@ -82,11 +84,13 @@ await page.getByRole('button',{name:'Cancel'}).click();
 
 await page.getByRole('button',{name:'Clear Sort'}).click();
 await page.waitForFunction(()=>!window.__requests.filter(x=>x.includes('/rows?')).at(-1)?.includes('sort_field='));
+await page.waitForFunction(()=>document.querySelector('th[data-field="local_item_name"]')?.getAttribute('aria-sort')==='none');
 assert.equal(await page.locator('th[data-field="local_item_name"]').getAttribute('aria-sort'),'none');
 assert.ok(!(await page.locator('#inventoryActiveFilters').textContent()).includes('Sort:'));
 
 await page.locator('[data-sort-field="catalogue_price"]').click();
 await page.waitForFunction(()=>window.__requests.filter(x=>x.includes('/rows?')).at(-1)?.includes('sort_field=catalogue_price'));
+await page.waitForFunction(()=>document.querySelector('th[data-field="catalogue_price"]')?.getAttribute('aria-sort')==='ascending');
 const priceRequest=await page.evaluate(()=>window.__requests.filter(x=>x.includes('/rows?')).at(-1));
 assert.ok(priceRequest.includes('sort_dir=asc'));
 
