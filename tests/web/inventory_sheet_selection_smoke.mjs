@@ -83,10 +83,10 @@ assert.equal(await page.locator('#inventorySelectionBar').isHidden(),true);
 await cell(0,1).click();
 assert.equal(await page.locator('#inventorySelectionCount').textContent(),'1 cell selected');
 await page.locator('#inventoryViewSearch').fill('Alpha');
-await page.locator('#inventoryViewSearch').press('Enter');
+await page.waitForTimeout(260);
 assert.equal(await page.locator('#inventorySelectionBar').isHidden(),true,'search coordinate changes must clear stale selection');
 await page.locator('#inventoryViewSearch').fill('');
-await page.locator('#inventoryViewSearch').press('Enter');
+await page.waitForTimeout(260);
 await page.getByText('Alpha',{exact:true}).waitFor();
 
 await page.setViewportSize({width:390,height:844});
