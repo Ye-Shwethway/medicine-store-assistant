@@ -33,6 +33,11 @@ await page.evaluate(()=>{
 await page.addStyleTag({path:stylesheet});
 await page.addScriptTag({path:script});
 await page.getByRole('cell',{name:'Alpha'}).waitFor();
+assert.equal(await page.locator('#inventoryFillToggle').getAttribute('aria-haspopup'),'menu');
+await page.getByRole('button',{name:'Fill',exact:true}).click();
+assert.equal(await page.locator('#inventoryFillMenu .inventory-fill-menu-head strong').textContent(),'Fill color');
+assert.equal(await page.locator('#inventoryFillMenu .inventory-fill-option.secondary').count(),0,'derived color tiles must not reuse native secondary button styling');
+await page.getByRole('button',{name:'Fill',exact:true}).click();
 
 const cell=(row,col)=>page.locator(`tbody tr:nth-child(${row+1}) td[data-col-index="${col}"]`);
 const fill=async name=>{
@@ -43,20 +48,22 @@ const fill=async name=>{
 await cell(0,0).click();
 await fill('Yellow');
 assert.equal(await cell(0,0).getAttribute('data-user-fill'),'yellow');
+assert.match(await cell(0,0).getAttribute('style'),/background-color:\s*#fff1a8\s*!important/i,'runtime fill must be applied inline with important priority');
 const singleVisual=await cell(0,0).evaluate(el=>{const s=getComputedStyle(el);return {background:s.backgroundColor,boxShadow:s.boxShadow}});
 assert.notEqual(singleVisual.background,'rgb(255, 255, 255)','user fill must be visibly distinct');
 assert.match(singleVisual.boxShadow,/inset/i,'active selection outline must remain visible above user fill');
 
 await cell(1,1).click({modifiers:['Shift']});
-await fill('Light green');
+await fill('Green');
 for(let row=0;row<=1;row++)for(let col=0;col<=1;col++)assert.equal(await cell(row,col).getAttribute('data-user-fill'),'green');
 
 await page.getByRole('button',{name:'Select row 3'}).click();
-await fill('Light blue');
+await fill('Blue');
 for(let col=0;col<3;col++)assert.equal(await cell(2,col).getAttribute('data-user-fill'),'blue','whole-row fill must cover visible registered cells');
 
 await cell(0,0).click();
-await page.getByRole('button',{name:'Clear fill',exact:true}).click();
+await page.getByRole('button',{name:'Fill',exact:true}).click();
+await page.getByRole('menuitem',{name:'No fill',exact:true}).click();
 assert.equal(await cell(0,0).getAttribute('data-user-fill'),null,'Clear fill must remove only user formatting from selected cell');
 assert.equal(await cell(0,1).getAttribute('data-user-fill'),'green','Clear fill must not remove fill outside the selection');
 
