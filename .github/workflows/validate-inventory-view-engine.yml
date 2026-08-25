@@ -26,6 +26,7 @@ on:
       - 'tests/web/inventory_sheet_selection_smoke.mjs'
       - 'tests/web/inventory_sheet_formatting_smoke.mjs'
       - 'tests/web/inventory_saved_views_smoke.mjs'
+      - 'tests/web/inventory_mobile_builder_polish_smoke.mjs'
       - '.github/workflows/validate-inventory-view-engine.yml'
 
 permissions:
@@ -119,3 +120,5 @@ jobs:
         run: node tests/web/inventory_sheet_formatting_smoke.mjs
       - name: Run Inventory Saved Views smoke
         run: node tests/web/inventory_saved_views_smoke.mjs
+      - name: Run Inventory mobile Custom Table Builder polish smoke
+        run: node tests/web/inventory_mobile_builder_polish_smoke.mjs
