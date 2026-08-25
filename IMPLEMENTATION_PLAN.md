@@ -246,3 +246,14 @@ Contract: `docs/design/INVENTORY_SHEET_INTERACTION_V1.md`. Sheet Formatting (fil
 - [ ] Export persisted custom-view formatting through the existing reusable Excel renderer only after the persistence contract is defined.
 
 Contract: `docs/design/INVENTORY_SHEET_FORMATTING_V1.md`. PR #203 merged as `20f4b67ff79ea52838401c35ad19ad25da68c2a2`; production deploy run `32831427749` succeeded and issue #26 confirmed the exact deployed SHA.
+
+
+#### Sheet Formatting v1 production hotfix — COMPLETE + PRODUCTION VERIFIED
+
+- [x] Make user fill visibly authoritative over competing table/frozen/system background CSS using inline presentation style with `important` priority.
+- [x] Preserve active-cell/selection outlines and REVIEW/CONFLICT semantic stripes above/alongside user fill.
+- [x] Distinguish the Fill trigger from native workbench actions with a formatting marker and disclosure affordance.
+- [x] Render derived color presets as compact swatch tiles rather than `.secondary` action buttons.
+- [x] Keep `No fill` inside the formatting popover with explicit accessible labeling.
+- [x] Stabilize browser proof for interaction, actual fill priority/visibility, row/range fill, clear fill, sort identity and mobile palette.
+- [x] PR #205 merged as `66a45963d5605f2699545cd35e24aa1dd2571152`; deploy run `32834067245` succeeded; issue #26 confirmed the exact deployed SHA.
