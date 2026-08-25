@@ -8,8 +8,24 @@ from app.shadow_read_api import _query
 
 
 def main() -> None:
-    main_rows = _main_stock_rows(q=None, limit=2000, offset=0)
-    migration_rows = _migration_review_rows(q=None, limit=2000, offset=0)
+    main_rows = _main_stock_rows(
+        q=None,
+        mapping_status=None,
+        sort_field=None,
+        sort_dir=None,
+        limit=2000,
+        offset=0,
+    )
+    migration_rows = _migration_review_rows(
+        q=None,
+        mapping_status=None,
+        source_classification=None,
+        review_reason=None,
+        sort_field=None,
+        sort_dir=None,
+        limit=2000,
+        offset=0,
+    )
 
     current_sum = sum((Decimal(str(row.get("current_qty") or 0)) for row in main_rows), Decimal("0"))
     product_count = int(_query("SELECT COUNT(*)::int AS n FROM products")[0]["n"])
