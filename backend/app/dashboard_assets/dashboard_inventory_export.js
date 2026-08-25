@@ -1,18 +1,18 @@
 (()=>{
   const root=document.querySelector('#msa');
   const panel=root?.querySelector('.view[data-panel="inventory"]');
-  if(!root||!panel||panel.dataset.inventoryCsvExport)return;
-  panel.dataset.inventoryCsvExport='1';
+  if(!root||!panel||panel.dataset.inventoryExcelExport)return;
+  panel.dataset.inventoryExcelExport='1';
 
   const toolbar=panel.querySelector('.inventory-view-toolbar');
   if(!toolbar)return;
 
   const button=document.createElement('button');
   button.className='secondary';
-  button.id='inventoryExportCsv';
+  button.id='inventoryExportExcel';
   button.type='button';
-  button.textContent='Export CSV';
-  button.title='Export the full current filtered/sorted projection (maximum 5,000 rows).';
+  button.textContent='Export Excel';
+  button.title='Export the full current filtered/sorted view as a formatted Excel workbook (maximum 5,000 rows).';
   const refresh=panel.querySelector('#inventoryViewRefresh');
   if(refresh)toolbar.insertBefore(button,refresh);
   else toolbar.appendChild(button);
@@ -39,7 +39,7 @@
       params.set('sort_field',sorted.dataset.field);
       params.set('sort_dir',sorted.getAttribute('aria-sort')==='descending'?'desc':'asc');
     }
-    return `/dashboard/api/inventory-view/export.csv?${params.toString()}`;
+    return `/dashboard/api/inventory-view/export.xlsx?${params.toString()}`;
   }
 
   button.addEventListener('click',()=>{

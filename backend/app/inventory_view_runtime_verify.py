@@ -5,8 +5,10 @@ import io
 import json
 from decimal import Decimal
 
+from openpyxl import load_workbook
+
 from app.inventory_view_engine import _main_stock_rows, _migration_review_rows
-from app.inventory_view_export import inventory_view_export_csv
+from app.inventory_view_export import inventory_view_export_csv, inventory_view_export_xlsx
 from app.shadow_read_api import _query
 
 
@@ -50,7 +52,7 @@ def main() -> None:
     assert active_mapping_count == 0, active_mapping_count
     assert accepted_price_count == 0, accepted_price_count
 
-    csv_response = inventory_view_export_csv(
+    export_kwargs = dict(
         preset="main-stock",
         fields="local_item_name,current_qty,cms_code",
         q=None,
@@ -60,11 +62,25 @@ def main() -> None:
         sort_field="local_item_name",
         sort_dir="asc",
     )
-    assert csv_response.status_code == 200
-    assert csv_response.headers["cache-control"] == "no-store"
-    assert csv_response.headers["x-msa-export-read-only"] == "true"
-    assert csv_response.headers["x-msa-database-canonical"] == "false"
-    assert csv_response.headers["x-msa-migration-baseline-accepted"] == "false"
+
+    xlsx_response = inventory_view_export_xlsx(**export_kwargs)
+    assert xlsx_response.status_code == 200
+    assert xlsx_response.headers["cache-control"] == "no-store"
+    assert xlsx_response.headers["x-msa-export-read-only"] == "true"
+    assert xlsx_response.headers["x-msa-database-canonical"] == "false"
+    assert xlsx_response.headers["x-msa-migration-baseline-accepted"] == "false"
+    workbook = load_workbook(io.BytesIO(xlsx_response.body), data_only=False)
+    worksheet = workbook["Main Stock"]
+    xlsx_headers = [worksheet.cell(row=1, column=index).value for index in range(1, 4)]
+    assert xlsx_headers == ["Items", "Current Qty", "CMS Code"], xlsx_headers
+    assert worksheet.max_row - 1 == 799, worksheet.max_row - 1
+    assert worksheet.freeze_panes == "A2"
+    assert worksheet["A1"].font.bold is True
+    assert worksheet["A1"].alignment.wrap_text is True
+    assert worksheet["A2"].border.left.style == "thin"
+    assert len(worksheet.tables) == 1
+
+    csv_response = inventory_view_export_csv(**export_kwargs)
     csv_text = csv_response.body.decode("utf-8")
     assert csv_text.startswith("\ufeff")
     csv_records = list(csv.reader(io.StringIO(csv_text.removeprefix("\ufeff"))))
@@ -81,15 +97,18 @@ def main() -> None:
         "inventory_transactions": transaction_count,
         "active_matches": active_mapping_count,
         "accepted_operational_prices": accepted_price_count,
-        "csv_export_rows": len(csv_records) - 1,
-        "csv_export_columns": csv_records[0],
-        "csv_export_sort": "local_item_name:asc",
+        "excel_export_rows": worksheet.max_row - 1,
+        "excel_export_columns": xlsx_headers,
+        "excel_export_sheet": worksheet.title,
+        "excel_export_sort": "local_item_name:asc",
+        "excel_export_freeze_panes": str(worksheet.freeze_panes),
+        "csv_compat_rows": len(csv_records) - 1,
         "mutation": False,
         "database_canonical": False,
         "migration_baseline_accepted": False,
     }
     print(json.dumps(result, sort_keys=True))
-    print("inventory_view_runtime=pass csv_export=pass mutation=false database_canonical=false")
+    print("inventory_view_runtime=pass excel_export=pass csv_compat=pass mutation=false database_canonical=false")
 
 
 if __name__ == "__main__":
