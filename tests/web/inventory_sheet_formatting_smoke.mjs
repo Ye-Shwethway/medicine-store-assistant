@@ -65,7 +65,8 @@ for(let col=0;col<3;col++)assert.equal(await cell(2,col).getAttribute('data-user
 
 await cell(0,0).click();
 await page.locator('#inventoryFillToggle').click();
-await page.getByRole('menuitem',{name:'No fill',exact:true}).click();
+assert.equal(await page.locator('#inventoryClearFill').getAttribute('aria-label'),'No fill');
+await page.locator('#inventoryClearFill').click();
 assert.equal(await cell(0,0).getAttribute('data-user-fill'),null,'Clear fill must remove only user formatting from selected cell');
 assert.equal(await cell(0,1).getAttribute('data-user-fill'),'green','Clear fill must not remove fill outside the selection');
 
