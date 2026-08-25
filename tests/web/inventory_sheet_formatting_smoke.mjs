@@ -33,11 +33,6 @@ await page.evaluate(()=>{
 await page.addStyleTag({path:stylesheet});
 await page.addScriptTag({path:script});
 await page.getByRole('cell',{name:'Alpha'}).waitFor();
-assert.equal(await page.locator('#inventoryFillToggle').getAttribute('aria-haspopup'),'menu');
-await page.getByRole('button',{name:'Fill',exact:true}).click();
-assert.equal(await page.locator('#inventoryFillMenu .inventory-fill-menu-head strong').textContent(),'Fill color');
-assert.equal(await page.locator('#inventoryFillMenu .inventory-fill-option.secondary').count(),0,'derived color tiles must not reuse native secondary button styling');
-await page.getByRole('button',{name:'Fill',exact:true}).click();
 
 const cell=(row,col)=>page.locator(`tbody tr:nth-child(${row+1}) td[data-col-index="${col}"]`);
 const fill=async name=>{
@@ -46,6 +41,11 @@ const fill=async name=>{
 };
 
 await cell(0,0).click();
+assert.equal(await page.locator('#inventoryFillToggle').getAttribute('aria-haspopup'),'menu');
+await page.getByRole('button',{name:'Fill',exact:true}).click();
+assert.equal(await page.locator('#inventoryFillMenu .inventory-fill-menu-head strong').textContent(),'Fill color');
+assert.equal(await page.locator('#inventoryFillMenu .inventory-fill-option.secondary').count(),0,'derived color tiles must not reuse native secondary button styling');
+await page.getByRole('button',{name:'Fill',exact:true}).click();
 await fill('Yellow');
 assert.equal(await cell(0,0).getAttribute('data-user-fill'),'yellow');
 assert.match(await cell(0,0).getAttribute('style'),/background-color:\s*#fff1a8\s*!important/i,'runtime fill must be applied inline with important priority');
