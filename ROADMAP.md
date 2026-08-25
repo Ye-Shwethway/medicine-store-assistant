@@ -258,3 +258,8 @@ Implemented behavior:
 - formatting remains session-only. Persistence/export of user formatting is deferred to Saved Custom Views / View Builder.
 
 PR #203 merged as `20f4b67ff79ea52838401c35ad19ad25da68c2a2`. Backend, Web reliability and Inventory View Engine CI were green on the final PR head, including the dedicated Sheet Formatting browser smoke. Production deploy run `32831427749` completed successfully and deployment issue #26 published `status=success` with `source_sha=20f4b67ff79ea52838401c35ad19ad25da68c2a2`. No inventory, CMS mapping, pricing, migration-baseline or canonicality mutation is introduced.
+
+
+### Inventory Sheet Formatting v1 — production fill runtime hotfix
+
+PR #205 supersedes the original fill presentation behavior from PR #203 after production observation showed that fill metadata could exist without a visible cell color and that expanded color choices were visually confusable with native workbench actions. The hotfix keeps formatting session-only/read-only, applies the selected fill as authoritative inline presentation style with `!important`, gives the Fill trigger a distinct formatting marker/disclosure treatment, renders color choices as compact derived swatch tiles rather than native `.secondary` actions, and keeps `No fill` inside the formatting popover. Exact production main SHA `66a45963d5605f2699545cd35e24aa1dd2571152` deployed successfully via run `32834067245`; deployment issue #26 published `status=success` with the same source SHA. No inventory, CMS mapping, pricing, migration-baseline or canonicality mutation was introduced.
