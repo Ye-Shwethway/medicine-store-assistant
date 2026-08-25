@@ -230,7 +230,7 @@ Runtime issue #166, run `32821445117`, verified Main Stock **799** rows with Exc
 Contract: `docs/design/INVENTORY_SHEET_INTERACTION_V1.md`. Sheet Formatting (fill/clear fill) follows only after this selection foundation is stable. Saved Custom Views / View Builder follows the sheet interaction/formatting foundation.
 
 
-### 5.6B Inventory Sheet Formatting v1 — IMPLEMENTED + CI VERIFIED
+### 5.6B Inventory Sheet Formatting v1 — COMPLETE + PRODUCTION VERIFIED
 
 - [x] Session-only formatting metadata keyed by stable row identity + registered field key.
 - [x] Fill one cell, rectangular ranges, and selected whole rows across visible registered columns.
@@ -245,4 +245,4 @@ Contract: `docs/design/INVENTORY_SHEET_INTERACTION_V1.md`. Sheet Formatting (fil
 - [ ] Persist formatting only when Saved Custom Views / View Builder owns the user view definition.
 - [ ] Export persisted custom-view formatting through the existing reusable Excel renderer only after the persistence contract is defined.
 
-Contract: `docs/design/INVENTORY_SHEET_FORMATTING_V1.md`. PR #203 CI is green; production deployment evidence is pending.
+Contract: `docs/design/INVENTORY_SHEET_FORMATTING_V1.md`. PR #203 merged as `20f4b67ff79ea52838401c35ad19ad25da68c2a2`; production deploy run `32831427749` succeeded and issue #26 confirmed the exact deployed SHA.
