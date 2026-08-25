@@ -1,0 +1,28 @@
+name: One-shot F6E E2 docs sync
+
+on:
+  push:
+    branches:
+      - feat/f6e-custom-table-builder-v1
+
+permissions:
+  contents: write
+
+jobs:
+  sync-docs:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: feat/f6e-custom-table-builder-v1
+      - name: Apply docs sync
+        run: python scripts/patch_f6e_e2_docs.py
+      - name: Commit docs and remove helper
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/one-shot-f6e-e2-doc-sync.yml scripts/patch_f6e_e2_docs.py
+          git add ROADMAP.md IMPLEMENTATION_PLAN.md NEW_CHAT_BOOTSTRAP.md
+          git commit -m "Sync F6E E2 Custom Table Builder docs"
+          git push origin HEAD:feat/f6e-custom-table-builder-v1
