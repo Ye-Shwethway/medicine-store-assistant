@@ -12,6 +12,7 @@ from app.inventory_view_engine import (
     SYSTEM_PRESETS,
     SortDirection,
     ViewColumn,
+    ViewDefinition,
     _normalize_optional,
     _normalize_sort,
     _render_provider,
@@ -21,6 +22,19 @@ from app.inventory_view_engine import (
 router = APIRouter(prefix="/dashboard/api/inventory-view", tags=["inventory-view-export"])
 
 MAX_CSV_EXPORT_ROWS = 5000
+
+
+def _resolve_export_columns(view: ViewDefinition, requested_fields: str | None) -> list[ViewColumn]:
+    columns = _resolve_columns(view, requested_fields)
+    preset_columns = {column.field: column for column in view.columns}
+    return [
+        ViewColumn(
+            field=column.field,
+            label=column.label or preset_columns.get(column.field, column).label,
+            width=column.width,
+        )
+        for column in columns
+    ]
 
 
 def _csv_cell(value: Any, column: ViewColumn) -> Any:
@@ -84,7 +98,7 @@ def inventory_view_export_csv(
     if view is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Inventory view preset not found")
 
-    columns = _resolve_columns(view, fields)
+    columns = _resolve_export_columns(view, fields)
     normalized_q = _normalize_optional(q)
     normalized_mapping_status = _normalize_optional(mapping_status)
     normalized_source_classification = _normalize_optional(source_classification)
