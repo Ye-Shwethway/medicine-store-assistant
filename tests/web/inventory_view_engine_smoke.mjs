@@ -8,21 +8,23 @@ const stylesheet=path.join(root,'backend/app/dashboard_assets/dashboard_inventor
 const browser=await chromium.launch({headless:true});
 const page=await browser.newPage({viewport:{width:390,height:844}});
 
-await page.setContent(`<main id="msa"><button class="nav-btn" data-view="inventory">Inventory</button><button id="aiWorkspaceNav" type="button">AI Workspace</button><button id="aiMultiTab" type="button">Multi-Agent</button><textarea id="aiMessageInput"></textarea><section class="view" data-panel="inventory"><div id="legacyInventorySubtree">legacy</div></section></main>`);
+await page.setContent(`<main id="msa"><button class="nav-btn" data-view="inventory">Inventory</button><button id="aiWorkspaceNav" type="button">AI Workspace</button><button class="ai-workspace-tab" id="aiChatTab" data-ai-tab="chat" type="button">Chat</button><button class="ai-workspace-tab" id="aiMultiTab" type="button">Multi-Agent</button><article class="ai-chat-panel"><form id="aiChatForm"><textarea id="aiMessageInput"></textarea><button type="submit">Send</button></form></article><section class="view" data-panel="inventory"><div id="legacyInventorySubtree">legacy</div></section></main>`);
 await page.addStyleTag({path:stylesheet});
 await page.evaluate(()=>{
   window.__inventoryRequests=[];
   window.__lastReviewContextBody=null;
   window.__aiNavClicks=0;
+  window.__chatClicks=0;
   window.__multiClicks=0;
   window.__reviewRunClicks=0;
   document.querySelector('#aiWorkspaceNav').addEventListener('click',()=>{window.__aiNavClicks+=1});
+  document.querySelector('#aiChatTab').addEventListener('click',()=>{window.__chatClicks+=1});
   document.querySelector('#aiMultiTab').addEventListener('click',()=>{
     window.__multiClicks+=1;
     setTimeout(()=>{
       if(document.querySelector('#reviewTitle'))return;
-      const box=document.createElement('section');box.id='fakeMultiReviewComposer';
-      box.innerHTML='<select id="reviewSessionSelect"><option value="">Choose a REVIEW preset…</option><option value="review-a">Review A</option></select><input id="reviewTitle"><textarea id="reviewTask"></textarea><button id="reviewRun" type="button">Run native review</button>';
+      const box=document.createElement('section');box.id='fakeMultiReviewComposer';box.className='review-compose';
+      box.innerHTML='<div class="review-section-head"><h3>Task & evidence</h3></div><select id="reviewSessionSelect"><option value="">Choose a REVIEW preset…</option><option value="review-a">Review A</option></select><input id="reviewTitle"><textarea id="reviewTask"></textarea><button id="reviewRun" type="button">Run native review</button>';
       document.querySelector('#msa').appendChild(box);
       box.querySelector('#reviewRun').addEventListener('click',()=>{window.__reviewRunClicks+=1});
     },20);
@@ -81,6 +83,13 @@ await page.locator('.inventory-row-check').check();
 assert.equal(await page.locator('#inventorySelectionBar').isVisible(),true);
 assert.equal(await page.getByRole('button',{name:'Ask AI'}).isVisible(),true);
 assert.equal(await page.getByRole('button',{name:'Deep Review'}).isVisible(),true);
+const askBox=await page.getByRole('button',{name:'Ask AI'}).boundingBox();
+const deepBox=await page.getByRole('button',{name:'Deep Review'}).boundingBox();
+const clearBox=await page.getByRole('button',{name:'Clear',exact:true}).boundingBox();
+assert.ok(askBox&&deepBox&&clearBox);
+assert.ok(Math.abs(askBox.y-deepBox.y)<2,'Ask AI and Deep Review should align on the same mobile action row');
+assert.ok(Math.abs(askBox.width-deepBox.width)<3,'primary review actions should use balanced widths');
+assert.ok(clearBox.y>askBox.y,'Clear should occupy a clean secondary row on mobile');
 await page.locator('#inventoryViewTable tbody tr').first().click();
 assert.equal(await page.locator('#inventoryReviewDrawer').isVisible(),true);
 assert.ok((await page.locator('#inventoryDrawerBody').textContent()).includes('Source'));
@@ -101,11 +110,19 @@ await page.locator('#inventoryDrawerClose').click();
 await page.locator('.inventory-row-check').check();
 await page.getByRole('button',{name:'Ask AI'}).click();
 await page.waitForFunction(()=>document.querySelector('#aiMessageInput').value.includes('Review these 1 selected rows from CMS Mapping Review.'));
-let handoff=await page.evaluate(()=>({body:window.__lastReviewContextBody,navClicks:window.__aiNavClicks,draft:document.querySelector('#aiMessageInput').value,requests:window.__inventoryRequests.slice()}));
+let handoff=await page.evaluate(()=>({body:window.__lastReviewContextBody,navClicks:window.__aiNavClicks,chatClicks:window.__chatClicks,multiClicks:window.__multiClicks,draft:document.querySelector('#aiMessageInput').value,requests:window.__inventoryRequests.slice()}));
+assert.equal(handoff.chatClicks,1,'Ask AI must explicitly route to Chat even if another AI tab was previously active');
+assert.equal(handoff.multiClicks,0,'Ask AI must not open Multi-Agent');
 assert.equal(handoff.body.preset,'cms-mapping-review');
 assert.deepEqual(handoff.body.selected_indices,[0]);
 assert.ok(!JSON.stringify(handoff.body).includes('Metformin 500mg'),'client sends selection coordinates, not row facts');
 assert.ok(handoff.draft.includes('server-rehydrated shadow review evidence'));
+const chatCard=page.locator('.inventory-ai-handoff-card[data-mode="chat"]');
+assert.equal(await chatCard.isVisible(),true,'Ask AI must show visible selected-row context');
+const chatCardText=await chatCard.textContent();
+assert.ok(chatCardText.includes('Inventory context ready'));
+assert.ok(chatCardText.includes('Metformin 500mg'));
+assert.ok(chatCardText.includes('Not sent yet'));
 assert.ok(!handoff.requests.some(url=>url.includes('/messages')),'Ask AI must not auto-send/model-call');
 
 const beforeDeepRequests=await page.evaluate(()=>window.__inventoryRequests.length);
@@ -114,6 +131,7 @@ await page.waitForFunction(()=>document.querySelector('#reviewTask')?.value.incl
 const deep=await page.evaluate(()=>({
   body:window.__lastReviewContextBody,
   navClicks:window.__aiNavClicks,
+  chatClicks:window.__chatClicks,
   multiClicks:window.__multiClicks,
   runClicks:window.__reviewRunClicks,
   title:document.querySelector('#reviewTitle').value,
@@ -127,6 +145,12 @@ assert.ok(deep.title.includes('Deep review · CMS Mapping Review · 1 row'));
 assert.ok(deep.task.includes('server-rehydrated shadow review evidence'));
 assert.ok(deep.task.includes('Continuity: exact name, same price'));
 assert.ok(!deep.task.includes('CONTINUITY_EXACT_NAME_PRICE_SAME'));
+const deepCard=page.locator('.inventory-ai-handoff-card[data-mode="deep"]');
+assert.equal(await deepCard.isVisible(),true,'Deep Review must visibly show selected evidence before execution');
+const deepCardText=await deepCard.textContent();
+assert.ok(deepCardText.includes('Deep Review context ready'));
+assert.ok(deepCardText.includes('Metformin 500mg'));
+assert.ok(deepCardText.includes('Review not started'));
 assert.equal(deep.runClicks,0,'Deep Review handoff must not click Run native review');
 assert.ok(!deep.requests.some(url=>url.includes('/ai-workspace/multi-agent/reviews')),'Deep Review handoff must make zero native review execution requests');
 assert.ok(deep.requests.length>beforeDeepRequests,'Deep Review still obtains a fresh server-rehydrated context');
@@ -137,4 +161,4 @@ const overflow=await page.locator('.inventory-view-table-wrap').evaluate(el=>get
 const banner=await page.locator('.inventory-shadow-banner').boundingBox();assert.ok(banner&&banner.width<=390);
 
 await browser.close();
-console.log('inventory_review_workspace_smoke=pass viewport=390x844 ask_ai_context=pass auto_send=false deep_review_prefill=pass deep_review_auto_run=false presets=3');
+console.log('inventory_review_workspace_smoke=pass viewport=390x844 mobile_actions=aligned ask_ai_routes_chat=pass visible_context=pass auto_send=false deep_review_prefill=pass deep_review_visible_context=pass deep_review_auto_run=false presets=3');
