@@ -35,6 +35,8 @@ assert.equal(await cell(0,0).getAttribute('aria-selected'),'true');
 await cell(1,1).click({modifiers:['Shift']});
 assert.match(await page.locator('#inventorySelectionCount').textContent(),/2×2 range · 4 cells/);
 assert.equal(await cell(1,1).getAttribute('aria-selected'),'true');
+await page.getByRole('button',{name:'Copy TSV'}).click();
+assert.equal(await page.evaluate(()=>window.__copied),'Alpha\t10\nBeta\t20','range copy must contain real TSV row breaks');
 
 await cell(1,1).focus();
 await page.keyboard.press('ArrowRight');
@@ -70,6 +72,12 @@ await page.getByRole('button',{name:'Select visible rows'}).click();
 assert.equal(await page.locator('#inventorySelectionCount').textContent(),'0 selected');
 assert.equal(await page.locator('#inventorySelectionBar').isHidden(),true);
 
+await cell(0,1).click();
+assert.equal(await page.locator('#inventorySelectionCount').textContent(),'1 cell selected');
+await page.locator('#inventoryMappingStatus').selectOption('REVIEW_REQUIRED');
+await page.locator('#inventoryMappingStatus').selectOption('');
+assert.equal(await page.locator('#inventorySelectionBar').isHidden(),true,'filter coordinate changes must clear stale selection');
+
 await page.setViewportSize({width:390,height:844});
 await cell(0,1).click();
 assert.equal(await page.locator('#inventoryReviewDrawer').isHidden(),true);
@@ -78,4 +86,4 @@ const touchTarget=await row1.boundingBox();
 assert.ok(touchTarget&&touchTarget.height>=40,'row selector remains a practical touch target');
 
 await browser.close();
-console.log('inventory_sheet_selection=pass cell_click=pass range=pass drag=pass keyboard=pass rows=pass details=explicit copy=pass mobile=pass');
+console.log('inventory_sheet_selection=pass cell_click=pass range=pass drag=pass keyboard=pass rows=pass details=explicit copy=pass stale_selection=cleared mobile=pass');
