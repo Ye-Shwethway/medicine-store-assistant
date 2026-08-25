@@ -46,7 +46,7 @@ assert.notEqual(rangeVisual.background,'rgb(255, 255, 255)','selected range cell
 await page.getByRole('button',{name:'Copy TSV'}).click();
 assert.equal(await page.evaluate(()=>window.__copied),'Alpha\t10\nBeta\t20','range copy must contain real TSV row breaks');
 
-await cell(1,1).focus();
+await cell(1,1).click();
 await page.keyboard.press('ArrowRight');
 assert.equal(await cell(1,2).getAttribute('aria-selected'),'true');
 assert.equal(await page.locator('#inventorySelectionCount').textContent(),'1 cell selected');
