@@ -18,12 +18,20 @@
   else toolbar.appendChild(button);
 
   function exportUrl(){
-    const preset=panel.querySelector('#inventoryPresetSelect')?.value||'main-stock';
+    const select=panel.querySelector('#inventoryPresetSelect');
+    const choice=select?.value||'main-stock';
+    const selectedOption=select?.selectedOptions?.[0];
+    const preset=choice.startsWith('custom:')?(selectedOption?.dataset.basePreset||'main-stock'):choice;
     const params=new URLSearchParams({preset});
-    const fields=[...panel.querySelectorAll('#inventoryViewTable thead th[data-field]')]
-      .map(th=>th.dataset.field)
-      .filter(Boolean);
+    const headers=[...panel.querySelectorAll('#inventoryViewTable thead th[data-field]')];
+    const fields=headers.map(th=>th.dataset.field).filter(Boolean);
     if(fields.length)params.set('fields',fields.join(','));
+    const labels=Object.fromEntries(headers.map(th=>{
+      const field=th.dataset.field;
+      const label=th.querySelector('.inventory-sort-label')?.textContent?.trim()||th.textContent?.trim()||'';
+      return [field,label];
+    }).filter(([field,label])=>field&&label));
+    if(Object.keys(labels).length)params.set('column_labels',JSON.stringify(labels));
 
     const q=panel.querySelector('#inventoryViewSearch')?.value.trim();
     const mapping=panel.querySelector('#inventoryMappingStatus')?.value;
