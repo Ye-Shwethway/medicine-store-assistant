@@ -22,5 +22,7 @@ jobs:
           git config user.name 'Mr. Thorne'
           git config user.email '85703541+Ye-Shwethway@users.noreply.github.com'
           git add tests/web/inventory_view_engine_smoke.mjs tests/web/inventory_sorting_smoke.mjs tests/web/inventory_excel_export_smoke.mjs tests/web/inventory_date_format_smoke.mjs tests/web/inventory_sheet_selection_smoke.mjs tests/web/inventory_sheet_formatting_smoke.mjs
+          if git diff --cached --quiet; then echo 'No compatibility changes needed'; exit 0; fi
           git commit -m 'Keep Inventory browser mocks compatible with saved views'
           git push origin HEAD:feat/f6e-saved-view-persistence
+# rerun after tolerant patcher
