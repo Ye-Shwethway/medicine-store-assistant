@@ -67,19 +67,22 @@ Authenticated Inventory API gains:
 - `PUT /dashboard/api/inventory-view/saved-views/{view_id}`
 - `DELETE /dashboard/api/inventory-view/saved-views/{view_id}`
 
-`GET /presets` returns immutable system presets plus the current user's saved views as user-owned definitions.
+`GET /presets` remains the immutable system-preset registry. The browser merges those server-owned presets with the authenticated user's `/saved-views` list for one View selector.
 
-`GET /rows?preset=<custom view id>` resolves the saved view for the authenticated owner, then renders through the existing base system provider. Custom definitions never supply SQL/provider expressions.
+When a saved view is selected, the browser rehydrates its validated presentation definition and requests rows through the existing `/rows` endpoint using its server-validated `base_preset`, registered field subset/order, filters and sort. `/rows` continues to validate every field/filter/sort coordinate; a saved definition never supplies SQL/provider expressions.
 
 ## Workbench v1 integration
 
 E1 adds minimal persistence controls, not the full View Builder:
 
-- `Save view` / `Save as` from the current workbench state;
-- saved views appear in the existing View selector with a clear Custom marker;
+- `Save view` from a system preset creates a user-owned custom view after an explicit name prompt;
+- `Save view` while an existing custom view is active updates that same user-owned definition;
+- `Save as` duplicates the current state under a new user-owned name;
+- `Delete view` is enabled only for an active custom view;
+- saved views appear in the existing View selector with a clear `Custom ·` marker;
 - reopening a saved view rehydrates fields/order/width/density/filter/sort/fill state;
 - deleting a saved view returns safely to its base system preset;
-- a system preset is never overwritten; saving from it creates a custom view.
+- a system preset is never overwritten.
 
 A one-click `Clear all` resets Search + review filters + sort only; it does not delete selection, column layout, fills, or saved-view definitions.
 
@@ -91,7 +94,7 @@ Behavior-level proof must cover:
 2. same-tab selection of the new custom view;
 3. server read-back of the authenticated saved definition;
 4. refresh/reopen rehydration;
-5. rename/update;
+5. update existing custom view and `Save as` duplication;
 6. owner scoping;
 7. delete and fallback to base preset;
 8. no inventory/CMS/canonicality mutation;
