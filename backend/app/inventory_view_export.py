@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import io
+import json
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
@@ -24,15 +25,47 @@ router = APIRouter(prefix="/dashboard/api/inventory-view", tags=["inventory-view
 
 MAX_EXPORT_ROWS = 5000
 MAX_CSV_EXPORT_ROWS = MAX_EXPORT_ROWS
+MAX_COLUMN_LABELS_QUERY = 8192
+MAX_COLUMN_LABEL_LENGTH = 120
 
 
-def _resolve_export_columns(view: ViewDefinition, requested_fields: str | None) -> list[ViewColumn]:
+def _parse_column_labels(raw: str | None, selected_fields: set[str]) -> dict[str, str]:
+    if not raw:
+        return {}
+    try:
+        decoded = json.loads(raw)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="column_labels must be a JSON object") from exc
+    if not isinstance(decoded, dict):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="column_labels must be a JSON object")
+    labels: dict[str, str] = {}
+    for field, value in decoded.items():
+        if field not in selected_fields or field not in FIELD_REGISTRY:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Column label targets an invalid export field: {field}")
+        if not isinstance(value, str):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Column label must be text: {field}")
+        label = value.strip()
+        if not label:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Column label cannot be blank: {field}")
+        if len(label) > MAX_COLUMN_LABEL_LENGTH:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Column label is too long: {field}")
+        labels[field] = label
+    return labels
+
+
+def _resolve_export_columns(
+    view: ViewDefinition,
+    requested_fields: str | None,
+    column_labels: str | None = None,
+) -> list[ViewColumn]:
     columns = _resolve_columns(view, requested_fields)
+    selected_fields = {column.field for column in columns}
+    labels = _parse_column_labels(column_labels, selected_fields)
     preset_columns = {column.field: column for column in view.columns}
     return [
         ViewColumn(
             field=column.field,
-            label=column.label or preset_columns.get(column.field, column).label,
+            label=labels.get(column.field) or column.label or preset_columns.get(column.field, column).label,
             width=column.width,
         )
         for column in columns
@@ -121,6 +154,7 @@ def _resolve_request(
     *,
     preset: str,
     fields: str | None,
+    column_labels: str | None,
     q: str | None,
     mapping_status: str | None,
     source_classification: str | None,
@@ -132,7 +166,7 @@ def _resolve_request(
     if view is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Inventory view preset not found")
 
-    columns = _resolve_export_columns(view, fields)
+    columns = _resolve_export_columns(view, fields, column_labels)
     normalized_q = _normalize_optional(q)
     normalized_mapping_status = _normalize_optional(mapping_status)
     normalized_source_classification = _normalize_optional(source_classification)
@@ -171,6 +205,7 @@ def _response_headers(filename: str) -> dict[str, str]:
 def inventory_view_export_xlsx(
     preset: str = Query(default="main-stock"),
     fields: str | None = Query(default=None, description="Optional comma-separated registered field keys in export order."),
+    column_labels: str | None = Query(default=None, max_length=MAX_COLUMN_LABELS_QUERY, description="Optional JSON object of presentation-only header labels keyed by selected registered field."),
     q: str | None = None,
     mapping_status: str | None = Query(default=None, max_length=64),
     source_classification: str | None = Query(default=None, max_length=64),
@@ -181,6 +216,7 @@ def inventory_view_export_xlsx(
     view, columns, rows = _resolve_request(
         preset=preset,
         fields=fields,
+        column_labels=column_labels,
         q=q,
         mapping_status=mapping_status,
         source_classification=source_classification,
@@ -199,6 +235,7 @@ def inventory_view_export_xlsx(
 def inventory_view_export_csv(
     preset: str = Query(default="main-stock"),
     fields: str | None = Query(default=None, description="Optional comma-separated registered field keys in export order."),
+    column_labels: str | None = Query(default=None, max_length=MAX_COLUMN_LABELS_QUERY, description="Optional JSON object of presentation-only header labels keyed by selected registered field."),
     q: str | None = None,
     mapping_status: str | None = Query(default=None, max_length=64),
     source_classification: str | None = Query(default=None, max_length=64),
@@ -209,6 +246,7 @@ def inventory_view_export_csv(
     view, columns, rows = _resolve_request(
         preset=preset,
         fields=fields,
+        column_labels=column_labels,
         q=q,
         mapping_status=mapping_status,
         source_classification=source_classification,

@@ -17,13 +17,31 @@
   if(refresh)toolbar.insertBefore(button,refresh);
   else toolbar.appendChild(button);
 
-  function exportUrl(){
-    const preset=panel.querySelector('#inventoryPresetSelect')?.value||'main-stock';
+  async function resolvePreset(choice){
+    if(!choice.startsWith('custom:'))return choice;
+    const viewId=choice.slice(7);
+    const response=await fetch('/dashboard/api/inventory-view/saved-views',{credentials:'same-origin',headers:{Accept:'application/json'}});
+    let data=null;try{data=await response.json()}catch{}
+    if(!response.ok)throw new Error(data?.detail||`Unable to resolve custom table: ${response.status}`);
+    const saved=(data?.items||[]).find(item=>item.view_id===viewId);
+    if(!saved?.base_preset)throw new Error('Saved custom table is no longer available.');
+    return saved.base_preset;
+  }
+
+  async function exportUrl(){
+    const select=panel.querySelector('#inventoryPresetSelect');
+    const choice=select?.value||'main-stock';
+    const preset=await resolvePreset(choice);
     const params=new URLSearchParams({preset});
-    const fields=[...panel.querySelectorAll('#inventoryViewTable thead th[data-field]')]
-      .map(th=>th.dataset.field)
-      .filter(Boolean);
+    const headers=[...panel.querySelectorAll('#inventoryViewTable thead th[data-field]')];
+    const fields=headers.map(th=>th.dataset.field).filter(Boolean);
     if(fields.length)params.set('fields',fields.join(','));
+    const labels=Object.fromEntries(headers.map(th=>{
+      const field=th.dataset.field;
+      const label=th.querySelector('.inventory-sort-label')?.textContent?.trim()||th.textContent?.trim()||'';
+      return [field,label];
+    }).filter(([field,label])=>field&&label));
+    if(Object.keys(labels).length)params.set('column_labels',JSON.stringify(labels));
 
     const q=panel.querySelector('#inventoryViewSearch')?.value.trim();
     const mapping=panel.querySelector('#inventoryMappingStatus')?.value;
@@ -42,13 +60,18 @@
     return `/dashboard/api/inventory-view/export.xlsx?${params.toString()}`;
   }
 
-  button.addEventListener('click',()=>{
-    const anchor=document.createElement('a');
-    anchor.href=exportUrl();
-    anchor.hidden=true;
-    anchor.setAttribute('aria-hidden','true');
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
+  button.addEventListener('click',async()=>{
+    const original=button.textContent;
+    button.disabled=true;
+    button.textContent='Preparing…';
+    try{
+      const anchor=document.createElement('a');
+      anchor.href=await exportUrl();
+      anchor.hidden=true;
+      anchor.setAttribute('aria-hidden','true');
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+    }catch(err){window.alert(err.message)}finally{button.disabled=false;button.textContent=original}
   });
 })();

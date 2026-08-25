@@ -76,6 +76,7 @@ class SavedViewDefinition(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     fields: list[str] = Field(min_length=1, max_length=MAX_FIELDS)
+    column_labels: dict[str, str] = Field(default_factory=dict)
     column_widths: dict[str, int] = Field(default_factory=dict)
     density: Density = "comfortable"
     filters: SavedViewFilters = Field(default_factory=SavedViewFilters)
@@ -111,6 +112,18 @@ def _validated_payload(payload: SavedViewUpsert) -> SavedViewUpsert:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Unknown saved-view field: {field}")
 
     selected_fields = set(payload.definition.fields)
+    normalized_labels: dict[str, str] = {}
+    for field, label in payload.definition.column_labels.items():
+        if field not in selected_fields or field not in FIELD_REGISTRY:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Header label targets an invalid field: {field}")
+        normalized = label.strip()
+        if not normalized:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Header label cannot be blank: {field}")
+        if len(normalized) > 120:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Header label is too long: {field}")
+        normalized_labels[field] = normalized
+    payload.definition.column_labels = normalized_labels
+
     for field, width in payload.definition.column_widths.items():
         if field not in selected_fields:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Width targets an unselected field: {field}")

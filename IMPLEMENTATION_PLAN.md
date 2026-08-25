@@ -163,18 +163,32 @@ Evidence:
 
 Next bounded work:
 
-- [ ] Add one-click Clear all for Search + review filters + sort state if retained as a useful workbench action; per-chip clearing is already complete.
-- [ ] Add keyboard navigation/copy shortcuts after the export/sort/layout substrate is stable.
-- [ ] Add optional desktop split-pane review detail after core table ergonomics are proven.
+- [x] One-click Clear all for Search + review filters + sort state.
+- [x] Cell-first keyboard navigation, Shift-range extension, and selection-aware TSV copy.
+- [ ] Optional desktop split-pane review detail remains deferred; it is not required for Slice E.
 
-### 5.7 Slice E — saved custom views
+### 5.7 Slice E — saved custom views / Custom Table Builder — ACTIVE
 
-- [ ] Persist user-defined view definitions.
-- [ ] View Builder: row grain, Store scope, field selection/order, labels, widths, filters/sorts/groups/formatting.
-- [ ] Persist user-owned layout preferences such as column order/width/density/sort where appropriate.
-- [ ] Duplicate a system preset into a user-owned view without mutating the system preset.
-- [ ] Route user-created tabular views through the same reusable Excel export renderer instead of implementing a second export stack.
-- [ ] Never permit arbitrary SQL/raw DB expressions.
+#### E1 Saved View Persistence Foundation — COMPLETE + PRODUCTION VERIFIED
+
+- [x] Persist authenticated user-owned saved view definitions in `inventory_saved_views`.
+- [x] Persist registered field order, widths, density, bounded filters/sort, and presentation-only fills.
+- [x] Save view / Save as / Delete view with refresh/reopen rehydration and owner scoping.
+- [x] Preserve immutable system presets and non-canonical/read-only authority boundaries.
+- [x] PR #207 merged and production deployment verified at main SHA `82abd4f83a5e6a88af8714983a91b151fc5c642e`.
+
+#### E2 Custom Table Builder v1 — IMPLEMENTED + EXACT-HEAD CI GREEN, PR #209 OPEN
+
+- [x] First-class `New table` builder over allowlisted server-owned row sources.
+- [x] Select/remove/reorder registered mapped fields independently of preset visible layouts.
+- [x] User-editable header names persisted as `column_labels` while stable field keys remain the mapping identity.
+- [x] Reopen/edit existing custom tables through `Edit table`; Columns panel also supports header-name edits.
+- [x] Reject unknown/unselected, blank, or overlong header labels.
+- [x] Custom-table Excel export resolves the saved custom view's server-owned base preset and preserves current rendered field order + custom headers.
+- [x] Reuse the global Excel/tabular renderer; no parallel export stack.
+- [x] Exact-head CI green at `0cee74672beb369ff745cb451801d8df550224fa`: Inventory View Engine, backend changes, Web production reliability.
+- [ ] Production merge/deploy/runtime proof remains pending until PR #209 is explicitly merged.
+- [ ] Calculated/derived columns remain a later typed-expression slice; arbitrary SQL/raw expressions remain forbidden.
 
 ### 5.8 Slice F — Daily Usage + editing
 
@@ -215,7 +229,7 @@ PR #199 merge `4d407e5d01343deb3da9a8a0f82f6122e989035f` refined presentation wi
 
 Runtime issue #166, run `32821445117`, verified Main Stock **799** rows with Excel formats `expiry=mmm-yy`, `qty=0`, `price=0.00`, `mutation=false`, `database_canonical=false`, `migration_baseline_accepted=false`. Deployment issue #26, run `32821445217`, verified production deployment success at the same SHA.
 
-### 5.6A Inventory Sheet Interaction Foundation v1 — ACTIVE
+### 5.6A Inventory Sheet Interaction Foundation v1 — COMPLETE + PRODUCTION VERIFIED
 
 - [x] Single click/tap selects a data cell without opening details.
 - [x] Desktop pointer drag and Shift+click create a rectangular range.

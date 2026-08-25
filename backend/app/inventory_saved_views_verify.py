@@ -13,6 +13,7 @@ def _payload(**overrides):
         "base_preset": "main-stock",
         "definition": {
             "fields": ["local_item_name", "current_qty", "cms_code"],
+            "column_labels": {"local_item_name": "Medicine Name", "current_qty": "Balance"},
             "column_widths": {"local_item_name": 280, "current_qty": 120},
             "density": "compact",
             "filters": {"q": "", "mapping_status": "", "source_classification": "", "review_reason": ""},
@@ -36,6 +37,15 @@ def main() -> None:
     valid = _validated_payload(_payload())
     assert valid.base_preset == "main-stock"
     assert valid.definition.fields == ["local_item_name", "current_qty", "cms_code"]
+    assert valid.definition.column_labels["local_item_name"] == "Medicine Name"
+
+    bad_label = _payload()
+    bad_label.definition.column_labels = {"raw_sql": "Bad"}
+    _must_reject(bad_label)
+
+    blank_label = _payload()
+    blank_label.definition.column_labels = {"local_item_name": "   "}
+    _must_reject(blank_label)
 
     _must_reject(_payload(base_preset="not-a-preset"))
 
@@ -66,7 +76,7 @@ def main() -> None:
     assert 'sa.ForeignKey("users.user_id", ondelete="CASCADE")' in migration_source
     assert "uq_inventory_saved_views_owner_name_ci" in migration_source
 
-    print("inventory_saved_views_contract=pass typed_definition=pass owner_scope=pass no_raw_sql=pass immutable_base_provider=pass")
+    print("inventory_saved_views_contract=pass typed_definition=pass custom_headers=pass owner_scope=pass no_raw_sql=pass immutable_base_provider=pass")
 
 
 if __name__ == "__main__":

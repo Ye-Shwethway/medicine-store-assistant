@@ -79,6 +79,29 @@ async function installPage(page,{activeId=''}={}){
   await page.getByRole('cell',{name:'Alpha'}).waitFor();
 }
 
+const builderPage=await browser.newPage({viewport:{width:1280,height:800}});
+await installPage(builderPage);
+await builderPage.locator('#inventoryNewTable').click();
+await builderPage.locator('[data-inventory-builder-name]').fill('My Custom Table');
+await builderPage.locator('[data-builder-select][value="local_item_name"]').check();
+await builderPage.locator('[data-builder-select][value="current_qty"]').check();
+await builderPage.locator('[data-builder-label][data-field="local_item_name"]').fill('Medicine Name');
+await builderPage.locator('[data-builder-label][data-field="current_qty"]').fill('Balance');
+await builderPage.locator('[data-inventory-builder-save]').click();
+await builderPage.locator('#inventoryPresetSelect option[value="custom:sv-1"]').waitFor({state:'attached'});
+await builderPage.getByText('Medicine Name',{exact:true}).waitFor();
+await builderPage.getByText('Balance',{exact:true}).waitFor();
+const builderCreated=await builderPage.evaluate(()=>window.__requests.find(item=>item.method==='POST'));
+assert.deepEqual(builderCreated.body.definition.fields,['local_item_name','current_qty']);
+assert.deepEqual(builderCreated.body.definition.column_labels,{local_item_name:'Medicine Name',current_qty:'Balance'});
+assert.equal(builderCreated.body.base_preset,'main-stock');
+assert.equal(builderCreated.body.definition.provider,undefined);
+await builderPage.locator('#inventoryEditTable').click();
+assert.equal(await builderPage.locator('[data-inventory-builder-name]').inputValue(),'My Custom Table');
+assert.equal(await builderPage.locator('[data-builder-label][data-field="local_item_name"]').inputValue(),'Medicine Name');
+await builderPage.locator('[data-builder-cancel]').click();
+await builderPage.close();
+
 const page=await browser.newPage({viewport:{width:1280,height:800}});
 await installPage(page);
 
@@ -116,7 +139,7 @@ await page.getByRole('cell',{name:'Alpha'}).waitFor();
 assert.equal(await page.locator('#inventoryViewSearch').inputValue(),'Alpha');
 assert.equal(await page.locator('.view[data-panel="inventory"]').getAttribute('data-inventory-density'),'compact');
 assert.equal(await page.getByRole('cell',{name:'Alpha'}).getAttribute('data-user-fill'),'green');
-assert.match(await page.locator('#inventoryViewDescription').textContent(),/Custom view · based on Main Stock/);
+assert.match(await page.locator('#inventoryViewDescription').textContent(),/Custom table\/view · row source Main Stock/);
 
 await page.locator('#inventorySaveView').click();
 assert.ok(await page.evaluate(()=>window.__requests.some(item=>item.method==='PUT'&&item.path.includes('/saved-views/sv-1'))),'active custom Save must update its own definition');
@@ -154,4 +177,4 @@ assert.equal(await reopen.evaluate(()=>localStorage.getItem('msa.inventory.activ
 assert.ok(await reopen.evaluate(()=>window.__requests.some(item=>item.method==='DELETE'&&item.path.includes('/saved-views/sv-2'))));
 
 await browser.close();
-console.log('inventory_saved_views=pass create=pass readback=pass custom_selector=pass rehydrate=pass update=pass save_as=pass clear_all_isolated=pass reopen=pass mobile=pass delete_fallback=pass owner_api_boundary=server mutation_inventory=false');
+console.log('inventory_saved_views=pass custom_table_builder=pass editable_headers=pass create=pass readback=pass custom_selector=pass rehydrate=pass update=pass save_as=pass clear_all_isolated=pass reopen=pass mobile=pass delete_fallback=pass owner_api_boundary=server mutation_inventory=false');

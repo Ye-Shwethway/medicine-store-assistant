@@ -33,7 +33,10 @@ Treat newer verified repository/runtime/source evidence as authoritative over re
 - F6D shadow foundation for the current dataset is runtime-verified.
 - F6E Slice A/B/C/D are **complete and runtime-verified**.
 - Inventory Spreadsheet Focus Mode v1 is **complete and production-runtime verified**.
-- Spreadsheet Workbench v2 filter chips, session layout tools, Copy TSV, validated server-side sorting, CSV compatibility export and formatted Excel export are **complete and production-runtime verified**.
+- Spreadsheet Workbench v2 filter chips, layout tools, cell/range/row selection, Copy TSV, validated server-side sorting, CSV compatibility export and formatted Excel export are **complete and production-runtime verified**.
+- Saved View Persistence E1 is **complete and production verified** through PR #207 / main `82abd4f83a5e6a88af8714983a91b151fc5c642e`.
+- Custom Table Builder E2 is **implemented on PR #209 with exact-head CI green** at `0cee74672beb369ff745cb451801d8df550224fa`; production merge/deploy proof is still pending.
+- E2 supports `New table`, allowlisted row-source selection, mapped registered fields, field reorder, editable/persisted header names, reopen/edit, and custom-header Excel export parity.
 - Inventory now exposes **Export Excel** rather than CSV as the user-facing export action.
 - The `.xlsx` renderer is a **globally reusable tabular export module**, not an Inventory-only serializer; later user-created View Builder tables and other MSA areas should reuse it.
 - Current system-preset exports use the preset name and current visible registered field order/filter/sort structure.
@@ -181,7 +184,7 @@ Already production-runtime verified:
 
 The reusable renderer lives in `backend/app/tabular_excel_export.py` and is intentionally domain-agnostic. Current Inventory presets are the first consumer. Later user-owned View Builder tables and other MSA tabular areas must reuse this renderer rather than creating parallel Excel-export implementations.
 
-Next bounded Inventory work: consider one-click Clear all, then keyboard navigation/copy shortcuts, then optional desktop split-pane review detail. Saved layout persistence and user-created tables belong to Slice E.
+Current bounded Inventory work is Slice E. E1 saved-view persistence is production verified. E2 Custom Table Builder v1 is implemented and CI-green on PR #209; the next gate is explicit merge/deploy/runtime proof. Optional desktop split-pane review detail is deferred. Calculated/derived columns remain a later typed-expression design.
 
 Mutation-capable Excel-like editing belongs to the later typed editing substrate: `draft -> validation -> preview -> Confirm & Save -> typed command -> audit -> read-back`.
 
@@ -213,9 +216,9 @@ Runtime issue #166, run `32821445117`, verified Main Stock **799** rows with Exc
 
 Do not present shadow DB as canonical. The current workbench may sort/filter/rearrange/copy/export validated projections, including globally reusable formatted Excel output, but must not create accepted CMS mappings, push catalogue prices, mutate inventory, accept the migration baseline, or promote PostgreSQL.
 
-## Current bounded target — Inventory Sheet Interaction Foundation v1
+## Current bounded target — Slice E Custom Table Builder v1
 
-Formatted Excel export is complete and production-runtime verified. The active Inventory work is now `docs/design/INVENTORY_SHEET_INTERACTION_V1.md`: cell-first selection, rectangular ranges, keyboard navigation, whole-row selector gutter, explicit Details, and selection-aware copy. Do not restore row-wide click-to-open behavior. Whole-row selection remains the only source for Ask AI / Deep Review row context. Fill colors/persistent formatting follow after this v1; Saved Custom Views / View Builder follows the sheet interaction/formatting foundation. All current work remains read-only and PostgreSQL remains non-canonical.
+Sheet Interaction and Sheet Formatting foundations are complete and production verified. E1 Saved View Persistence is production verified through PR #207. E2 Custom Table Builder v1 is implemented on PR #209 with exact-head CI green: blank/new-table workflow, allowlisted row sources, registered field mapping, editable persisted headers, reopen/edit, and custom-header Excel export parity. Do not merge without exact-head green checks; after merge, require auto-deploy and runtime proof. Calculated/derived columns are not part of E2 and require a later typed-expression contract. All current work remains read-only and PostgreSQL remains non-canonical.
 
 
 ## Latest Inventory Sheet Formatting checkpoint
