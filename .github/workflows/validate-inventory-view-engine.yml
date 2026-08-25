@@ -20,6 +20,7 @@ on:
       - 'tests/web/inventory_csv_export_smoke.mjs'
       - 'tests/web/inventory_excel_export_smoke.mjs'
       - 'tests/web/inventory_date_format_smoke.mjs'
+      - 'tests/web/inventory_sheet_selection_smoke.mjs'
       - '.github/workflows/validate-inventory-view-engine.yml'
 
 permissions:
@@ -99,3 +100,5 @@ jobs:
         run: node tests/web/inventory_excel_export_smoke.mjs
       - name: Run Inventory date format preference smoke
         run: node tests/web/inventory_date_format_smoke.mjs
+      - name: Run Inventory Sheet Interaction smoke
+        run: node tests/web/inventory_sheet_selection_smoke.mjs

@@ -214,3 +214,17 @@ PR #199 merge `4d407e5d01343deb3da9a8a0f82f6122e989035f` refined presentation wi
 - the selected Web date format is display-only and persists locally across reopen; underlying ISO dates/query semantics are unchanged.
 
 Runtime issue #166, run `32821445117`, verified Main Stock **799** rows with Excel formats `expiry=mmm-yy`, `qty=0`, `price=0.00`, `mutation=false`, `database_canonical=false`, `migration_baseline_accepted=false`. Deployment issue #26, run `32821445217`, verified production deployment success at the same SHA.
+
+### 5.6A Inventory Sheet Interaction Foundation v1 — ACTIVE
+
+- [ ] Single click/tap selects a data cell without opening details.
+- [ ] Desktop pointer drag and Shift+click create a rectangular range.
+- [ ] Arrow keys move the active cell; Shift+Arrow extends the range.
+- [ ] Dedicated row-selector gutter selects one/contiguous whole rows.
+- [ ] Explicit Details / Enter opens the selected row drawer.
+- [ ] Copy TSV supports selected cell rectangles and whole rows.
+- [ ] Ask AI / Deep Review remain whole-row-only and server-rehydrated.
+- [ ] Mobile 390x844 tap/scroll behavior is proven.
+- [ ] No mutation/canonicality change.
+
+Contract: `docs/design/INVENTORY_SHEET_INTERACTION_V1.md`. Sheet Formatting (fill/clear fill) follows only after this selection foundation is stable. Saved Custom Views / View Builder follows the sheet interaction/formatting foundation.

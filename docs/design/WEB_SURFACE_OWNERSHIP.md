@@ -10,6 +10,7 @@ This file records who owns rendering, events, persistence hydration, and live up
 | Multi-Agent — setup/history | `#aiMultiMode` outside active chat state | `dashboard_multi_agent_review.js` | `dashboard_multi_agent_review.js` | `dashboard_multi_agent_review.js` | Work Item list/session APIs | none |
 | Multi-Agent — active Review chat | `#reviewWorkDetail` | `dashboard_multi_agent_review.js` supplies Work Item selection/context | **one Review chat renderer only**; current transition target is `dashboard_multi_agent_live_export.js` until consolidation | delegated stable-ancestor handling; base Review host owns workflow actions, live module owns only its explicitly registered enhancements | Work Item/Artifact/Review/Event/Attention APIs | `dashboard_multi_agent_live_export.js` |
 | MCP Agent binding/settings | Agent Management MCP connection section | `dashboard_mcp_binding.js` | `dashboard_mcp_binding.js` | `dashboard_mcp_binding.js` | MCP binding/grant APIs | none |
+| Inventory Workbench / sheet selection | `.view[data-panel="inventory"]` / `#inventoryViewTable` | `dashboard_inventory_views.js` | `dashboard_inventory_views.js` | `dashboard_inventory_views.js` | Inventory View APIs for rows; selection/layout are session-only in v1 | none |
 
 ## Multi-Agent transition rule
 

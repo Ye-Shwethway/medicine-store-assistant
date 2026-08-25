@@ -72,7 +72,7 @@ assert.equal(await page.locator('th[data-field="local_item_name"]').getAttribute
 names=await page.locator('#inventoryViewTable tbody tr td[data-field="local_item_name"]').allTextContents();
 assert.deepEqual(names.map(x=>x.trim()),['Zebra Tablet','Alpha Tablet']);
 
-await page.locator('.inventory-row-check').first().check();
+await page.getByRole('button',{name:'Select row 1'}).click();
 await page.getByRole('button',{name:'Ask AI'}).click();
 await page.locator('.inventory-ai-dialog-backdrop').waitFor({state:'visible'});
 const reviewBody=await page.evaluate(()=>window.__reviewBody);
