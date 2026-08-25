@@ -18,6 +18,8 @@ await page.evaluate(()=>{
   window.__multiClicks=0;
   window.__reviewRunClicks=0;
   window.__newChatClicks=0;
+  window.__copiedText='';
+  Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async text=>{window.__copiedText=text}}});
   document.querySelector('#aiWorkspaceNav').addEventListener('click',()=>{window.__aiNavClicks+=1});
   document.querySelector('#aiChatTab').addEventListener('click',()=>{window.__chatClicks+=1});
   document.querySelector('#aiNewConversation').addEventListener('click',()=>{
@@ -43,7 +45,7 @@ await page.evaluate(()=>{
     },20);
   });
   const field=(key,label,kind='ENTITY_FIELD',data_type='string')=>({key,label,kind,data_type,editable:false,description:''});
-  window.__registry=[field('display_no','No.','DISPLAY_HELPER','integer'),field('product_id','Product ID'),field('local_item_name','Items'),field('expiry_date','Expiry Date','ENTITY_FIELD','date'),field('unit','Unit'),field('opening_qty','Opening Qty','COMPUTED_FIELD','decimal'),field('current_qty','Current Qty','COMPUTED_FIELD','decimal'),field('cms_code','CMS Code'),field('cms_name','CMS Name'),field('mapping_status','Mapping Status'),field('catalogue_price','Current Catalogue Price','COMPUTED_FIELD','decimal'),field('accepted_operational_price','Accepted Store Price','ENTITY_FIELD','decimal'),field('source_row_no','Source Row','DISPLAY_HELPER','integer'),field('source_current_qty','Source Current Qty','DISPLAY_HELPER','decimal'),field('source_classification','Source Class','DISPLAY_HELPER'),field('review_reason','Review Reason','DISPLAY_HELPER')];
+  window.__registry=[field('display_no','No.','DISPLAY_HELPER','integer'),field('product_id','Product ID'),field('lot_id','Lot ID'),field('local_item_name','Items'),field('expiry_date','Expiry Date','ENTITY_FIELD','date'),field('unit','Unit'),field('opening_qty','Opening Qty','COMPUTED_FIELD','decimal'),field('current_qty','Current Qty','COMPUTED_FIELD','decimal'),field('cms_code','CMS Code'),field('cms_name','CMS Name'),field('mapping_status','Mapping Status'),field('catalogue_price','Current Catalogue Price','COMPUTED_FIELD','decimal'),field('accepted_operational_price','Accepted Store Price','ENTITY_FIELD','decimal'),field('source_row_no','Source Row','DISPLAY_HELPER','integer'),field('source_current_qty','Source Current Qty','DISPLAY_HELPER','decimal'),field('source_classification','Source Class','DISPLAY_HELPER'),field('review_reason','Review Reason','DISPLAY_HELPER')];
   const col=(field,label,width=120)=>({field,label,width});
   window.__presets=[
     {view_id:'main-stock',name:'Main Stock',preset_type:'MAIN_STOCK_COMPATIBILITY',provider:'lot_balance',row_grain:'PRODUCT_LOT',store_scope:'MAIN',system_preset:true,description:'Main Stock projection.',columns:[col('display_no','No.',70),col('local_item_name','Items',260),col('current_qty','Current Qty'),col('mapping_status','Mapping Status')]},
@@ -63,10 +65,10 @@ await page.evaluate(()=>{
     if(url.startsWith('/dashboard/api/inventory-view/rows?')){
       const parsed=new URL(url,'https://msa.test'),preset=parsed.searchParams.get('preset')||'main-stock',view=window.__presets.find(x=>x.view_id===preset),requested=parsed.searchParams.get('fields')?.split(',').filter(Boolean),columns=(requested?.length?requested.map(key=>({field:key,label:window.__registry.find(f=>f.key===key)?.label||key,width:null})):view.columns).map(c=>({...c,field_definition:window.__registry.find(f=>f.key===c.field)}));
       let source;
-      if(preset==='main-stock')source={display_no:1,product_id:'p-main',local_item_name:'10cc Syringe',current_qty:'120.000',mapping_status:'REVIEW_REQUIRED'};
+      if(preset==='main-stock')source={display_no:1,product_id:'p-main',lot_id:'lot-main-1',local_item_name:'10cc Syringe',current_qty:'120.000',mapping_status:'REVIEW_REQUIRED'};
       else if(preset==='migration-review')source={source_row_no:41,local_item_name:'Bandage- Soft Bandage 6"',source_current_qty:'12.000',current_qty:'0.000',source_classification:'REVIEW',mapping_status:'REVIEW_REQUIRED',review_reason:'duplicate Product+Expiry source key'};
       else source={product_id:'p-met',local_item_name:'Metformin 500mg',cms_code:'M500',cms_name:'Metformin 500mg Tablet',mapping_status:'REVIEW_REQUIRED',catalogue_price:'12.500',accepted_operational_price:null,review_reason:JSON.stringify({category:'CONTINUITY_EXACT_NAME_PRICE_SAME',previous_price:'12.500',catalogue_price:'12.500'})};
-      const item={...Object.fromEntries(columns.map(c=>[c.field,source[c.field]??null])),product_id:source.product_id,source_row_no:source.source_row_no,mapping_status:source.mapping_status,source_classification:source.source_classification,review_reason:source.review_reason,source_current_qty:source.source_current_qty,current_qty:source.current_qty,cms_code:source.cms_code,cms_name:source.cms_name,catalogue_price:source.catalogue_price,accepted_operational_price:source.accepted_operational_price,local_item_name:source.local_item_name};
+      const item={...Object.fromEntries(columns.map(c=>[c.field,source[c.field]??null])),product_id:source.product_id,lot_id:source.lot_id,source_row_no:source.source_row_no,mapping_status:source.mapping_status,source_classification:source.source_classification,review_reason:source.review_reason,source_current_qty:source.source_current_qty,current_qty:source.current_qty,cms_code:source.cms_code,cms_name:source.cms_name,catalogue_price:source.catalogue_price,accepted_operational_price:source.accepted_operational_price,local_item_name:source.local_item_name};
       return response({view,columns,items:[item],count:1,limit:100,offset:0,read_only:true,database_canonical:false,migration_baseline_accepted:false});
     }
     return new Response('{}',{status:500});
@@ -79,6 +81,7 @@ assert.equal(await page.locator('#legacyInventorySubtree').count(),0);
 await page.getByText('10cc Syringe').waitFor({state:'visible'});
 assert.equal(await page.locator('#inventoryReviewFilters').isHidden(),true);
 
+// Spreadsheet focus + session layout controls.
 assert.equal(await page.getByRole('button',{name:'Focus mode'}).isVisible(),true);
 await page.getByRole('button',{name:'Focus mode'}).click();
 const focusPanel=page.locator('.inventory-focus-mode');
@@ -100,6 +103,19 @@ assert.equal((await page.locator('#inventoryDensityToggle').textContent()).trim(
 await page.locator('#inventoryDensityToggle').click();
 assert.equal(await focusPanel.getAttribute('data-inventory-density'),'compact');
 assert.equal((await page.locator('#inventoryDensityToggle').textContent()).trim(),'Comfortable');
+await page.locator('#inventoryColumnsToggle').click();
+const localOption=page.locator('.inventory-column-option[data-column-key="local_item_name"]');
+assert.equal(await localOption.getByRole('button',{name:'Auto-fit'}).isVisible(),true);
+await localOption.getByRole('button',{name:'Move up'}).click();
+await localOption.locator('[data-column-width]').fill('208');
+await page.getByRole('button',{name:'Apply layout'}).click();
+await page.getByRole('columnheader',{name:'Items'}).waitFor({state:'visible'});
+const headerLabels=await page.locator('#inventoryViewTable thead th').allTextContents();
+assert.equal(headerLabels[1].trim(),'Items','session column move should change projection order');
+const itemHeaderStyle=await page.getByRole('columnheader',{name:'Items'}).getAttribute('style');
+assert.ok(itemHeaderStyle.includes('208px'),'session column width should apply to the rendered table');
+let layoutRequest=await page.evaluate(()=>window.__inventoryRequests.filter(x=>x.includes('/rows?')).at(-1));
+assert.ok(layoutRequest.includes('fields=local_item_name%2Cdisplay_no%2Ccurrent_qty%2Cmapping_status'),'layout order should remain a registry-driven fields request');
 await page.keyboard.press('Escape');
 assert.equal(await page.locator('.inventory-focus-mode').count(),0,'Escape should leave focus mode');
 
@@ -115,11 +131,28 @@ let request=await page.evaluate(()=>window.__inventoryRequests.filter(x=>x.inclu
 assert.ok(request.includes('mapping_status=REVIEW_REQUIRED'));
 assert.ok(request.includes('source_classification=REVIEW'));
 assert.ok(request.includes('review_reason=duplicate'));
+const filterText=await page.locator('#inventoryActiveFilters').textContent();
+assert.ok(filterText.includes('Mapping:'));
+assert.ok(filterText.includes('Review Required'));
+assert.ok(filterText.includes('Source class:'));
+assert.ok(filterText.includes('Review reason:'));
+await page.getByRole('button',{name:'Clear Source class filter'}).click();
+await page.waitForTimeout(30);
+request=await page.evaluate(()=>window.__inventoryRequests.filter(x=>x.includes('/rows?')).at(-1));
+assert.ok(request.includes('mapping_status=REVIEW_REQUIRED'));
+assert.ok(!request.includes('source_classification='),'clearing one filter chip must preserve the other active filters');
+assert.ok(request.includes('review_reason=duplicate'));
 
 await page.locator('.inventory-row-check').check();
 assert.equal(await page.locator('#inventorySelectionBar').isVisible(),true);
 assert.equal(await page.getByRole('button',{name:'Ask AI'}).isVisible(),true);
 assert.equal(await page.getByRole('button',{name:'Deep Review'}).isVisible(),true);
+assert.equal(await page.getByRole('button',{name:'Copy TSV'}).isVisible(),true);
+await page.getByRole('button',{name:'Copy TSV'}).click();
+await page.waitForFunction(()=>window.__copiedText.includes('Bandage- Soft Bandage 6"'));
+const copied=await page.evaluate(()=>window.__copiedText);
+assert.ok(copied.startsWith('Source Row\tLocal Item'),'TSV copy should include visible column headers in current order');
+assert.ok(copied.includes('duplicate Product+Expiry source key'));
 const askBox=await page.getByRole('button',{name:'Ask AI'}).boundingBox();
 const deepBox=await page.getByRole('button',{name:'Deep Review'}).boundingBox();
 const clearBox=await page.getByRole('button',{name:'Clear selection'}).boundingBox();
@@ -214,4 +247,4 @@ const overflow=await page.locator('.inventory-view-table-wrap').evaluate(el=>get
 const banner=await page.locator('.inventory-shadow-banner').boundingBox();assert.ok(banner&&banner.width<=390);
 
 await browser.close();
-console.log('inventory_review_workspace_smoke=pass viewport=390x844 focus_mode=pass select_visible=pass clear_selection=pass density=pass frozen_columns=pass ask_ai_fresh_chat=pass agent_choice=pass auto_send=false deep_review_quick_preset=pass explicit_run=pass presets=3');
+console.log('inventory_review_workspace_smoke=pass viewport=390x844 focus_mode=pass select_visible=pass clear_selection=pass density=pass frozen_columns=pass filter_chips=pass session_layout=pass copy_tsv=pass ask_ai_fresh_chat=pass agent_choice=pass auto_send=false deep_review_quick_preset=pass explicit_run=pass presets=3');
