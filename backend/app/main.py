@@ -53,6 +53,7 @@ AGENT_POLISH_ASSET_VERSION = asset_bundle_version(ASSET_DIR, "dashboard_agent_po
 MCP_BINDING_ASSET_VERSION = asset_bundle_version(ASSET_DIR, "dashboard_mcp_binding.js", "dashboard_mcp_binding.css")
 AUDIT_ASSET_VERSION = asset_bundle_version(ASSET_DIR, "dashboard_audit.js", "dashboard_audit.css")
 INVENTORY_VIEW_ASSET_VERSION = asset_bundle_version(ASSET_DIR, "dashboard_inventory_views.js", "dashboard_inventory_views.css")
+INVENTORY_EXPORT_ASSET_VERSION = asset_bundle_version(ASSET_DIR, "dashboard_inventory_export.js")
 
 
 @asynccontextmanager
@@ -178,7 +179,8 @@ def dashboard_shell_with_saved_model_assets() -> HTMLResponse:
         f'<script src="/dashboard/assets/dashboard_multi_agent_live_export.js?v={MULTI_AGENT_LIVE_EXPORT_ASSET_VERSION}" defer></script>\n'
         f'<script src="/dashboard/assets/dashboard_mcp_binding.js?v={MCP_BINDING_ASSET_VERSION}" defer></script>\n'
         f'<script src="/dashboard/assets/dashboard_audit.js?v={AUDIT_ASSET_VERSION}" defer></script>\n'
-        f'<script src="/dashboard/assets/dashboard_inventory_views.js?v={INVENTORY_VIEW_ASSET_VERSION}" defer></script>\n</body>',
+        f'<script src="/dashboard/assets/dashboard_inventory_views.js?v={INVENTORY_VIEW_ASSET_VERSION}" defer></script>\n'
+        f'<script src="/dashboard/assets/dashboard_inventory_export.js?v={INVENTORY_EXPORT_ASSET_VERSION}" defer></script>\n</body>',
         1,
     )
     response = HTMLResponse(html)
@@ -290,6 +292,11 @@ def audit_js() -> FileResponse:
 @app.get("/dashboard/assets/dashboard_inventory_views.js", include_in_schema=False)
 def inventory_view_js() -> FileResponse:
     return _asset_file("dashboard_inventory_views.js", "text/javascript")
+
+
+@app.get("/dashboard/assets/dashboard_inventory_export.js", include_in_schema=False)
+def inventory_export_js() -> FileResponse:
+    return _asset_file("dashboard_inventory_export.js", "text/javascript")
 
 
 app.include_router(dashboard_login_router)
