@@ -18,10 +18,12 @@ from app.inventory_view_engine import (
     _render_provider,
     _resolve_columns,
 )
+from app.tabular_excel_export import ExcelColumn, ExcelWorkbookSpec, build_excel_workbook
 
 router = APIRouter(prefix="/dashboard/api/inventory-view", tags=["inventory-view-export"])
 
-MAX_CSV_EXPORT_ROWS = 5000
+MAX_EXPORT_ROWS = 5000
+MAX_CSV_EXPORT_ROWS = MAX_EXPORT_ROWS
 
 
 def _resolve_export_columns(view: ViewDefinition, requested_fields: str | None) -> list[ViewColumn]:
@@ -43,8 +45,6 @@ def _csv_cell(value: Any, column: ViewColumn) -> Any:
     definition = FIELD_REGISTRY[column.field]
     if definition.data_type == "string":
         text = str(value)
-        # Spreadsheet programs may evaluate cells beginning with these characters as formulas.
-        # Preserve the visible value while forcing literal-text interpretation on paste/open.
         if text.lstrip().startswith(("=", "+", "-", "@")):
             return "'" + text
         return text
@@ -58,6 +58,29 @@ def _serialize_csv(columns: list[ViewColumn], rows: list[dict[str, Any]]) -> str
     for row in rows:
         writer.writerow([_csv_cell(row.get(column.field), column) for column in columns])
     return buffer.getvalue()
+
+
+def _excel_columns(columns: list[ViewColumn]) -> tuple[ExcelColumn, ...]:
+    return tuple(
+        ExcelColumn(
+            key=column.field,
+            label=column.label or FIELD_REGISTRY[column.field].label,
+            data_type=FIELD_REGISTRY[column.field].data_type,
+            preferred_width=(column.width / 7.0) if column.width else None,
+        )
+        for column in columns
+    )
+
+
+def _serialize_xlsx(view: ViewDefinition, columns: list[ViewColumn], rows: list[dict[str, Any]]) -> bytes:
+    return build_excel_workbook(
+        ExcelWorkbookSpec(
+            sheet_name=view.name,
+            table_name=f"MSA_{view.view_id}",
+            columns=_excel_columns(columns),
+            rows=tuple(rows),
+        )
+    )
 
 
 def _export_rows(
@@ -78,22 +101,22 @@ def _export_rows(
         review_reason=review_reason,
         sort_field=sort_field,
         sort_dir=sort_dir,
-        limit=MAX_CSV_EXPORT_ROWS + 1,
+        limit=MAX_EXPORT_ROWS + 1,
         offset=0,
     )
 
 
-@router.get("/export.csv", dependencies=[Depends(require_dashboard_session)])
-def inventory_view_export_csv(
-    preset: str = Query(default="main-stock"),
-    fields: str | None = Query(default=None, description="Optional comma-separated registered field keys in export order."),
-    q: str | None = None,
-    mapping_status: str | None = Query(default=None, max_length=64),
-    source_classification: str | None = Query(default=None, max_length=64),
-    review_reason: str | None = Query(default=None, max_length=255),
-    sort_field: str | None = Query(default=None, max_length=80),
-    sort_dir: str | None = Query(default=None, max_length=8),
-) -> Response:
+def _resolve_request(
+    *,
+    preset: str,
+    fields: str | None,
+    q: str | None,
+    mapping_status: str | None,
+    source_classification: str | None,
+    review_reason: str | None,
+    sort_field: str | None,
+    sort_dir: str | None,
+) -> tuple[ViewDefinition, list[ViewColumn], list[dict[str, Any]]]:
     view = SYSTEM_PRESETS.get(preset)
     if view is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Inventory view preset not found")
@@ -114,23 +137,77 @@ def inventory_view_export_csv(
         sort_field=normalized_sort_field,
         sort_dir=normalized_sort_dir,
     )
-    if len(rows) > MAX_CSV_EXPORT_ROWS:
+    if len(rows) > MAX_EXPORT_ROWS:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"CSV export exceeds the {MAX_CSV_EXPORT_ROWS}-row safety cap; narrow the current filters before exporting.",
+            detail=f"Export exceeds the {MAX_EXPORT_ROWS}-row safety cap; narrow the current filters before exporting.",
         )
+    return view, columns, rows
 
+
+def _response_headers(filename: str) -> dict[str, str]:
+    return {
+        "Content-Disposition": f'attachment; filename="{filename}"',
+        "Cache-Control": "no-store",
+        "Pragma": "no-cache",
+        "X-MSA-Export-Read-Only": "true",
+        "X-MSA-Database-Canonical": "false",
+        "X-MSA-Migration-Baseline-Accepted": "false",
+    }
+
+
+@router.get("/export.xlsx", dependencies=[Depends(require_dashboard_session)])
+def inventory_view_export_xlsx(
+    preset: str = Query(default="main-stock"),
+    fields: str | None = Query(default=None, description="Optional comma-separated registered field keys in export order."),
+    q: str | None = None,
+    mapping_status: str | None = Query(default=None, max_length=64),
+    source_classification: str | None = Query(default=None, max_length=64),
+    review_reason: str | None = Query(default=None, max_length=255),
+    sort_field: str | None = Query(default=None, max_length=80),
+    sort_dir: str | None = Query(default=None, max_length=8),
+) -> Response:
+    view, columns, rows = _resolve_request(
+        preset=preset,
+        fields=fields,
+        q=q,
+        mapping_status=mapping_status,
+        source_classification=source_classification,
+        review_reason=review_reason,
+        sort_field=sort_field,
+        sort_dir=sort_dir,
+    )
+    return Response(
+        content=_serialize_xlsx(view, columns, rows),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers=_response_headers(f"msa-{view.view_id}.xlsx"),
+    )
+
+
+@router.get("/export.csv", dependencies=[Depends(require_dashboard_session)])
+def inventory_view_export_csv(
+    preset: str = Query(default="main-stock"),
+    fields: str | None = Query(default=None, description="Optional comma-separated registered field keys in export order."),
+    q: str | None = None,
+    mapping_status: str | None = Query(default=None, max_length=64),
+    source_classification: str | None = Query(default=None, max_length=64),
+    review_reason: str | None = Query(default=None, max_length=255),
+    sort_field: str | None = Query(default=None, max_length=80),
+    sort_dir: str | None = Query(default=None, max_length=8),
+) -> Response:
+    view, columns, rows = _resolve_request(
+        preset=preset,
+        fields=fields,
+        q=q,
+        mapping_status=mapping_status,
+        source_classification=source_classification,
+        review_reason=review_reason,
+        sort_field=sort_field,
+        sort_dir=sort_dir,
+    )
     csv_text = _serialize_csv(columns, rows)
-    filename = f"msa-{view.view_id}.csv"
     return Response(
         content=("\ufeff" + csv_text).encode("utf-8"),
         media_type="text/csv; charset=utf-8",
-        headers={
-            "Content-Disposition": f'attachment; filename="{filename}"',
-            "Cache-Control": "no-store",
-            "Pragma": "no-cache",
-            "X-MSA-Export-Read-Only": "true",
-            "X-MSA-Database-Canonical": "false",
-            "X-MSA-Migration-Baseline-Accepted": "false",
-        },
+        headers=_response_headers(f"msa-{view.view_id}.csv"),
     )
