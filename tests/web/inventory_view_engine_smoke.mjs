@@ -81,7 +81,6 @@ assert.equal(await page.locator('#legacyInventorySubtree').count(),0);
 await page.getByText('10cc Syringe').waitFor({state:'visible'});
 assert.equal(await page.locator('#inventoryReviewFilters').isHidden(),true);
 
-// Spreadsheet focus + session layout controls.
 assert.equal(await page.getByRole('button',{name:'Focus mode'}).isVisible(),true);
 await page.getByRole('button',{name:'Focus mode'}).click();
 const focusPanel=page.locator('.inventory-focus-mode');
@@ -106,7 +105,7 @@ assert.equal((await page.locator('#inventoryDensityToggle').textContent()).trim(
 await page.locator('#inventoryColumnsToggle').click();
 const localOption=page.locator('.inventory-column-option[data-column-key="local_item_name"]');
 assert.equal(await localOption.getByRole('button',{name:'Auto-fit'}).isVisible(),true);
-await localOption.getByRole('button',{name:'Move up'}).click();
+await localOption.locator('[data-column-move="up"]').click();
 await localOption.locator('[data-column-width]').fill('208');
 await page.getByRole('button',{name:'Apply layout'}).click();
 await page.getByRole('columnheader',{name:'Items'}).waitFor({state:'visible'});
