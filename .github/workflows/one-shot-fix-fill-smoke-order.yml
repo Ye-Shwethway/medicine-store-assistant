@@ -1,0 +1,57 @@
+name: One-shot Fix Fill Smoke Order
+on:
+  push:
+    branches: [fix/inventory-fill-runtime-ux]
+    paths: ['.github/workflows/one-shot-fix-fill-smoke-order.yml']
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: fix/inventory-fill-runtime-ux
+      - name: Fix formatting smoke interaction order
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('tests/web/inventory_sheet_formatting_smoke.mjs')
+          s=p.read_text()
+          old="""await page.getByRole('cell',{name:'Alpha'}).waitFor();
+assert.equal(await page.locator('#inventoryFillToggle').getAttribute('aria-haspopup'),'menu');
+await page.getByRole('button',{name:'Fill',exact:true}).click();
+assert.equal(await page.locator('#inventoryFillMenu .inventory-fill-menu-head strong').textContent(),'Fill color');
+assert.equal(await page.locator('#inventoryFillMenu .inventory-fill-option.secondary').count(),0,'derived color tiles must not reuse native secondary button styling');
+await page.getByRole('button',{name:'Fill',exact:true}).click();
+
+const cell=(row,col)=>page.locator(`tbody tr:nth-child(${row+1}) td[data-col-index=\"${col}\"]`);
+"""
+          new="""await page.getByRole('cell',{name:'Alpha'}).waitFor();
+
+const cell=(row,col)=>page.locator(`tbody tr:nth-child(${row+1}) td[data-col-index=\"${col}\"]`);
+"""
+          if s.count(old)!=1: raise SystemExit('setup anchor mismatch')
+          s=s.replace(old,new,1)
+          old2="""await cell(0,0).click();
+await fill('Yellow');
+"""
+          new2="""await cell(0,0).click();
+assert.equal(await page.locator('#inventoryFillToggle').getAttribute('aria-haspopup'),'menu');
+await page.getByRole('button',{name:'Fill',exact:true}).click();
+assert.equal(await page.locator('#inventoryFillMenu .inventory-fill-menu-head strong').textContent(),'Fill color');
+assert.equal(await page.locator('#inventoryFillMenu .inventory-fill-option.secondary').count(),0,'derived color tiles must not reuse native secondary button styling');
+await page.getByRole('button',{name:'Fill',exact:true}).click();
+await fill('Yellow');
+"""
+          if s.count(old2)!=1: raise SystemExit('cell anchor mismatch')
+          s=s.replace(old2,new2,1)
+          p.write_text(s)
+          PY
+          node --check tests/web/inventory_sheet_formatting_smoke.mjs
+          git diff --check
+          git config user.name 'Mr. Thorne'
+          git config user.email '85703541+Ye-Shwethway@users.noreply.github.com'
+          git add tests/web/inventory_sheet_formatting_smoke.mjs
+          git commit -m 'Fix Inventory fill smoke interaction order'
+          git push origin HEAD:fix/inventory-fill-runtime-ux
