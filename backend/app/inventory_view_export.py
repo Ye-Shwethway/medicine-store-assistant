@@ -60,6 +60,16 @@ def _serialize_csv(columns: list[ViewColumn], rows: list[dict[str, Any]]) -> str
     return buffer.getvalue()
 
 
+def _inventory_excel_number_format(field: str) -> str | None:
+    if field.endswith("_qty"):
+        return "0"
+    if "price" in field:
+        return "0.00"
+    if field == "expiry_date":
+        return "mmm-yy"
+    return None
+
+
 def _excel_columns(columns: list[ViewColumn]) -> tuple[ExcelColumn, ...]:
     return tuple(
         ExcelColumn(
@@ -67,6 +77,7 @@ def _excel_columns(columns: list[ViewColumn]) -> tuple[ExcelColumn, ...]:
             label=column.label or FIELD_REGISTRY[column.field].label,
             data_type=FIELD_REGISTRY[column.field].data_type,
             preferred_width=(column.width / 7.0) if column.width else None,
+            number_format=_inventory_excel_number_format(column.field),
         )
         for column in columns
     )
