@@ -1,0 +1,49 @@
+name: One-shot Inventory Cell Visibility Patch
+
+on:
+  push:
+    branches: [fix/inventory-cell-selection-visibility]
+    paths:
+      - '.github/workflows/one-shot-inventory-cell-visibility.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: fix/inventory-cell-selection-visibility
+      - name: Patch cell selection visibility and smoke proof
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          css_path = Path('backend/app/dashboard_assets/dashboard_inventory_views.css')
+          css = css_path.read_text(encoding='utf-8')
+          marker = '/* inventory-cell-selection-visibility-v1 */'
+          if marker not in css:
+              css += '''\n\n/* inventory-cell-selection-visibility-v1 */\n.inventory-view-table td.inventory-cell-selected{\n  background:color-mix(in srgb,var(--accent,#2f6fed) 16%,var(--card,#fff))!important;\n  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent,#2f6fed) 72%,transparent)!important;\n}\n.inventory-view-table td.inventory-cell-selected.inventory-frozen-first{\n  background:color-mix(in srgb,var(--accent,#2f6fed) 16%,var(--card,#fff))!important;\n}\n.inventory-view-table td.inventory-cell-active{\n  background:color-mix(in srgb,var(--accent,#2f6fed) 20%,var(--card,#fff))!important;\n  box-shadow:inset 0 0 0 2px var(--accent,#2f6fed)!important;\n  z-index:5!important;\n}\n.inventory-view-table td.inventory-cell-active::after{\n  content:'';position:absolute;right:1px;bottom:1px;width:6px;height:6px;\n  border-radius:1px;background:var(--accent,#2f6fed);pointer-events:none;\n}\n.inventory-row-review td.inventory-cell-selected,.inventory-row-critical td.inventory-cell-selected{\n  background:color-mix(in srgb,var(--accent,#2f6fed) 16%,var(--card,#fff))!important;\n}\n'''
+              css_path.write_text(css, encoding='utf-8')
+
+          test_path = Path('tests/web/inventory_sheet_selection_smoke.mjs')
+          test = test_path.read_text(encoding='utf-8')
+          needle = "assert.equal(await cell(0,0).getAttribute('aria-selected'),'true');"
+          addition = """assert.equal(await cell(0,0).getAttribute('aria-selected'),'true');\nconst activeVisual=await cell(0,0).evaluate(el=>{const s=getComputedStyle(el);return {background:s.backgroundColor,boxShadow:s.boxShadow}});\nassert.notEqual(activeVisual.background,'rgba(0, 0, 0, 0)','active cell must have a visible fill');\nassert.match(activeVisual.boxShadow,/rgb|color|inset/i,'active cell must have a visible selection outline');"""
+          if needle in test and 'active cell must have a visible fill' not in test:
+              test = test.replace(needle, addition, 1)
+              test_path.write_text(test, encoding='utf-8')
+          PY
+          git diff --check
+          git diff -- backend/app/dashboard_assets/dashboard_inventory_views.css tests/web/inventory_sheet_selection_smoke.mjs
+      - name: Commit patch
+        shell: bash
+        run: |
+          git config user.name 'Mr. Thorne'
+          git config user.email '85703541+Ye-Shwethway@users.noreply.github.com'
+          git add backend/app/dashboard_assets/dashboard_inventory_views.css tests/web/inventory_sheet_selection_smoke.mjs
+          git commit -m 'Fix visible Inventory cell selection state'
+          git push origin HEAD:fix/inventory-cell-selection-visibility
