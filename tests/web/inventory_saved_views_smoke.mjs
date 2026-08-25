@@ -18,11 +18,10 @@ const registry=[
 ];
 const preset={view_id:'main-stock',name:'Main Stock',description:'Saved view proof',row_grain:'PRODUCT_LOT',store_scope:'MAIN',columns:[{field:'local_item_name',label:'Items',width:180},{field:'current_qty',label:'Current Qty',width:120},{field:'cms_code',label:'CMS Code',width:120}]};
 let savedViews=[];
-let requests=[];
-let nextId=1;
 
 async function installPage(page,{activeId=''}={}){
-  await page.setContent('<main id="msa"><section class="view" data-panel="inventory"></section></main>');
+  await page.route('https://msa.test/',route=>route.fulfill({status:200,contentType:'text/html',body:'<main id="msa"><section class="view" data-panel="inventory"></section></main>'}));
+  await page.goto('https://msa.test/');
   await page.evaluate(({baseItems,registry,preset,initialSaved,activeId})=>{
     window.__savedViews=structuredClone(initialSaved);
     window.__requests=[];
@@ -83,7 +82,6 @@ async function installPage(page,{activeId=''}={}){
 const page=await browser.newPage({viewport:{width:1280,height:800}});
 await installPage(page);
 
-// Build presentation state worth persisting.
 await page.locator('#inventoryDensityToggle').click();
 assert.equal(await page.locator('.view[data-panel="inventory"]').getAttribute('data-inventory-density'),'compact');
 await page.getByRole('cell',{name:'Alpha'}).click();
@@ -95,7 +93,6 @@ await page.locator('#inventoryViewSearch').fill('Alpha');
 await page.waitForTimeout(260);
 await page.getByRole('cell',{name:'Alpha'}).waitFor();
 
-// Create from immutable system preset.
 await page.evaluate(()=>window.__prompts.push('My Stock View'));
 await page.locator('#inventorySaveView').click();
 await page.getByRole('option',{name:'Custom · My Stock View'}).waitFor();
@@ -111,7 +108,6 @@ assert.deepEqual(created.body.definition.sort,{field:'local_item_name',direction
 assert.ok(created.body.definition.fills.some(fill=>fill.row_key==='l1'&&fill.field==='local_item_name'&&fill.fill==='green'),'fill metadata must persist by row identity + field');
 assert.equal(created.body.definition.provider,undefined,'client must not persist provider/SQL authority');
 
-// Switching away and back must rehydrate the server definition.
 await page.locator('#inventoryPresetSelect').selectOption('main-stock');
 await page.getByRole('cell',{name:'Alpha'}).waitFor();
 assert.equal(await page.locator('#inventoryViewSearch').inputValue(),'');
@@ -122,7 +118,6 @@ assert.equal(await page.locator('.view[data-panel="inventory"]').getAttribute('d
 assert.equal(await page.getByRole('cell',{name:'Alpha'}).getAttribute('data-user-fill'),'green');
 assert.match(await page.locator('#inventoryViewDescription').textContent(),/Custom view · based on Main Stock/);
 
-// Existing custom Save is PUT; Save as creates another custom view.
 await page.locator('#inventorySaveView').click();
 assert.ok(await page.evaluate(()=>window.__requests.some(item=>item.method==='PUT'&&item.path.includes('/saved-views/sv-1'))),'active custom Save must update its own definition');
 await page.evaluate(()=>window.__prompts.push('Stock Copy'));
@@ -130,7 +125,6 @@ await page.locator('#inventorySaveViewAs').click();
 await page.getByRole('option',{name:'Custom · Stock Copy'}).waitFor();
 assert.equal(await page.locator('#inventoryPresetSelect').inputValue(),'custom:sv-2');
 
-// Clear all resets query/sort but not formatting or saved definition identity.
 await page.locator('#inventoryClearAll').click();
 await page.getByRole('cell',{name:'Alpha'}).waitFor();
 assert.equal(await page.locator('#inventoryViewSearch').inputValue(),'');
@@ -138,7 +132,6 @@ assert.equal(await page.locator('#inventoryActiveFilters').getByText('Sort:',{ex
 assert.equal(await page.getByRole('cell',{name:'Alpha'}).getAttribute('data-user-fill'),'green','Clear all must not clear user fill');
 assert.equal(await page.locator('#inventoryPresetSelect').inputValue(),'custom:sv-2','Clear all must not delete the active saved view');
 
-// Persist server state for a fresh-page/reopen proof.
 savedViews=await page.evaluate(()=>structuredClone(window.__savedViews));
 const reopenId=await page.evaluate(()=>localStorage.getItem('msa.inventory.activeSavedViewId'));
 assert.equal(reopenId,'sv-2');
@@ -150,7 +143,6 @@ assert.equal(await reopen.locator('#inventoryPresetSelect').inputValue(),'custom
 assert.equal(await reopen.locator('.view[data-panel="inventory"]').getAttribute('data-inventory-density'),'compact');
 assert.equal(await reopen.getByRole('cell',{name:'Alpha'}).getAttribute('data-user-fill'),'green','fresh load must rehydrate saved formatting');
 
-// Mobile controls remain usable; delete falls back to immutable base preset.
 await reopen.setViewportSize({width:390,height:844});
 assert.equal(await reopen.locator('#inventorySaveView').isVisible(),true);
 assert.equal(await reopen.locator('#inventorySaveViewAs').isVisible(),true);
