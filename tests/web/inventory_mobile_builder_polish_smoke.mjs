@@ -17,18 +17,9 @@ const preset={view_id:'main-stock',name:'Main Stock',description:'Mobile polish 
 const saved={view_id:'sv-1',name:'TEST STOCK',base_preset:'main-stock',definition:{fields:['local_item_name','current_qty','cms_code'],column_labels:{local_item_name:'Medicine Name',current_qty:'Balance',cms_code:'CMS Code'},column_widths:{},density:'comfortable',filters:{q:'',mapping_status:'',source_classification:'',review_reason:''},sort:null,fills:[]},system_preset:false};
 
 await page.route('https://msa.test/',route=>route.fulfill({status:200,contentType:'text/html',body:'<main id="msa"><section class="view" data-panel="inventory"></section></main>'}));
+await page.route('https://msa.test/dashboard/api/inventory-view/export.xlsx*',route=>route.fulfill({status:200,contentType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',body:'proof'}));
 await page.goto('https://msa.test/');
 await page.evaluate(({registry,preset,saved})=>{
-  window.__exportHref='';
-  const realCreate=document.createElement.bind(document);
-  document.createElement=(tag,...rest)=>{
-    const el=realCreate(tag,...rest);
-    if(String(tag).toLowerCase()==='a'){
-      const original=el.click.bind(el);
-      el.click=()=>{window.__exportHref=el.href; return original();};
-    }
-    return el;
-  };
   const json=(value,status=200)=>Promise.resolve({ok:status>=200&&status<300,status,json:async()=>value});
   window.fetch=async(url,opts={})=>{
     const p=String(url),method=String(opts.method||'GET').toUpperCase();
@@ -66,9 +57,10 @@ await page.locator('#inventoryPresetSelect').selectOption('custom:sv-1');
 await page.getByText('Medicine Name',{exact:true}).waitFor();
 const actionBoxes=await page.locator('.inventory-saved-view-actions button').evaluateAll(nodes=>nodes.map(node=>{const r=node.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,height:r.height}}));
 assert.ok(actionBoxes.every(box=>box.left>=0&&box.right<=390.5&&box.height>=43.5),'saved-view mobile actions must fit viewport with touch targets');
+const requestPromise=page.waitForRequest(request=>request.url().includes('/dashboard/api/inventory-view/export.xlsx?'));
 await page.locator('#inventoryExportExcel').click();
-await page.waitForTimeout(50);
-const href=await page.evaluate(()=>window.__exportHref);
+const exportRequest=await requestPromise;
+const href=exportRequest.url();
 assert.match(href,/preset=main-stock/,'custom export must resolve server-owned base preset');
 assert.match(href,/export_name=TEST(?:\+|%20)STOCK/,'custom export must send current custom table display name');
 assert.match(href,/column_labels=/,'custom export must retain displayed headers');
