@@ -21,9 +21,10 @@ jobs:
           python scripts/one_shot_patch_saved_views.py
           node --check backend/app/dashboard_assets/dashboard_inventory_views.js
           PYTHONPATH=backend python -m app.inventory_saved_views_verify
+          git checkout -- .github/workflows/validate-inventory-view-engine.yml
           git diff --check
           git config user.name 'Mr. Thorne'
           git config user.email '85703541+Ye-Shwethway@users.noreply.github.com'
-          git add backend/app/main.py backend/app/dashboard_assets/dashboard_inventory_views.js .github/workflows/validate-inventory-view-engine.yml
+          git add backend/app/main.py backend/app/dashboard_assets/dashboard_inventory_views.js
           git commit -m 'Integrate Inventory saved view persistence UI'
           git push origin HEAD:feat/f6e-saved-view-persistence
