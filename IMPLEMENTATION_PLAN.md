@@ -200,3 +200,17 @@ Next bounded work:
 ## 7. Immediate boundary
 
 Formatted Excel export is now part of the verified read-only Workbench substrate and is globally reusable for future tabular export consumers. The next Inventory work remains ergonomic/read-only unless a later mutation slice is explicitly authorized. Do not create accepted CMS mappings, push prices, mutate inventory, accept the migration baseline, or promote PostgreSQL as part of these workbench improvements.
+
+### Inventory display/export format polish — COMPLETE + RUNTIME VERIFIED
+
+PR #199 merge `4d407e5d01343deb3da9a8a0f82f6122e989035f` refined presentation without changing inventory semantics:
+
+- Excel quantity fields use whole-number display format `0`;
+- Excel price fields use decimal display format `0.00`;
+- Excel Expiry Date uses `mmm-yy` (for example `Mar-26`);
+- the global `ExcelColumn` contract accepts caller-owned `number_format`, keeping the reusable renderer area-agnostic;
+- Inventory Web date display defaults to `DD-MM-YYYY`;
+- the Web toolbar provides `DD-MM-YYYY`, `MM-DD-YYYY`, `YYYY-MM-DD`, and `DD-MMM-YYYY` display choices;
+- the selected Web date format is display-only and persists locally across reopen; underlying ISO dates/query semantics are unchanged.
+
+Runtime issue #166, run `32821445117`, verified Main Stock **799** rows with Excel formats `expiry=mmm-yy`, `qty=0`, `price=0.00`, `mutation=false`, `database_canonical=false`, `migration_baseline_accepted=false`. Deployment issue #26, run `32821445217`, verified production deployment success at the same SHA.

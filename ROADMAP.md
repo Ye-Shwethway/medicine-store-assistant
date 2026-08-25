@@ -215,6 +215,20 @@ User-owned persistence of layouts belongs to Slice E rather than being hard-code
 10. Explicit DB canonicality promotion only after migration/recovery/reconciliation/write gates pass.
 11. Sheet mirror/rebuild, additional exports, Flutter/Telegram expansion and further automation.
 
+### Inventory display/export format polish — COMPLETE + RUNTIME VERIFIED
+
+PR #199 merge `4d407e5d01343deb3da9a8a0f82f6122e989035f` refined presentation without changing inventory semantics:
+
+- Excel quantity fields use whole-number display format `0`;
+- Excel price fields use decimal display format `0.00`;
+- Excel Expiry Date uses `mmm-yy` (for example `Mar-26`);
+- the global `ExcelColumn` contract accepts caller-owned `number_format`, keeping the reusable renderer area-agnostic;
+- Inventory Web date display defaults to `DD-MM-YYYY`;
+- the Web toolbar provides `DD-MM-YYYY`, `MM-DD-YYYY`, `YYYY-MM-DD`, and `DD-MMM-YYYY` display choices;
+- the selected Web date format is display-only and persists locally across reopen; underlying ISO dates/query semantics are unchanged.
+
+Runtime issue #166, run `32821445117`, verified Main Stock **799** rows with Excel formats `expiry=mmm-yy`, `qty=0`, `price=0.00`, `mutation=false`, `database_canonical=false`, `migration_baseline_accepted=false`. Deployment issue #26, run `32821445217`, verified production deployment success at the same SHA.
+
 ## Immediate boundary
 
 Do not present shadow DB as canonical. Formatted Excel export is now a verified globally reusable read-only substrate. Remaining Workbench v2 ergonomics and later View Builder work must continue to operate over validated registered projections and must not accept CMS mappings/prices, mutate inventory, accept the migration baseline or promote PostgreSQL.
