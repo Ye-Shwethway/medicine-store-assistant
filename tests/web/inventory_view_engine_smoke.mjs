@@ -92,11 +92,13 @@ const frozenSelectPosition=await page.locator('#inventoryViewTable thead .invent
 const frozenFirstPosition=await page.locator('#inventoryViewTable thead .inventory-frozen-first').evaluate(el=>getComputedStyle(el).position);
 assert.equal(frozenSelectPosition,'sticky');
 assert.equal(frozenFirstPosition,'sticky');
-await page.locator('#inventorySelectVisible').check();
-assert.equal(await page.locator('.inventory-row-check').isChecked(),true,'header checkbox should select visible rows');
+await page.getByRole('button',{name:'Select visible rows'}).click();
+assert.equal(await page.locator('#inventorySelectVisible').getAttribute('aria-pressed'),'true','corner selector should select visible rows');
+assert.equal(await page.getByRole('button',{name:'Select row 1'}).getAttribute('aria-pressed'),'true','row selector should reflect whole-row selection');
 assert.equal(await page.getByRole('button',{name:'Clear selection'}).isVisible(),true);
 await page.getByRole('button',{name:'Clear selection'}).click();
-assert.equal(await page.locator('.inventory-row-check').isChecked(),false,'Clear selection should clear visible row selection');
+assert.equal(await page.locator('#inventorySelectVisible').getAttribute('aria-pressed'),'false','Clear selection should clear visible row selection');
+assert.equal(await page.getByRole('button',{name:'Select row 1'}).getAttribute('aria-pressed'),'false');
 assert.equal(await page.locator('#inventorySelectionBar').isHidden(),true);
 assert.equal((await page.locator('#inventoryDensityToggle').textContent()).trim(),'Compact');
 await page.locator('#inventoryDensityToggle').click();
