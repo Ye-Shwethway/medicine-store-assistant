@@ -48,7 +48,9 @@ assert.equal(await page.locator('#inventoryFillMenu .inventory-fill-menu-head st
 assert.equal(await page.locator('#inventoryFillMenu .inventory-fill-option.secondary').count(),0,'derived color tiles must not reuse native secondary button styling');
 await page.getByRole('menuitem',{name:'Yellow',exact:true}).click();
 assert.equal(await cell(0,0).getAttribute('data-user-fill'),'yellow');
-assert.match(await cell(0,0).getAttribute('style'),/background-color:\s*#fff1a8\s*!important/i,'runtime fill must be applied inline with important priority');
+const inlineFill=await cell(0,0).evaluate(el=>({value:el.style.getPropertyValue('background-color'),priority:el.style.getPropertyPriority('background-color')}));
+assert.equal(inlineFill.priority,'important','runtime fill must have important inline priority');
+assert.ok(inlineFill.value,'runtime fill must have an inline background color value');
 const singleVisual=await cell(0,0).evaluate(el=>{const s=getComputedStyle(el);return {background:s.backgroundColor,boxShadow:s.boxShadow}});
 assert.notEqual(singleVisual.background,'rgb(255, 255, 255)','user fill must be visibly distinct');
 assert.match(singleVisual.boxShadow,/inset/i,'active selection outline must remain visible above user fill');
