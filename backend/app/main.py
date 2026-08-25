@@ -23,6 +23,7 @@ from app.db import database_readiness
 from app.email_recovery import router as email_recovery_router
 from app.email_recovery_page import router as email_recovery_page_router
 from app.inventory_view_engine import router as inventory_view_router
+from app.inventory_saved_views import router as inventory_saved_views_router
 from app.inventory_view_export import router as inventory_view_export_router
 from app.mcp_agent_binding import router as mcp_agent_binding_router
 from app.mcp_oauth import router as mcp_oauth_router
@@ -302,6 +303,7 @@ def inventory_export_js() -> FileResponse:
 app.include_router(dashboard_login_router)
 app.include_router(dashboard_router)
 app.include_router(inventory_view_router)
+app.include_router(inventory_saved_views_router)
 app.include_router(inventory_view_export_router)
 app.include_router(email_recovery_page_router)
 app.include_router(user_management_router)
