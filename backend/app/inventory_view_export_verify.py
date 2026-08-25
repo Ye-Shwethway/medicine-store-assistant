@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import json
 
 from fastapi import HTTPException
 from openpyxl import load_workbook
@@ -12,6 +13,7 @@ def _kwargs(**overrides):
     values = {
         "preset": "cms-mapping-review",
         "fields": "local_item_name,cms_code",
+        "column_labels": None,
         "q": "tablet",
         "mapping_status": "REVIEW_REQUIRED",
         "source_classification": None,
@@ -59,9 +61,16 @@ def main() -> None:
         assert worksheet["A2"].border.left.style == "thin"
         assert len(worksheet.tables) == 1
 
-        csv_response = export.inventory_view_export_csv(**_kwargs())
+        custom_labels = json.dumps({"local_item_name": "Medicine Name", "cms_code": "Catalogue Code"})
+        custom_xlsx = export.inventory_view_export_xlsx(**_kwargs(column_labels=custom_labels))
+        custom_book = load_workbook(io.BytesIO(custom_xlsx.body), data_only=False)
+        custom_sheet = custom_book["CMS Mapping Review"]
+        assert custom_sheet["A1"].value == "Medicine Name"
+        assert custom_sheet["B1"].value == "Catalogue Code"
+
+        csv_response = export.inventory_view_export_csv(**_kwargs(column_labels=custom_labels))
         text = csv_response.body.decode("utf-8")
-        assert text.startswith("\ufeffLocal Item,CMS Code\n")
+        assert text.startswith("\ufeffMedicine Name,Catalogue Code\n")
         assert "'=SUM(A1:A2),'@CMS-1" in text
         assert '"Normal, Item",CMS-2' in text
 
@@ -71,6 +80,20 @@ def main() -> None:
         assert captured["review_reason"] == "continuity"
         assert captured["sort_field"] == "local_item_name"
         assert captured["sort_dir"] == "desc"
+
+        for bad_labels in (
+            json.dumps({"raw_sql_expression": "Bad"}),
+            json.dumps({"local_item_name": "   "}),
+            json.dumps({"local_item_name": "x" * 121}),
+            "[]",
+            "not-json",
+        ):
+            try:
+                export.inventory_view_export_xlsx(**_kwargs(column_labels=bad_labels))
+            except HTTPException as exc:
+                assert exc.status_code == 400
+            else:
+                raise AssertionError("invalid export column labels must be rejected")
 
         try:
             export.inventory_view_export_xlsx(**_kwargs(preset="main-stock", fields="local_item_name,raw_sql_expression", q=None, mapping_status=None, review_reason=None, sort_field=None, sort_dir=None))
@@ -103,7 +126,7 @@ def main() -> None:
     assert export.MAX_EXPORT_ROWS == 5000
     print(
         "inventory_excel_export=pass reusable_renderer=pass registered_fields=pass validated_sort=pass "
-        "formatted_xlsx=pass formula_literal=pass row_cap=5000 no_store=pass read_only=pass csv_compat=pass"
+        "custom_headers=pass formatted_xlsx=pass formula_literal=pass row_cap=5000 no_store=pass read_only=pass csv_compat=pass"
     )
 
 
