@@ -28,7 +28,8 @@ async function preparePage(){
     const response=data=>new Response(JSON.stringify(data),{status:200,headers:{'Content-Type':'application/json'}});
     window.fetch=async input=>{
       const url=typeof input==='string'?input:input.url;
-      if(url==='/dashboard/api/inventory-view/presets')return response({items:[view]});
+      if(url==='/dashboard/api/inventory-view/saved-views')return response({items:[],database_canonical:false,migration_baseline_accepted:false});
+    if(url==='/dashboard/api/inventory-view/presets')return response({items:[view]});
       if(url==='/dashboard/api/inventory-view/registry')return response({fields:registry});
       if(url.startsWith('/dashboard/api/inventory-view/rows?'))return response({
         view,columns,items:[{product_id:'p1',lot_id:'l1',local_item_name:'Date Test Item',expiry_date:'2026-03-15',current_qty:'10.000'}],count:1,limit:100,offset:0,sort:null,read_only:true,database_canonical:false,migration_baseline_accepted:false

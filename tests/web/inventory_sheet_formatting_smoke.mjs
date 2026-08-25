@@ -18,6 +18,7 @@ await page.evaluate(()=>{
   window.fetch=async url=>{
     const requestPath=String(url);
     const json=value=>Promise.resolve({ok:true,status:200,json:async()=>value});
+    if(requestPath.includes('/saved-views'))return json({items:[],database_canonical:false,migration_baseline_accepted:false});
     if(requestPath.includes('/presets'))return json({items:[{view_id:'main-stock',name:'Main Stock'}]});
     if(requestPath.includes('/registry'))return json({fields:[{key:'local_item_name',label:'Items',data_type:'string',kind:'ENTITY_FIELD'},{key:'current_qty',label:'Current Qty',data_type:'decimal',kind:'COMPUTED_FIELD'},{key:'cms_code',label:'CMS Code',data_type:'string',kind:'ENTITY_FIELD'}]});
     if(requestPath.includes('/rows')){
