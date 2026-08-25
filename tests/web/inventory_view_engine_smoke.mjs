@@ -137,7 +137,7 @@ assert.ok(filterText.includes('Mapping:'));
 assert.ok(filterText.includes('Review Required'));
 assert.ok(filterText.includes('Source class:'));
 assert.ok(filterText.includes('Review reason:'));
-await page.getByRole('button',{name:'Clear Source class filter'}).click();
+await page.getByRole('button',{name:'Clear Source class'}).click();
 await page.waitForTimeout(30);
 request=await page.evaluate(()=>window.__inventoryRequests.filter(x=>x.includes('/rows?')).at(-1));
 assert.ok(request.includes('mapping_status=REVIEW_REQUIRED'));
