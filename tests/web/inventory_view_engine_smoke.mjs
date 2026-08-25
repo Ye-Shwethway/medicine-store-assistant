@@ -8,7 +8,7 @@ const stylesheet=path.join(root,'backend/app/dashboard_assets/dashboard_inventor
 const browser=await chromium.launch({headless:true});
 const page=await browser.newPage({viewport:{width:390,height:844}});
 
-await page.setContent(`<main id="msa"><button class="nav-btn" data-view="inventory">Inventory</button><button id="aiWorkspaceNav" type="button">AI Workspace</button><button class="ai-workspace-tab" id="aiChatTab" data-ai-tab="chat" type="button">Chat</button><button class="ai-workspace-tab" id="aiMultiTab" type="button">Multi-Agent</button><article class="ai-chat-panel"><form id="aiChatForm"><textarea id="aiMessageInput"></textarea><button type="submit">Send</button></form></article><section class="view" data-panel="inventory"><div id="legacyInventorySubtree">legacy</div></section></main>`);
+await page.setContent(`<main id="msa"><button class="nav-btn" data-view="inventory">Inventory</button><button id="aiWorkspaceNav" type="button">AI Workspace</button><button class="ai-workspace-tab" id="aiChatTab" data-ai-tab="chat" type="button">Chat</button><button class="ai-workspace-tab" id="aiMultiTab" type="button">Multi-Agent</button><article class="ai-chat-panel"><select id="aiAgentSelect"><option value="agent-a">Agent A</option><option value="agent-b">Agent B</option></select><button id="aiNewConversation" type="button">New chat</button><div id="aiConversationList"><div class="ai-conversation-item active" data-ai-conversation-row="old-chat"></div></div><div id="aiChatThread">Existing conversation</div><form id="aiChatForm"><textarea id="aiMessageInput"></textarea><button type="submit">Send</button></form></article><section class="view" data-panel="inventory"><div id="legacyInventorySubtree">legacy</div></section></main>`);
 await page.addStyleTag({path:stylesheet});
 await page.evaluate(()=>{
   window.__inventoryRequests=[];
@@ -17,14 +17,27 @@ await page.evaluate(()=>{
   window.__chatClicks=0;
   window.__multiClicks=0;
   window.__reviewRunClicks=0;
+  window.__newChatClicks=0;
   document.querySelector('#aiWorkspaceNav').addEventListener('click',()=>{window.__aiNavClicks+=1});
   document.querySelector('#aiChatTab').addEventListener('click',()=>{window.__chatClicks+=1});
+  document.querySelector('#aiNewConversation').addEventListener('click',()=>{
+    window.__newChatClicks+=1;
+    const id='new-chat-'+window.__newChatClicks;
+    setTimeout(()=>{
+      const active=document.querySelector('.ai-conversation-item.active');
+      active.dataset.aiConversationRow=id;
+      document.querySelector('#aiChatThread').hidden=false;
+      document.querySelector('#aiChatForm').hidden=false;
+    },25);
+  });
   document.querySelector('#aiMultiTab').addEventListener('click',()=>{
     window.__multiClicks+=1;
     setTimeout(()=>{
       if(document.querySelector('#reviewTitle'))return;
+      const config=document.createElement('section');config.className='review-config';config.innerHTML='<h3>Review preset & roles</h3>';
+      document.querySelector('#msa').appendChild(config);
       const box=document.createElement('section');box.id='fakeMultiReviewComposer';box.className='review-compose';
-      box.innerHTML='<div class="review-section-head"><h3>Task & evidence</h3></div><select id="reviewSessionSelect"><option value="">Choose a REVIEW preset…</option><option value="review-a">Review A</option></select><input id="reviewTitle"><textarea id="reviewTask"></textarea><button id="reviewRun" type="button">Run native review</button>';
+      box.innerHTML='<div class="review-section-head"><h3>Task & evidence</h3></div><select id="reviewSessionSelect"><option value="">Choose a REVIEW preset…</option><option value="review-a">Review A</option><option value="review-b">Review B</option></select><input id="reviewTitle"><textarea id="reviewTask"></textarea><button id="reviewRun" type="button">Run native review</button>';
       document.querySelector('#msa').appendChild(box);
       box.querySelector('#reviewRun').addEventListener('click',()=>{window.__reviewRunClicks+=1});
     },20);
@@ -109,50 +122,66 @@ await page.locator('#inventoryDrawerClose').click();
 
 await page.locator('.inventory-row-check').check();
 await page.getByRole('button',{name:'Ask AI'}).click();
-await page.waitForFunction(()=>document.querySelector('#aiMessageInput').value.includes('Review these 1 selected rows from CMS Mapping Review.'));
-let handoff=await page.evaluate(()=>({body:window.__lastReviewContextBody,navClicks:window.__aiNavClicks,chatClicks:window.__chatClicks,multiClicks:window.__multiClicks,draft:document.querySelector('#aiMessageInput').value,requests:window.__inventoryRequests.slice()}));
-assert.equal(handoff.chatClicks,1,'Ask AI must explicitly route to Chat even if another AI tab was previously active');
+const chatCard=page.locator('.inventory-ai-handoff-card[data-mode="chat"]');
+await chatCard.waitFor({state:'visible'});
+let handoff=await page.evaluate(()=>({body:window.__lastReviewContextBody,navClicks:window.__aiNavClicks,chatClicks:window.__chatClicks,multiClicks:window.__multiClicks,draft:document.querySelector('#aiMessageInput').value,newChatClicks:window.__newChatClicks,threadHidden:document.querySelector('#aiChatThread').hidden,formHidden:document.querySelector('#aiChatForm').hidden,requests:window.__inventoryRequests.slice()}));
+assert.equal(handoff.chatClicks,1,'Ask AI must explicitly route to Chat');
 assert.equal(handoff.multiClicks,0,'Ask AI must not open Multi-Agent');
+assert.equal(handoff.newChatClicks,0,'Ask AI must not silently create a conversation before agent choice');
+assert.equal(handoff.draft,'','old conversation composer must not receive the selected-row prompt');
+assert.equal(handoff.threadHidden,true,'existing conversation should be hidden while choosing a fresh-chat agent');
+assert.equal(handoff.formHidden,true,'old conversation composer should be unavailable during fresh-chat choice');
 assert.equal(handoff.body.preset,'cms-mapping-review');
 assert.deepEqual(handoff.body.selected_indices,[0]);
 assert.ok(!JSON.stringify(handoff.body).includes('Metformin 500mg'),'client sends selection coordinates, not row facts');
-assert.ok(handoff.draft.includes('server-rehydrated shadow review evidence'));
-const chatCard=page.locator('.inventory-ai-handoff-card[data-mode="chat"]');
-assert.equal(await chatCard.isVisible(),true,'Ask AI must show visible selected-row context');
-const chatCardText=await chatCard.textContent();
-assert.ok(chatCardText.includes('Inventory context ready'));
+let chatCardText=await chatCard.textContent();
+assert.ok(chatCardText.includes('Start a new Inventory chat'));
 assert.ok(chatCardText.includes('Metformin 500mg'));
+assert.ok(chatCardText.includes('Choose agent'));
+const quickAgent=chatCard.locator('[data-inventory-chat-agent]');
+assert.equal(await quickAgent.isVisible(),true,'fresh-chat handoff must expose agent choice near the context');
+await quickAgent.selectOption('agent-b');
+await chatCard.getByRole('button',{name:'Start new chat'}).click();
+await page.waitForFunction(()=>document.querySelector('#aiMessageInput').value.includes('Review these 1 selected rows from CMS Mapping Review.'));
+handoff=await page.evaluate(()=>({draft:document.querySelector('#aiMessageInput').value,newChatClicks:window.__newChatClicks,agent:document.querySelector('#aiAgentSelect').value,active:document.querySelector('.ai-conversation-item.active')?.dataset.aiConversationRow,threadHidden:document.querySelector('#aiChatThread').hidden,formHidden:document.querySelector('#aiChatForm').hidden,requests:window.__inventoryRequests.slice()}));
+assert.equal(handoff.newChatClicks,1,'agent confirmation must create exactly one fresh conversation');
+assert.equal(handoff.agent,'agent-b','selected handoff agent must sync to the canonical Chat agent chooser');
+assert.ok(handoff.active.startsWith('new-chat-'),'fresh handoff must not remain on the previous conversation');
+assert.equal(handoff.threadHidden,false);
+assert.equal(handoff.formHidden,false);
+assert.ok(handoff.draft.includes('server-rehydrated shadow review evidence'));
+chatCardText=await chatCard.textContent();
 assert.ok(chatCardText.includes('Not sent yet'));
-assert.ok(!handoff.requests.some(url=>url.includes('/messages')),'Ask AI must not auto-send/model-call');
+assert.ok(chatCardText.includes('Fresh chat created'));
+assert.ok(!handoff.requests.some(url=>url.includes('/messages')),'Ask AI must still require explicit Send before model execution');
 
 const beforeDeepRequests=await page.evaluate(()=>window.__inventoryRequests.length);
 await page.getByRole('button',{name:'Deep Review'}).click();
 await page.waitForFunction(()=>document.querySelector('#reviewTask')?.value.includes('Perform a deep multi-agent review of these 1 selected rows from CMS Mapping Review.'));
-const deep=await page.evaluate(()=>({
-  body:window.__lastReviewContextBody,
-  navClicks:window.__aiNavClicks,
-  chatClicks:window.__chatClicks,
-  multiClicks:window.__multiClicks,
-  runClicks:window.__reviewRunClicks,
-  title:document.querySelector('#reviewTitle').value,
-  task:document.querySelector('#reviewTask').value,
-  session:document.querySelector('#reviewSessionSelect').value,
-  requests:window.__inventoryRequests.slice(),
-}));
+const deepCard=page.locator('.inventory-ai-handoff-card[data-mode="deep"]');
+await deepCard.waitFor({state:'visible'});
+let deep=await page.evaluate(()=>({body:window.__lastReviewContextBody,multiClicks:window.__multiClicks,runClicks:window.__reviewRunClicks,title:document.querySelector('#reviewTitle').value,task:document.querySelector('#reviewTask').value,session:document.querySelector('#reviewSessionSelect').value,requests:window.__inventoryRequests.slice()}));
 assert.equal(deep.multiClicks,1,'Deep Review opens the existing Multi-Agent tab');
 assert.equal(deep.session,'','handoff must not silently choose a REVIEW preset');
 assert.ok(deep.title.includes('Deep review · CMS Mapping Review · 1 row'));
 assert.ok(deep.task.includes('server-rehydrated shadow review evidence'));
 assert.ok(deep.task.includes('Continuity: exact name, same price'));
 assert.ok(!deep.task.includes('CONTINUITY_EXACT_NAME_PRICE_SAME'));
-const deepCard=page.locator('.inventory-ai-handoff-card[data-mode="deep"]');
-assert.equal(await deepCard.isVisible(),true,'Deep Review must visibly show selected evidence before execution');
-const deepCardText=await deepCard.textContent();
+let deepCardText=await deepCard.textContent();
 assert.ok(deepCardText.includes('Deep Review context ready'));
 assert.ok(deepCardText.includes('Metformin 500mg'));
 assert.ok(deepCardText.includes('Review not started'));
-assert.equal(deep.runClicks,0,'Deep Review handoff must not click Run native review');
-assert.ok(!deep.requests.some(url=>url.includes('/ai-workspace/multi-agent/reviews')),'Deep Review handoff must make zero native review execution requests');
+const quickPreset=deepCard.locator('[data-inventory-review-preset]');
+assert.equal(await quickPreset.isVisible(),true,'Deep Review must expose preset choice beside the handoff context');
+assert.equal(await deepCard.getByRole('button',{name:'Review roles'}).isVisible(),true);
+assert.equal(await deepCard.getByRole('button',{name:'Run native review'}).isVisible(),true);
+assert.equal(deep.runClicks,0,'Deep Review handoff must not auto-run native review');
+await quickPreset.selectOption('review-a');
+assert.equal(await page.locator('#reviewSessionSelect').inputValue(),'review-a','quick preset must sync the canonical REVIEW selector');
+assert.equal(await page.evaluate(()=>window.__reviewRunClicks),0,'choosing a quick preset must not execute review');
+await deepCard.getByRole('button',{name:'Run native review'}).click();
+assert.equal(await page.evaluate(()=>window.__reviewRunClicks),1,'explicit quick Run action must invoke the canonical native review button');
+deep=await page.evaluate(()=>({requests:window.__inventoryRequests.slice(),body:window.__lastReviewContextBody}));
 assert.ok(deep.requests.length>beforeDeepRequests,'Deep Review still obtains a fresh server-rehydrated context');
 assert.ok(!JSON.stringify(deep.body).includes('Metformin 500mg'),'Deep Review client request still sends coordinates, not row facts');
 
@@ -161,4 +190,4 @@ const overflow=await page.locator('.inventory-view-table-wrap').evaluate(el=>get
 const banner=await page.locator('.inventory-shadow-banner').boundingBox();assert.ok(banner&&banner.width<=390);
 
 await browser.close();
-console.log('inventory_review_workspace_smoke=pass viewport=390x844 mobile_actions=aligned ask_ai_routes_chat=pass visible_context=pass auto_send=false deep_review_prefill=pass deep_review_visible_context=pass deep_review_auto_run=false presets=3');
+console.log('inventory_review_workspace_smoke=pass viewport=390x844 ask_ai_fresh_chat=pass agent_choice=pass auto_send=false deep_review_quick_preset=pass explicit_run=pass presets=3');
