@@ -28,19 +28,19 @@ jobs:
               path=Path(name)
               path.write_text(path.read_text(encoding='utf-8').rstrip()+'\n',encoding='utf-8')
           PY
+          git checkout -- .github/workflows/validate-inventory-view-engine.yml
       - name: Verify patched source
         run: |
           node --check backend/app/dashboard_assets/dashboard_inventory_views.js
           git diff --check
-      - name: Remove one-shot patch helpers
-        run: |
-          git rm .github/workflows/f6e-sheet-selection-patcher.yml
-          git rm scripts/patch_inventory_sheet_selection_v1.py
-          git rm scripts/fix_sheet_selection_escape.py
-      - name: Commit implementation
+      - name: Commit implementation only
         run: |
           git config user.name "MSA Sheet Patcher"
           git config user.email "actions@users.noreply.github.com"
-          git add -A
+          git add backend/app/dashboard_assets/dashboard_inventory_views.js \
+                  tests/web/inventory_sheet_selection_smoke.mjs \
+                  design-system/medicine-store-assistant/pages/dashboard.md \
+                  docs/design/WEB_SURFACE_OWNERSHIP.md \
+                  ROADMAP.md IMPLEMENTATION_PLAN.md NEW_CHAT_BOOTSTRAP.md
           git commit -m "Implement Inventory Sheet Interaction Foundation v1"
           git push origin HEAD:feat/f6e-sheet-selection-foundation
