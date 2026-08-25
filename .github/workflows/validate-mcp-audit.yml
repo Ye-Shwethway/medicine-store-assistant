@@ -25,6 +25,7 @@ on:
       - 'backend/alembic/versions/0020_work_review_substrate.py'
       - 'backend/alembic/versions/0021_review_orchestration_roles.py'
       - 'backend/alembic/versions/0022_canonical_inventory_foundation.py'
+      - 'backend/alembic/versions/0023_inventory_saved_views.py'
       - '.github/workflows/validate-mcp-audit.yml'
 
 permissions:
@@ -61,6 +62,7 @@ jobs:
           substrate=load(Path('backend/alembic/versions/0020_work_review_substrate.py'),'substrate_migration')
           review_head=load(Path('backend/alembic/versions/0021_review_orchestration_roles.py'),'review_head_migration')
           inventory_head=load(Path('backend/alembic/versions/0022_canonical_inventory_foundation.py'),'inventory_head_migration')
+          saved_views_head=load(Path('backend/alembic/versions/0023_inventory_saved_views.py'),'saved_views_head_migration')
           assert audit.revision=='0015_mcp_audit'
           assert audit.down_revision=='0014_mcp_agent_bindings'
           assert stale_oauth.down_revision==audit.revision
@@ -70,7 +72,8 @@ jobs:
           assert substrate.down_revision==attachments.revision
           assert review_head.down_revision==substrate.revision
           assert inventory_head.down_revision==review_head.revision
-          assert EXPECTED_MIGRATION==inventory_head.revision
+          assert saved_views_head.down_revision==inventory_head.revision
+          assert EXPECTED_MIGRATION==saved_views_head.revision
           assert '/dashboard/api/audit/recent' in set(app.openapi()['paths'])
           assert '/dashboard/api/ai-workspace/multi-agent/work-items/{work_item_id}/request-external-review' in set(app.openapi()['paths'])
           assert AUDIT_ASSET_VERSION.startswith('f73a-')

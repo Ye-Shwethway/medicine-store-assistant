@@ -18,6 +18,7 @@ await page.evaluate(()=>{
   window.fetch=async url=>{
     const requestPath=String(url);
     const json=value=>Promise.resolve({ok:true,status:200,json:async()=>value});
+    if(requestPath.includes('/saved-views'))return json({items:[],database_canonical:false,migration_baseline_accepted:false});
     if(requestPath.includes('/presets'))return json({items:[{view_id:'main-stock',name:'Main Stock'},{view_id:'migration-review',name:'Migration Review'}]});
     if(requestPath.includes('/registry'))return json({fields:[{key:'local_item_name',label:'Items',data_type:'string',kind:'ENTITY_FIELD'},{key:'current_qty',label:'Current Qty',data_type:'decimal',kind:'COMPUTED_FIELD'},{key:'cms_code',label:'CMS Code',data_type:'string',kind:'ENTITY_FIELD'}]});
     if(requestPath.includes('/rows'))return json({view:{view_id:'main-stock',name:'Main Stock',description:'Test view',row_grain:'PRODUCT_LOT',store_scope:'MAIN',columns:[{field:'local_item_name',label:'Items',width:180},{field:'current_qty',label:'Current Qty',width:120},{field:'cms_code',label:'CMS Code',width:120}]},columns:[{field:'local_item_name',label:'Items',sortable:true,width:180,field_definition:{key:'local_item_name',data_type:'string'}},{field:'current_qty',label:'Current Qty',sortable:true,width:120,field_definition:{key:'current_qty',data_type:'decimal'}},{field:'cms_code',label:'CMS Code',sortable:true,width:120,field_definition:{key:'cms_code',data_type:'string'}}],items,sort:{field:null,direction:null}});

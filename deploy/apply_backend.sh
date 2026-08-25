@@ -44,6 +44,10 @@ docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm \
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm \
   api python -c 'from app.dashboard_auth import ensure_bootstrap_owner; u=ensure_bootstrap_owner(); print("canonical_owner_bootstrap=pass user_id=" + u["user_id"] + " username=" + u["username"])'
 
+# Exercise authenticated user-owned Inventory Saved View metadata CRUD/read-back.
+docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm \
+  api python -m app.inventory_saved_views_runtime_verify
+
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm \
   api sh -c 'grep -Fq "user-profile-card" app/dashboard_assets/dashboard.html && grep -Fq "User Management" app/dashboard_assets/dashboard.html && grep -Fq "AI Agent Management" app/dashboard_assets/dashboard.html && grep -Fq "Multi-agent sessions" app/dashboard_assets/dashboard.html && grep -Fq "dashboard_agents.js" app/dashboard_assets/dashboard.html && grep -Fq "External / MCP agents" app/dashboard_assets/dashboard_agents.js && grep -Fq "Internal / provider-backed agents" app/dashboard_assets/dashboard_agents.js && grep -Fq "Provider Registry" app/dashboard_assets/dashboard_agents.js && grep -Fq "classList.add('"'"'secondary'"'"')" app/dashboard_assets/dashboard_agents.js && grep -Fq "Account security" app/dashboard_assets/dashboard.html && grep -Fq "Change username" app/dashboard_assets/dashboard.html && grep -Fq "Change password" app/dashboard_assets/dashboard.html && grep -Fq "Request access" app/dashboard_assets/login.html && grep -Fq "Confirm password" app/dashboard_assets/login.html && grep -Fq "Forgot password" app/dashboard_assets/login.html && grep -Fq "verified recovery email" app/dashboard_assets/login.html && grep -Fq "One-time reset" app/dashboard_assets/login.html && grep -Fq "Recovery email" app/dashboard_assets/recovery_email.html && echo "f7_2d2_d3_ui_contract=pass"'
 
@@ -114,7 +118,9 @@ for route in \
   '/dashboard/api/password-recovery/request' \
   '/dashboard/api/password-reset-requests' \
   '/dashboard/api/password-reset-requests/{request_id}/issue' \
-  '/dashboard/api/password-resets/complete'; do
+  '/dashboard/api/password-resets/complete' \
+  '/dashboard/api/inventory-view/saved-views' \
+  '/dashboard/api/inventory-view/saved-views/{view_id}'; do
   grep -Fq "\"${route}\"" <<<"$OPENAPI"
 done
 
@@ -159,6 +165,12 @@ fi
 ANON_PROVIDERS_STATUS="$(curl --silent --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:${API_PORT}/dashboard/api/providers")"
 if [[ "$ANON_PROVIDERS_STATUS" != "401" && "$ANON_PROVIDERS_STATUS" != "503" ]]; then
   echo "error: anonymous Provider Registry returned HTTP ${ANON_PROVIDERS_STATUS}, expected 401 or fail-closed 503" >&2
+  exit 1
+fi
+
+ANON_SAVED_VIEWS_STATUS="$(curl --silent --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:${API_PORT}/dashboard/api/inventory-view/saved-views")"
+if [[ "$ANON_SAVED_VIEWS_STATUS" != "401" && "$ANON_SAVED_VIEWS_STATUS" != "503" ]]; then
+  echo "error: anonymous Inventory Saved Views returned HTTP ${ANON_SAVED_VIEWS_STATUS}, expected 401 or fail-closed 503" >&2
   exit 1
 fi
 

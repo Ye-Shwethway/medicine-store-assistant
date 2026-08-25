@@ -55,6 +55,7 @@ await page.evaluate(()=>{
   const response=data=>new Response(JSON.stringify(data),{status:200,headers:{'Content-Type':'application/json'}});
   window.fetch=async (input,opts={})=>{
     const url=typeof input==='string'?input:input.url;window.__inventoryRequests.push(url);
+    if(url==='/dashboard/api/inventory-view/saved-views')return response({items:[],database_canonical:false,migration_baseline_accepted:false});
     if(url==='/dashboard/api/inventory-view/presets')return response({items:window.__presets});
     if(url==='/dashboard/api/inventory-view/registry')return response({fields:window.__registry});
     if(url==='/dashboard/api/inventory-view/review-context'){
