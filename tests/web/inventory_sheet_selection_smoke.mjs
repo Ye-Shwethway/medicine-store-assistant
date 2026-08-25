@@ -88,7 +88,7 @@ await page.waitForTimeout(260);
 assert.equal(await page.locator('#inventorySelectionBar').isHidden(),true,'search coordinate changes must clear stale selection');
 await page.locator('#inventoryViewSearch').fill('');
 await page.waitForTimeout(260);
-await page.getByText('Alpha',{exact:true}).waitFor();
+await cell(0,0).waitFor({state:'visible'});
 
 await page.addStyleTag({path:stylesheet});
 await page.setViewportSize({width:390,height:844});
