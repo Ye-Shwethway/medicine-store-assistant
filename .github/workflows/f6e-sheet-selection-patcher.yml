@@ -22,6 +22,12 @@ jobs:
         run: |
           python scripts/patch_inventory_sheet_selection_v1.py
           python scripts/fix_sheet_selection_escape.py
+          python - <<'PY'
+          from pathlib import Path
+          for name in ('ROADMAP.md','IMPLEMENTATION_PLAN.md','NEW_CHAT_BOOTSTRAP.md'):
+              path=Path(name)
+              path.write_text(path.read_text(encoding='utf-8').rstrip()+'\n',encoding='utf-8')
+          PY
       - name: Verify patched source
         run: |
           node --check backend/app/dashboard_assets/dashboard_inventory_views.js
