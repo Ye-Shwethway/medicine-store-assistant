@@ -36,27 +36,37 @@ await page.getByRole('cell',{name:'Alpha'}).waitFor();
 
 const cell=(row,col)=>page.locator(`tbody tr:nth-child(${row+1}) td[data-col-index="${col}"]`);
 const fill=async name=>{
-  await page.getByRole('button',{name:'Fill',exact:true}).click();
-  await page.getByRole('button',{name,exact:true}).click();
+  await page.locator('#inventoryFillToggle').click();
+  await page.getByRole('menuitem',{name,exact:true}).click();
 };
 
 await cell(0,0).click();
-await fill('Yellow');
+assert.equal(await page.locator('#inventoryFillToggle').getAttribute('aria-haspopup'),'menu');
+assert.equal(await page.locator('#inventoryFillToggle').getAttribute('aria-label'),'Fill color');
+await page.locator('#inventoryFillToggle').click();
+assert.equal(await page.locator('#inventoryFillMenu .inventory-fill-menu-head strong').textContent(),'Fill color');
+assert.equal(await page.locator('#inventoryFillMenu .inventory-fill-option.secondary').count(),0,'derived color tiles must not reuse native secondary button styling');
+await page.getByRole('menuitem',{name:'Yellow',exact:true}).click();
 assert.equal(await cell(0,0).getAttribute('data-user-fill'),'yellow');
+const inlineFill=await cell(0,0).evaluate(el=>({value:el.style.getPropertyValue('background-color'),priority:el.style.getPropertyPriority('background-color')}));
+assert.equal(inlineFill.priority,'important','runtime fill must have important inline priority');
+assert.ok(inlineFill.value,'runtime fill must have an inline background color value');
 const singleVisual=await cell(0,0).evaluate(el=>{const s=getComputedStyle(el);return {background:s.backgroundColor,boxShadow:s.boxShadow}});
 assert.notEqual(singleVisual.background,'rgb(255, 255, 255)','user fill must be visibly distinct');
 assert.match(singleVisual.boxShadow,/inset/i,'active selection outline must remain visible above user fill');
 
 await cell(1,1).click({modifiers:['Shift']});
-await fill('Light green');
+await fill('Green');
 for(let row=0;row<=1;row++)for(let col=0;col<=1;col++)assert.equal(await cell(row,col).getAttribute('data-user-fill'),'green');
 
 await page.getByRole('button',{name:'Select row 3'}).click();
-await fill('Light blue');
+await fill('Blue');
 for(let col=0;col<3;col++)assert.equal(await cell(2,col).getAttribute('data-user-fill'),'blue','whole-row fill must cover visible registered cells');
 
 await cell(0,0).click();
-await page.getByRole('button',{name:'Clear fill',exact:true}).click();
+await page.locator('#inventoryFillToggle').click();
+assert.equal(await page.locator('#inventoryClearFill').getAttribute('aria-label'),'No fill');
+await page.locator('#inventoryClearFill').click();
 assert.equal(await cell(0,0).getAttribute('data-user-fill'),null,'Clear fill must remove only user formatting from selected cell');
 assert.equal(await cell(0,1).getAttribute('data-user-fill'),'green','Clear fill must not remove fill outside the selection');
 
@@ -76,9 +86,9 @@ assert.equal(await page.evaluate(()=>window.__copied),'Alpha','TSV copy remains 
 
 await page.setViewportSize({width:390,height:844});
 await page.getByRole('cell',{name:'Gamma'}).click();
-await page.getByRole('button',{name:'Fill',exact:true}).click();
-assert.equal(await page.getByRole('button',{name:'Orange',exact:true}).isVisible(),true,'mobile fill palette must be reachable');
-await page.getByRole('button',{name:'Orange',exact:true}).click();
+await page.locator('#inventoryFillToggle').click();
+assert.equal(await page.getByRole('menuitem',{name:'Orange',exact:true}).isVisible(),true,'mobile fill palette must be reachable');
+await page.getByRole('menuitem',{name:'Orange',exact:true}).click();
 assert.equal(await page.getByRole('cell',{name:'Gamma'}).getAttribute('data-user-fill'),'orange');
 
 await browser.close();

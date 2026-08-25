@@ -47,10 +47,12 @@ await selectionStylesheet.evaluate(el=>el.remove());
 await page.getByRole('button',{name:'Copy TSV'}).click();
 assert.equal(await page.evaluate(()=>window.__copied),'Alpha\t10\nBeta\t20','range copy must contain real TSV row breaks');
 
+await cell(1,1).click();
 await cell(1,1).focus();
 await page.keyboard.press('ArrowRight');
 assert.equal(await cell(1,2).getAttribute('aria-selected'),'true');
 assert.equal(await page.locator('#inventorySelectionCount').textContent(),'1 cell selected');
+await cell(1,2).focus();
 await page.keyboard.press('Shift+ArrowDown');
 assert.match(await page.locator('#inventorySelectionCount').textContent(),/2×1 range · 2 cells/);
 
