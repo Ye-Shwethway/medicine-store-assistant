@@ -139,7 +139,7 @@ await page.getByRole('cell',{name:'Alpha'}).waitFor();
 assert.equal(await page.locator('#inventoryViewSearch').inputValue(),'Alpha');
 assert.equal(await page.locator('.view[data-panel="inventory"]').getAttribute('data-inventory-density'),'compact');
 assert.equal(await page.getByRole('cell',{name:'Alpha'}).getAttribute('data-user-fill'),'green');
-assert.match(await page.locator('#inventoryViewDescription').textContent(),/Custom view · based on Main Stock/);
+assert.match(await page.locator('#inventoryViewDescription').textContent(),/Custom table\/view · row source Main Stock/);
 
 await page.locator('#inventorySaveView').click();
 assert.ok(await page.evaluate(()=>window.__requests.some(item=>item.method==='PUT'&&item.path.includes('/saved-views/sv-1'))),'active custom Save must update its own definition');
