@@ -10,11 +10,15 @@ Important sheets may include:
 
 - `Main Stock`
 - `Daily Usage`
+- `This Month Received`
+- `Final Reorder`
+- `Owner_Decision_Inbox`
 - `Fixed Assets`
 - `CMS_Price_List_YYYYMM` versioned price-list sheets
 - `CMS_Batch_<TRANSFER>_<DATE>` batch or transfer sheets
 - `Audit_Log`
 - `Item_Mapping`
+- hidden reorder/history/lifecycle support sheets
 
 Treat these names as discovery hints, not proof of the current live structure. Inspect the spreadsheet before every operational task.
 
@@ -33,9 +37,11 @@ Until an explicit migration/canonicality decision says otherwise:
 
 ## Legacy Excel workbook interpretation boundary
 
-The original macro-enabled Excel workbook is a valuable **behavioral specification and historical design source**, not an implementation template that must be copied literally.
+The original macro-enabled Excel workbook is a valuable **behavioral specification and historical evidence source**, not an implementation template that must be copied literally.
 
 Preserve business intent where it remains useful, but do not reproduce long formulas, hidden helper mechanics, VBA orchestration, cloud-sync macros, broken named ranges, or workbook-specific UI machinery merely for compatibility. Prefer a simpler explicit rule, agent-assisted review workflow, or future typed backend behavior when it preserves the same or better operational outcome.
+
+The original workbook's archived `Master Data` and historical Final Reorder records may be used as evidence for usage history and prior Owner decisions. Missing monthly archives are missing evidence, not proof that no order was placed.
 
 For the current Google workbook, preserve established production columns and formulas unless the user explicitly authorizes a change. When a legacy rule is intentionally migrated or refined, document the new rule rather than maintaining duplicate old and new logic indefinitely.
 
@@ -66,6 +72,25 @@ This checkpoint rule is a hard safety invariant. Do not perform an operational m
 Preserve those four table interfaces even when MSA replaces legacy formulas/macros with simpler rules, agent reasoning, temporary review workflows, or other MSA-native machinery.
 
 The `Final Reorder` table is also a downstream batch-request interoperability contract. Its six-column table format must remain compatible with the original Excel workbook, and its `Remark` column must stay blank unless the user explicitly instructs what to write. Never insert AI rationale, confidence, anomaly notes, or autonomous comments into that Remark field.
+
+## Human-first workbook surface
+
+The workbook may contain many agent/support tabs without exposing them all to the Owner.
+
+Follow [tab-sequencing-and-persistence.md](tab-sequencing-and-persistence.md) for tab order, visibility, persistence, and hiding rules.
+
+The preferred visible daily-use surface is intentionally small and normally centers on:
+
+- `Main Stock`
+- `Daily Usage`
+- `This Month Received`
+- `Final Reorder`
+- `Owner_Decision_Inbox` when present
+- `Fixed Assets`
+
+Detailed price-list evidence, mapping memory, audit history, batch staging, historical reorder evidence, risk flags, family-level reasoning, and row-lifecycle analysis may remain hidden/support-only when workbook behavior remains intact.
+
+Hiding is presentation only. Do not describe a hidden tab as deleted or archived.
 
 ## External compatibility boundary
 
@@ -127,35 +152,82 @@ Do not overwrite `Price` during ordinary mapping, new-lot intake, or CMS reconci
 
 ## Reorder intelligence policy
 
+For reorder analysis, adaptive Reorder Level review, current-cycle request recommendations, row lifecycle, Owner Decision Inbox behavior, historical Owner-order comparison, and Final Reorder preparation, read [reorder-intelligence-and-owner-review.md](reorder-intelligence-and-owner-review.md).
+
+The detailed reference is canonical for these workflows. The following are system-level invariants.
+
+### Reorder Level is adaptive
+
 `Reorder Level` is a maintained operational parameter, not a permanently fixed constant and not something that should be owned by one rigid formula.
-
-### New item / new lot
-
-When inserting a genuinely new operational item or lot and a reorder level is required, establish an initial baseline from the best available evidence: comparable sibling item history, recent usage, source quantity, expected operational need, existing store convention, or explicit user guidance. Do not invent a high-confidence reorder level from a single weak signal.
 
 A legacy heuristic such as `received quantity - 1` may be historical evidence but is **not** a universal MSA rule.
 
-### Adaptive review
+Use deterministic arithmetic to produce reproducible baselines, then allow authorized AI/human reasoning to interpret seasonality, repeated early depletion, expiry/write-off pressure, volatility, supply reliability, future service demand, and other verified context.
 
-Reorder Level should be periodically reviewable and may be adjusted upward or downward using human and/or AI reasoning supported by observed evidence, including:
+LLM reasoning must not replace arithmetic truth.
 
-- sustained average and median usage,
-- recent trend versus long-run baseline,
-- repeated stock-outs or early in-month depletion,
-- expiry/write-off or excess remaining stock,
-- seasonality,
-- short-lived spikes that should not permanently inflate the baseline,
-- service changes or known upcoming demand,
-- supply reliability and lead time,
-- pack-size/order constraints where known.
+### Reorder Level versus Order This Round
 
-For example, repeated expiry with low usage can justify lowering the level; repeated early depletion can justify increasing it; a temporary seasonal spike should be recognized without blindly making the spike the permanent new baseline.
+Keep these concepts separate:
 
-### Deterministic baseline + reasoned adjustment
+- **Suggested Reorder Level** = proposed maintained target/threshold going forward.
+- **Order This Round** = current-cycle request after considering usable current stock and the approved/suggested target.
 
-Use deterministic arithmetic to produce a reproducible baseline, then allow an authorized human or AI agent to recommend a reasoned adjustment. Preserve enough evidence to explain both the baseline and the adjustment.
+A level can be correct while the current-cycle order is zero.
 
-LLM reasoning must not replace arithmetic truth. The agent may interpret context, seasonality, anomalies, and operational trade-offs, while quantities, usage statistics, balances, and formula outputs must come from verified data or deterministic computation.
+Do not call an action `RAISE` when the suggested level is actually unchanged. Prefer human-readable action wording such as `RAISE LEVEL`, `LOWER LEVEL`, `KEEP LEVEL / ORDER GAP`, or `LEVEL OK / NO ORDER`.
+
+### Usable stock versus expired stock
+
+Expired positive stock is not usable current stock for replenishment-gap calculations.
+
+However, expired-stock disposition and needed replenishment are parallel concerns. Do **not** hard-block a needed order solely because expired stock has not yet been disposed/reconciled.
+
+### Row lifecycle versus reorder need
+
+Row retention and demand are different concerns.
+
+A zero-stock sole representative may be retained as a dormant item so the identity remains available for future ordering. `DORMANT_ITEM_KEEP` / `DORMANT_KEEP` does **not** mean “do not reorder.”
+
+If another same-family active representative exists, a zero-stock obsolete sibling may be a cleanup candidate, but its old row-level reorder state must not define the active family target.
+
+Row deletion remains a separately authorized, checkpointed, audited mutation.
+
+### Family-level reasoning
+
+Use family-level usage/history reasoning conservatively while preserving physical lot separation.
+
+Usage from a lot that depleted this month remains valid demand evidence even if that row becomes a cleanup candidate. Do not duplicate the same family history into several independent lot-level reorder recommendations.
+
+Do not fuzzy-match unresolved historical item families merely to obtain statistics.
+
+### Historical Owner order evidence
+
+Archived Final Reorder decisions are useful evidence of practical human behavior and can reveal new-item introduction, service-stock choices, temporary increases, or other context that usage-only models miss.
+
+Do not assume every month is archived. Missing records are missing evidence, not zero-order decisions.
+
+When comparing an old Owner decision to current AI reasoning, account for snapshot timing; stock and usage may have changed between the order date and the current analysis date.
+
+### New items
+
+Absence of historical usage is not evidence against ordering a new item.
+
+For genuinely new/unmapped items, Owner intent is primary. AI may provide context, comparable evidence, or later learning, but must not suppress the item merely because history is absent.
+
+### Owner-facing decision surface
+
+Do not require the Owner to inspect many raw evidence tabs or wide analytics tables.
+
+Prefer a concise decision surface containing the active/current item label, usable stock now, action wording, suggested reorder level, order this round, a short reason/prompt, and blank Owner override fields.
+
+Detailed averages, medians, peaks, risk flags, lifecycle counts, and reasoning evidence may remain hidden/support-only for agent use.
+
+### Mutation gate
+
+AI classifications and numeric suggestions are review state, not mutation authority.
+
+Do not automatically change Main Stock reorder parameters, delete rows, or populate Final Reorder from the reasoning layer. Material changes require the Owner/user authorization plus the normal checkpoint, readback, and audit workflow.
 
 ## Estimated Request Qty policy
 
@@ -167,6 +239,8 @@ LLM reasoning must not replace arithmetic truth. The agent may interpret context
 4. record or explain material adjustments so the final request is auditable.
 
 A legacy spreadsheet formula is useful as a baseline reference but does not define the final request quantity for every item and every month.
+
+Do not equate `Estimated Request Qty` with an approved `Final Reorder Request Qty`.
 
 ## Shortage / early-depletion signal
 
@@ -217,4 +291,6 @@ Do not claim that:
 - a write succeeded before read-back verification,
 - a restore checkpoint exists when it was not actually created before the mutation,
 - an audit record exists when it was not written and read back,
+- a hidden tab was deleted or archived when it was only hidden,
+- an AI recommendation was applied when it remains review-only,
 - a connector, repository, skill, backend, MCP service, or shadow database grants access or authority that the runtime does not have.
