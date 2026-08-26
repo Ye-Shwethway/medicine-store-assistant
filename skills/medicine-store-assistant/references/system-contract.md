@@ -59,6 +59,14 @@ Every **operational mutation** of the live workbook must have a verified restore
 
 This checkpoint rule is a hard safety invariant. Do not perform an operational mutation when a pre-mutation checkpoint cannot be created and verified.
 
+## Four operational sheet compatibility surfaces
+
+`Main Stock`, `Daily Usage`, `This Month Received`, and `Final Reorder` are compatibility-locked human-facing operational surfaces. Before changing their structure, rebuilding them, or generating a Final Reorder Excel output, read [operational-sheet-compatibility.md](operational-sheet-compatibility.md).
+
+Preserve those four table interfaces even when MSA replaces legacy formulas/macros with simpler rules, agent reasoning, temporary review workflows, or other MSA-native machinery.
+
+The `Final Reorder` table is also a downstream batch-request interoperability contract. Its six-column table format must remain compatible with the original Excel workbook, and its `Remark` column must stay blank unless the user explicitly instructs what to write. Never insert AI rationale, confidence, anomaly notes, or autonomous comments into that Remark field.
+
 ## External compatibility boundary
 
 `Main Stock` and `Daily Usage` synchronize with an existing local Excel workbook and macro system. Preserve their established production range as an external compatibility contract while the current Google-first workflow still depends on it:
