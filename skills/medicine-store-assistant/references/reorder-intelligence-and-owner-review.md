@@ -66,7 +66,20 @@ They represent historical human decisions and may reveal practical behavior that
 
 Do not assume every month is completely archived. Missing monthly Final Reorder records mean missing evidence, not a zero-order decision.
 
-When comparing an archived Owner order with current AI reasoning, account for snapshot timing. For example, an Owner order made several days before the current live analysis may have different stock/usage state. Treat this as decision-pattern evidence rather than a simplistic error score.
+When an archived Final Reorder includes both `Sub Store Qty` and `Request Qty`, derive an **order-day implied target**:
+
+`Owner implied target = Sub Store Qty + Request Qty`
+
+This quantity is often a better historical decision signal than `Request Qty` alone because it expresses the stock position the Owner was trying to create at that snapshot.
+
+Do **not** compare an old `Request Qty` directly with a later live `Order This Round` and call the difference an error. Current stock may have changed through usage, receipts, or other movements. When snapshot dates differ, prefer:
+
+- archived Owner implied target versus current AI `Suggested Reorder Level`, and
+- archived request quantity only as supporting evidence about how the Owner acted at that earlier stock state.
+
+Treat the comparison as decision-pattern evidence rather than a simplistic error score.
+
+A hidden/static support sheet may preserve exact archived Owner-order evidence for agent use. Keep the human-facing summary concise.
 
 ## Conservative family identity
 
@@ -86,7 +99,8 @@ If no exact conservative history family match exists, classify the history as un
 A physical stock row and a product-family demand signal are different concepts.
 
 - Usage from an older lot that depleted this month remains valid family demand evidence.
-- A zero-stock cleanup-candidate lot must not continue to define the current operational reorder level when an active representative lot exists.
+- A zero-stock cleanup-candidate lot should not automatically control the current operational family target when an active representative exists.
+- Historical Owner targets may reveal that an apparently obsolete sibling-row level was actually carrying meaningful family-level policy; do not discard that possibility without review.
 - Multiple lots of the same family should not duplicate the same historical demand signal into multiple independent reorder recommendations.
 - Family reasoning may aggregate current usage across lots while keeping lifecycle/expiry handling row-aware.
 
@@ -153,23 +167,11 @@ Useful classes include:
 - `KEEP_REVIEW` — no strong raise/lower signal but routine review may still be useful,
 - `OWNER_REVIEW` — conflicting, unresolved, new-item, lifecycle, or practical-context evidence requires human judgment.
 
-Secondary pattern flags may include:
+Secondary pattern flags may include `SEASONAL_SIGNAL`, `CURRENT_SPIKE`, `HISTORICALLY_VOLATILE`, and `NO_STRONG_PATTERN`.
 
-- `SEASONAL_SIGNAL`,
-- `CURRENT_SPIKE`,
-- `HISTORICALLY_VOLATILE`,
-- `NO_STRONG_PATTERN`.
+Operational evidence flags may include current early depletion, repeated historical early depletion, expiry exposure, current spike, stock high relative to history, and same-month-last-year seasonal evidence.
 
-Operational evidence flags may include:
-
-- current early depletion,
-- repeated historical early depletion,
-- expiry exposure,
-- current spike,
-- stock high relative to history,
-- same-month-last-year seasonal evidence.
-
-Do not let a single median-zero or low-volume artifact over-classify hundreds of items as volatile. Volatility rules must represent meaningful deviation, not merely sparse arithmetic.
+Do not let a single median-zero or low-volume artifact over-classify many items as volatile. Volatility rules must represent meaningful deviation, not merely sparse arithmetic.
 
 ## Confidence model
 
@@ -203,7 +205,7 @@ Example:
 - Suggested reorder level: `49`
 - Order this round: `0`
 
-Meaning: the current usable stock already covers the suggested target, so no order is needed in this cycle. It does not mean “raise the level now but order later” unless the level itself is actually being changed.
+Meaning: current usable stock already covers the suggested target, so no order is needed in this cycle.
 
 ## Human-facing action wording
 
@@ -213,8 +215,9 @@ Prefer action wording such as:
 
 - `RAISE LEVEL (old -> new)` — target level actually increases,
 - `LOWER LEVEL (old -> new)` — target level actually decreases,
-- `KEEP LEVEL / ORDER GAP` — target stays the same but current usable stock is below it, so request only the gap,
+- `KEEP LEVEL / ORDER GAP` — target stays the same but current usable stock is below it,
 - `LEVEL OK / NO ORDER` — current level/stock already cover the suggested target,
+- `RAISE + EXPIRY REVIEW` — replenishment is needed while expiry disposition runs in parallel,
 - `HOLD REVIEW` — conflicting/volatile evidence needs context before numeric action,
 - `OWNER REVIEW` — human knowledge is primary,
 - `NEW ITEM - OWNER DECISION` — no reliable historical basis; Owner decides whether/what to introduce.
@@ -229,18 +232,7 @@ A numeric recommendation should be explainable as:
 2. contextual adjustment, if any,
 3. final review recommendation.
 
-Examples of evidence that may justify adjustment:
-
-- recent 3M/6M demand higher than long-run average,
-- same-month-last-year seasonality,
-- repeated early depletion,
-- current partial-month spike,
-- historical volatility,
-- expiry/write-off pressure,
-- supply reliability/lead time,
-- known future service demand,
-- pack/order-size constraints,
-- Owner operational experience.
+Evidence that may justify adjustment includes recent 3M/6M demand, same-month-last-year seasonality, repeated early depletion, current partial-month spikes, historical volatility, expiry/write-off pressure, supply reliability/lead time, known future service demand, pack/order-size constraints, and Owner operational experience.
 
 Do not use the LLM as the arithmetic engine. Do not make one historical peak the permanent new level automatically.
 
@@ -248,13 +240,7 @@ Do not use the LLM as the arithmetic engine. Do not make one historical peak the
 
 A lower-level recommendation should normally require coherent evidence such as low recent use, excess stock, expiry/write-off exposure, or sustained overstock.
 
-Be conservative when:
-
-- history is volatile,
-- history coverage is thin,
-- service stock has critical practical value,
-- old peak usage is much higher than recent average,
-- future demand is uncertain.
+Be conservative when history is volatile, history coverage is thin, service stock has critical practical value, old peak usage is much higher than recent average, or future demand is uncertain.
 
 A deterministic lower baseline may be adjusted upward by AI/Owner for a safer service-stock floor.
 
@@ -267,27 +253,34 @@ Recommended reorder decision columns:
 1. `Priority`
 2. `Item`
 3. `Usable Stock Now`
-4. `AI says`
-5. `Suggested Reorder Level`
-6. `Order This Round`
-7. `Why / What I need from you`
-8. `Your Decision`
-9. `Your Level`
-10. `Your Request`
-11. `Your Note`
+4. `Current Level`
+5. `AI Action`
+6. `Suggested Reorder Level`
+7. `Order This Round`
+8. `Owner prior order: Stock + Order = Target` when comparable archived evidence exists
+9. `Comparison`
+10. `Why / What I need from you`
+11. `Your Decision`
+12. `Your Level`
+13. `Your Request`
+14. `Your Note`
 
 The item label should prefer the active/current operational representative, not an obsolete zero-stock/expired sibling row merely because it sorts first.
 
-The Owner should not need to open `Main Stock` just to learn current usable stock for the decision being requested.
+The Owner should not need to open `Main Stock` just to learn current usable stock or current level for a decision being requested.
 
-Keep explanations concise and action-oriented. Examples:
+Useful comparison labels include:
 
-- “Tell me whether this volatility is normal in real work.”
-- “Resolve expired-stock handling or tell me the practical rule.”
-- “Approve, adjust, or hold this suggestion.”
-- “Tell me what you know; this is a new/limited-history item.”
+- `AGREES WITH OWNER TARGET`
+- `AI TARGET LOWER`
+- `AI TARGET HIGHER`
+- `HOLD / CONTEXT NEEDED`
+- `OWNER-CONTEXT ITEM`
+- `NO PRIOR ORDER EVIDENCE`
 
-Owner input fields should remain blank until the Owner actually decides.
+When AI and archived Owner targets differ, ask whether the historical target reflects a normal practical buffer or a one-off decision. Do not ask the Owner to inspect the raw archive.
+
+Keep explanations concise and action-oriented. Owner input fields remain blank until the Owner actually decides.
 
 ## New items
 
@@ -301,16 +294,20 @@ When the Owner orders an item that has no exact current family/history match:
 - let the Owner decide intended introduction quantity or service-stock rationale,
 - later use actual receipts/usage as evidence for future adaptive levels.
 
+A compact evidence-only section may show recently Owner-ordered new/unmatched items without forcing a new decision when the order was already placed.
+
 AI may provide context or comparable-item evidence when safe, but it must not overrule the Owner merely because historical usage is absent.
 
 ## Owner-vs-AI validation loop
 
 Use actual archived Final Reorder decisions to improve the reasoning policy.
 
+Prefer comparing **Owner implied target** (`Sub Store Qty + Request Qty`) with AI `Suggested Reorder Level` when the archived and live snapshots differ.
+
 Comparison categories can include:
 
-- **AI reasonable agreement** — Owner quantity/action and AI are directionally close,
-- **Owner practical adjustment** — Owner intentionally requests more/less than deterministic gap,
+- **AI reasonable agreement** — Owner implied target and AI target are directionally close,
+- **Owner practical adjustment** — Owner historically targeted more/less than current AI reasoning,
 - **New/strategic Owner item** — no history; Owner authority dominates,
 - **AI missed lifecycle/context** — for example dormant-item reorder incorrectly suppressed,
 - **AI expiry-workflow mismatch** — replenishment incorrectly blocked by expiry disposition,
@@ -323,9 +320,7 @@ Do not train a rigid formula to copy historical Owner quantities. Treat Owner hi
 
 `Final Reorder` remains the exact six-column Excel-compatible output surface defined in `operational-sheet-compatibility.md`.
 
-Reasoning/helper columns never belong in Final Reorder.
-
-Only approved current-cycle decisions should be materialized there.
+Reasoning/helper columns never belong in Final Reorder. Only approved current-cycle decisions should be materialized there.
 
 `Remark` remains blank by default and must never be populated with AI rationale unless the user explicitly instructs the exact remark content.
 
@@ -333,15 +328,7 @@ Only approved current-cycle decisions should be materialized there.
 
 Raw evidence tabs may contain many columns and may be hidden from normal human view when they remain available to the agent and do not break workbook behavior.
 
-Examples of agent/support evidence include:
-
-- historical usage evidence,
-- risk flags,
-- family-level foundations,
-- lower-level reasoning,
-- full AI review details,
-- row lifecycle review,
-- Owner-vs-AI comparison evidence.
+Examples include historical usage evidence, risk flags, family-level foundations, lower-level reasoning, full AI review details, row lifecycle review, archived Owner-order evidence, and Owner-vs-AI comparison evidence.
 
 Do not delete useful evidence merely to reduce visual clutter. Prefer hiding or moving support tabs behind the human-facing group.
 
@@ -353,13 +340,7 @@ Material reasoning-layer changes should be auditable even when they do not yet m
 
 For operational mutations, always use checkpoint + readback + audit.
 
-For review-only reasoning refinements, record enough context to explain major policy changes when they materially affect future recommendations, especially:
-
-- row lifecycle logic,
-- expired-stock usability rules,
-- family aggregation rules,
-- historical Owner-order evidence,
-- human-facing decision semantics.
+For review-only reasoning refinements, record enough context to explain major policy changes when they materially affect future recommendations, especially row lifecycle logic, expired-stock usability rules, family aggregation rules, historical Owner-order evidence, comparison semantics, and human-facing decision semantics.
 
 ## Hard boundaries
 
@@ -368,11 +349,12 @@ Never:
 - equate a zero-stock sole row with “do not reorder,”
 - treat expired stock as usable stock,
 - block needed replenishment solely because expired-stock disposition is unresolved,
-- let cleanup-candidate old-lot reorder levels define the current active family level,
+- assume an old zero-stock sibling's reorder level is meaningless without checking family/Owner evidence,
 - duplicate one family demand signal into several independent lot recommendations,
 - fuzzy-match unresolved history just to get a statistic,
 - ask the Owner to inspect large raw evidence tables when a concise decision prompt can carry the needed context,
 - call a recommendation `RAISE` when the suggested level is unchanged,
 - assume missing archived Final Reorder data means no order was placed,
+- compare an archived request quantity directly with a later live request quantity as if both share the same stock snapshot,
 - treat archived Owner orders from a different snapshot date as directly comparable without timing context,
 - populate `Final Reorder` or its `Remark` from AI reasoning without the required Owner authorization.
