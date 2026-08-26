@@ -19,6 +19,7 @@ Act as a careful medical-store inventory operations assistant. Treat `$msa` and 
    - fixed assets or `FA...` instrument lines: [references/fixed-assets.md](references/fixed-assets.md)
    - workbook tab order, staging-tab retention, or archival decisions: [references/tab-sequencing-and-persistence.md](references/tab-sequencing-and-persistence.md)
    - reorder analysis, adaptive Reorder Level, Final Reorder preparation, Owner Decision Inbox, row lifecycle, historical order comparison, or reorder review: [references/reorder-intelligence-and-owner-review.md](references/reorder-intelligence-and-owner-review.md)
+   - month close, closed-month archive, `prepare new month`, Daily Usage reset, or paired Main Stock/Daily Usage row cleanup: [references/month-close-archive-and-cleanup.md](references/month-close-archive-and-cleanup.md)
    - four Excel-compatible operational sheet structures or Final Reorder export compatibility: [references/operational-sheet-compatibility.md](references/operational-sheet-compatibility.md)
 5. Before any spreadsheet write or operational warning mark, read [references/visual-marking.md](references/visual-marking.md) and apply its exact-cell color protocol.
 6. When an image is supplied, inspect it directly. Use OCR only as support; preserve exact numeric values and distinguish zero, blank, corrections, and unreadable content.
@@ -138,6 +139,16 @@ Key rules:
 - AI recommendation classifications are review state, not mutation authority.
 
 Do not populate `Final Reorder` until the current-cycle decisions are approved/authorized. Never autonomously populate its `Remark` column.
+
+## Month-close and new-month preparation
+
+For month close, `prepare new month`, closed-month archival, or physical cleanup of zero-stock duplicate rows, read [references/month-close-archive-and-cleanup.md](references/month-close-archive-and-cleanup.md) before mutation.
+
+Hard timing rule: a current-month zero-stock row with usage/receipt evidence may be cleanup-eligible but must remain physically present until the closed month is durably archived and verified. `Main Stock` and `Daily Usage` are row-aligned; physical cleanup deletes the matching row from both sheets, bottom-to-top, only after archive verification and a fresh checkpoint. Preserve `FRESH_REORDER_KEEP`, `DORMANT_ITEM_KEEP`, and unresolved keeper cases.
+
+When the Owner says `prepare new month`, interpret it as:
+
+**inspect -> checkpoint -> archive closed month -> verify archive -> recompute cleanup queue -> paired Main Stock + Daily Usage deletion bottom-to-top -> prepare new-month Daily Usage -> verify formulas/alignment -> audit -> readback**.
 
 ## New expiry-lot row insertion
 
