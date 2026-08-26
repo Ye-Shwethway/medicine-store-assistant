@@ -127,10 +127,31 @@ Use row lifecycle reasoning to keep Main Stock concise without losing future reo
 Recommended classifications:
 
 - `ACTIVE_LOT` — positive usable/current stock row or otherwise active operational representative.
-- `SAFE_CLEANUP_CANDIDATE` — zero-stock row where another same-family positive-stock representative exists.
+- `SAFE_CLEANUP_CANDIDATE` — zero-stock row that is redundant because another same-family usable/current representative exists.
+- `FRESH_REORDER_KEEP` — zero-stock row with a fresh/current expiry that must be retained when the positive-stock sibling is expired; use the fresh row as the future reorder representative.
 - `DORMANT_ITEM_KEEP` — zero-stock sole representative retained so the item remains available for future ordering/identity.
-- `DUPLICATE_ZERO_REVIEW` — multiple zero-stock rows exist but no positive-stock representative; Owner should choose a keeper before redundant rows are deleted.
+- `DUPLICATE_ZERO_REVIEW` — multiple zero-stock rows exist but no positive-stock representative; retain at least one suitable/fresh keeper before redundant rows are deleted.
 - `EXPIRED_STOCK_REVIEW` — positive expired stock exists and should not be deleted merely as row cleanup.
+
+### Fresh-zero keeper rule
+
+A positive-stock sibling is **not automatically a valid replacement representative** when that stock is expired.
+
+If an item family contains:
+
+- an expired positive-stock row, and
+- a fresh/current zero-stock row,
+
+keep the fresh zero-stock row. The operational intent may be to order only fresh stock while separately resolving the expired stock. Do not delete the fresh row merely because another family row has a positive quantity.
+
+Example pattern:
+
+- old/expired lot: stock `10`,
+- fresh future-expiry lot: stock `0`.
+
+The fresh row is `FRESH_REORDER_KEEP`; expiry disposition and replenishment remain separate workflows.
+
+When a family has several zero-stock rows and no positive usable representative, prefer preserving a current/fresh representative rather than an obsolete expired row. Do not delete every row in the family.
 
 ### Critical distinction: dormant identity is not reorder suppression
 
@@ -146,7 +167,8 @@ A row classified as cleanup candidate is still review-only until deletion is exp
 
 Before deleting a zero-stock duplicate row:
 
-- verify another representative row preserves the family identity,
+- verify another appropriate representative row preserves the family identity,
+- verify that the supposed representative is not merely an expired-stock row when a fresh zero-stock row should be retained,
 - preserve historical usage/order evidence independently of the row deletion,
 - ensure no unresolved mapping/receipt/audit evidence depends on the row,
 - checkpoint the workbook,
@@ -206,6 +228,44 @@ Example:
 - Order this round: `0`
 
 Meaning: current usable stock already covers the suggested target, so no order is needed in this cycle.
+
+## Practical ordering quantity heuristics
+
+Do not assume the mathematically estimated request quantity is the exact quantity a human operator should submit.
+
+Real ordering is discrete and operational. The Owner may reasonably round or reshape a baseline based on packaging, service experience, cost, expiry risk, and expected demand.
+
+Current practical evidence includes:
+
+- many ordinary items are commonly requested in multiples of `10`;
+- tablets are often requested in at least multiples of `50`;
+- common tablet packaging may be `100 tablets per box`, so an arithmetic baseline such as `220` may reasonably become `250` or `300` when usage is high and expiry risk is low, especially when a box-friendly quantity avoids awkward partial packaging;
+- low-frequency or expensive injections may be ordered in small individual counts;
+- suspensions, eye drops, cream tubes, and other bottle/tube items may also be ordered in small discrete counts;
+- expensive items deserve stronger caution against unnecessary buffer stock;
+- high-use, low-expiry-risk items can justify a larger practical buffer than the bare deterministic gap.
+
+These are **heuristics, not universal formulas**. Never invent a pack size or force every item into the same rounding rule. Use verified product/pack evidence when known and Owner experience when product economics or service practice matter.
+
+A useful ordering pipeline is:
+
+1. deterministic baseline,
+2. identify item type / known pack or practical order increment,
+3. assess usage intensity, expiry risk, cost, supply reliability, and service importance,
+4. apply a defensible discrete rounding/buffer adjustment,
+5. present the resulting order as a recommendation rather than false precision.
+
+Do not overfit the system to one historical Owner quantity. Human decisions are useful evidence but are not guaranteed to be perfectly optimal.
+
+## Uncertainty and sudden events
+
+Medical-store demand is probabilistic. Exact future patient volume cannot be known in advance.
+
+The goal is not a perfect flat formula that prevents every shortage. Use the available factors to make a reasonable forecast and preserve explicit uncertainty.
+
+Sudden outbreaks, unusual patient mix, service changes, emergency events, supply disruptions, or other shocks can still produce shortages even after a reasonable order. Historical sudden-event shortages are useful evidence, but the system must not pretend they were always predictable.
+
+Prefer robust buffers and Owner review where justified rather than claiming exact certainty.
 
 ## Human-facing action wording
 
@@ -340,18 +400,22 @@ Material reasoning-layer changes should be auditable even when they do not yet m
 
 For operational mutations, always use checkpoint + readback + audit.
 
-For review-only reasoning refinements, record enough context to explain major policy changes when they materially affect future recommendations, especially row lifecycle logic, expired-stock usability rules, family aggregation rules, historical Owner-order evidence, comparison semantics, and human-facing decision semantics.
+For review-only reasoning refinements, record enough context to explain major policy changes when they materially affect future recommendations, especially row lifecycle logic, expired-stock usability rules, family aggregation rules, historical Owner-order evidence, comparison semantics, practical order increments, and human-facing decision semantics.
 
 ## Hard boundaries
 
 Never:
 
 - equate a zero-stock sole row with “do not reorder,”
+- delete a fresh zero-stock reorder representative merely because an expired sibling has positive stock,
 - treat expired stock as usable stock,
 - block needed replenishment solely because expired-stock disposition is unresolved,
 - assume an old zero-stock sibling's reorder level is meaningless without checking family/Owner evidence,
 - duplicate one family demand signal into several independent lot recommendations,
 - fuzzy-match unresolved history just to get a statistic,
+- force every item into one flat rounding or pack-size formula,
+- invent pack size or packaging evidence,
+- claim that an estimated request quantity is exact or guaranteed to prevent shortage,
 - ask the Owner to inspect large raw evidence tables when a concise decision prompt can carry the needed context,
 - call a recommendation `RAISE` when the suggested level is unchanged,
 - assume missing archived Final Reorder data means no order was placed,
