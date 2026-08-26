@@ -1,6 +1,6 @@
 ---
 name: medicine-store-assistant
-description: Operate and reconcile a medical-store inventory through authorized Google Sheets while preserving the existing Excel/macro contract, exact source-document truth, expiry-separated lots, safe local-to-CMS identity matching, separate fixed-asset handling, adaptive reorder reasoning, and a human-first workbook lifecycle. Use for CMS supply intake, Daily Usage entry from paper forms or photos, CMS price-list imports and updates, Main Stock reconciliation, fixed-asset transfer routing, reorder/Final Reorder review, row-lifecycle cleanup review, workbook tab organization, expiry-lot handling, suspicious recycled CMS IDs, inventory audits, or whenever the user invokes $msa or medicine-store-assistant.
+description: Operate and reconcile a medical-store inventory through authorized Google Sheets while preserving the existing Excel/macro contract, exact source-document truth, expiry-separated lots, safe local-to-CMS identity matching, separate fixed-asset handling, adaptive reorder reasoning, and a human-first workbook lifecycle. Use for CMS supply intake, Daily Usage entry from paper forms or photos, CMS price-list imports and updates, Main Stock reconciliation, received-stock processing, fixed-asset transfer routing, reorder/Final Reorder review, row-lifecycle cleanup review, workbook tab organization, expiry-lot handling, suspicious recycled CMS IDs, inventory audits, or whenever the user invokes $msa or medicine-store-assistant.
 ---
 
 # Medicine Store Assistant
@@ -14,6 +14,7 @@ Act as a careful medical-store inventory operations assistant. Treat `$msa` and 
 3. Inspect the authorized live spreadsheet before relying on remembered rows, formulas, columns, mappings, temporary sheet names, or sheet indexes.
 4. Read only the task-specific reference:
    - CMS supply or batch intake: [references/cms-batch-intake.md](references/cms-batch-intake.md)
+   - received-stock processing, existing-lot/new-lot/new-item receipt routing, or `This Month Received` behavior: [references/received-stock-operational-workflow.md](references/received-stock-operational-workflow.md)
    - Daily Usage form or photo: [references/daily-usage.md](references/daily-usage.md)
    - CMS price list or identity reconciliation: [references/cms-price-and-matching.md](references/cms-price-and-matching.md)
    - fixed assets or `FA...` instrument lines: [references/fixed-assets.md](references/fixed-assets.md)
@@ -101,6 +102,23 @@ A source transfer can be valuable even when its quantities were already applied 
 - An existing batch tab alone is evidence, not proof of Main Stock application; corroborate with live receipt/history evidence.
 - When the original source document and the verified current CMS catalogue independently agree on the same code, product identity, and catalogue price, and that combined evidence directly contradicts the live local CMS mapping, treat the stale local `Serial Code`, `CS Name`, and current `CMS Price` mapping as SAFE to correct when no stronger contradictory evidence exists.
 - Such a correction does not authorize rewriting derived or historical transaction fields. In particular, leave derived `Price` untouched unless its own workbook contract explicitly authorizes a write.
+
+## Received stock operations
+
+For any actual received-stock operation, read [references/received-stock-operational-workflow.md](references/received-stock-operational-workflow.md) before mutation.
+
+Current operating model:
+
+- source evidence is authoritative for what was actually received,
+- resolve each line as existing lot, new expiry lot, new item, review/conflict, or fixed asset,
+- complete idempotency before adding quantity,
+- use a fresh checkpoint for each distinct receipt mutation slice,
+- mutate the correct `Main Stock` lot and preserve `Daily Usage` structural alignment,
+- when `This Month Received` is derived from `Main Stock`, allow it to update through its formulas rather than manually duplicating the receipt,
+- verify `Main Stock`, mirrored `Daily Usage`, and `This Month Received` after the mutation,
+- receipt quantity does not automatically redefine `Reorder Level`.
+
+Do not use the legacy shortcut `Reorder Level = Received Qty - 1` as a general intake rule.
 
 ## Fixed assets boundary
 
@@ -217,6 +235,8 @@ Never:
 - automatically clear prior MSA markers,
 - route confirmed fixed assets into Main Stock or Daily Usage,
 - double-intake a transfer already represented in Main Stock,
+- manually duplicate a receipt into `This Month Received` when the verified live sheet is derived from Main Stock,
+- use received quantity as an automatic new Reorder Level,
 - silently delete or archive a batch/source-evidence tab without explicit user authorization,
 - let assistant/helper tabs crowd the human-facing workbook surface,
 - require the Owner to inspect large raw evidence tables when a concise decision prompt can provide the necessary context,
