@@ -9,7 +9,7 @@ Keep the live workbook easy for a human operator to use while preserving assista
 The workbook has two broad tab groups:
 
 1. **User-facing operational tabs** — frequently opened by staff or the user.
-2. **Assistant/support tabs** — staging, reconciliation, historical evidence, or computation support.
+2. **Assistant/support tabs** — staging, reconciliation, historical evidence, mapping memory, or computation support.
 
 Tab order is a usability contract. Reordering tabs is allowed when authorized because it does not change the production column contracts inside `Main Stock` or `Daily Usage`.
 
@@ -25,9 +25,10 @@ Keep these tabs at the front when they exist:
 
 After those, place assistant/support tabs such as:
 
+- `Item_Mapping`,
 - `CMS_Batch_<TRANSFER>_<DATE>` staging/evidence tabs,
 - older CMS price-list versions,
-- mapping/helper sheets,
+- temporary review tabs,
 - reconciliation/computation sheets,
 - future assistant-only support tabs.
 
@@ -55,9 +56,33 @@ It is the compact historical index for significant operations such as:
 - marker cleanup decisions,
 - new expiry-lot insertion,
 - fixed-asset intake,
+- mapping-registry creation or material mapping-state changes,
 - archival or deletion of staging tabs.
 
 Do not remove `Audit_Log` as routine workbook cleanup.
+
+## Item_Mapping lifecycle
+
+`Item_Mapping` is a **durable assistant/support registry**, not a temporary review queue.
+
+Its purpose is to preserve dated local-to-CMS mapping evidence, match basis, prior codes, explicit exclusions, and later revalidation state so the agent does not restart every catalogue reconciliation from scratch.
+
+- Keep it behind the user-facing group and `Audit_Log`.
+- Prefer static/agent-managed values over a large web of live formulas unless a specific formula is intentionally approved.
+- Treat `CONFIRMED` mappings as dated evidence that must be revalidated against later catalogues; never convert the tab into a blind `Local Item -> CMS Code` authority.
+- Preserve explicit `EXCLUDED` rows so known catalogue omissions/non-sale stock do not repeatedly return as false-positive review items.
+- Update `Last Confirmed`, catalogue version, match basis, previous-code/retired state, and notes when material evidence changes.
+- Do not delete `Item_Mapping` as normal review cleanup. Rebuilding or replacing the registry is a material lifecycle decision and requires verified preservation of useful history/evidence.
+
+## Temporary review-tab lifecycle
+
+Dedicated review tabs are temporary work queues containing only attention-needed rows.
+
+Examples include CMS mapping review, received-stock review, expiry mismatch review, or another bounded reconciliation queue.
+
+Keep a review tab while review/correction is ongoing. Once every actionable row is resolved or intentionally excluded and final state has been read back, the tab may be removed from the live workbook. If deletion is blocked by the runtime/platform, leaving the completed tab in place is acceptable; report that cleanup remains manual.
+
+Do not confuse a temporary review tab with durable `Item_Mapping` memory or `Audit_Log` history.
 
 ## CMS batch-sheet lifecycle
 
@@ -121,6 +146,6 @@ When reordering tabs:
 
 ## Default principle
 
-**Human-facing operational tabs first; durable audit next; assistant staging/history/support last.**
+**Human-facing operational tabs first; durable audit next; durable mapping memory and assistant staging/history/support last.**
 
 This reference is intended to grow as new workbook tab types or retention needs are introduced.
