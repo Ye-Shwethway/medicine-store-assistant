@@ -201,7 +201,10 @@ Expiry is lot-defining receipt evidence.
 - same item + different expiry normally means a separate lot row,
 - never merge a new fresh receipt into an old expired lot merely because the name/code matches,
 - when a fresh zero-stock representative already exists for a family with expired stock, prefer using/updating the correct fresh lot identity rather than creating unnecessary duplication,
-- if source expiry conflicts with the existing lot's structured expiry, stop and resolve the lot identity rather than silently overwriting it.
+- if source expiry conflicts with the existing lot's structured expiry, stop and resolve the lot identity rather than silently overwriting it,
+- receiving a fresh replacement does **not** automatically authorize discard, stock removal, or row deletion of an older expired lot.
+
+For near-expiry return decisions, FOC retention, expired-stock operational use, rare/critical keep exceptions, CMS discard approval, and eventual discard lifecycle, follow `expiry-return-and-discard-lifecycle.md`.
 
 ## Mutation protocol
 
