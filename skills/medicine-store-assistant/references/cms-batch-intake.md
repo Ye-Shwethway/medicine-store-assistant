@@ -2,6 +2,8 @@
 
 Use this workflow for a CMS issue paper, transfer sheet, supply paper, image, or equivalent source.
 
+For the actual received-stock mutation path after source extraction/classification, also read [received-stock-operational-workflow.md](received-stock-operational-workflow.md). That reference is canonical for existing-lot versus new-lot/new-item routing, cumulative current-month receipt semantics, `Main Stock` / `Daily Usage` paired integrity, `This Month Received` derived-summary behavior, and receipt verification.
+
 ## Mandatory marker preflight
 
 Before mutating `Main Stock` for any new batch intake:
