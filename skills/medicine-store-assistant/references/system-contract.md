@@ -17,6 +17,25 @@ Important sheets may include:
 
 Treat these names as discovery hints, not proof of the current live structure. Inspect the spreadsheet before every operational task.
 
+## Mandatory restore checkpoint and audit invariant
+
+Every **operational mutation** of the live workbook must have a verified restore path before the mutation begins.
+
+1. After resolving and inspecting the authorized live workbook, create a **full-workbook pre-mutation checkpoint copy** before changing operational data, formulas, row structure, production-sheet structure, item identity, expiry, quantity, price/mapping fields, or synchronization logic.
+2. The checkpoint must be created **before** the first operational mutation in that operation. A copy made after the write is evidence of the resulting state, not a valid pre-mutation restore checkpoint.
+3. Give the checkpoint a human-readable name containing the workbook identity, date/time or operation context, and `CHECKPOINT` so it is distinguishable from the live workbook.
+4. Preserve the checkpoint's Drive file ID or stable URL and link it to the corresponding `Audit_Log` entry through `Backup Snapshot ID` or the live equivalent field.
+5. After the mutation, read the affected cells/rows/structure back and verify the intended state before reporting success.
+6. Record every operational mutation in `Audit_Log`. A single logically grouped operation may use one audit row when it clearly summarizes the affected scope, previous state, updated state, and checkpoint ID; do not create one audit row per formatting mark or per cell unless the operation requires that granularity.
+7. If the mutation fails or read-back verification fails, stop further mutation, preserve the checkpoint, report the failure, and use the checkpoint as the restore source when rollback is authorized or required.
+8. Do not overwrite, delete, or repurpose a checkpoint automatically. Checkpoint retention/cleanup is a separate lifecycle decision and must not destroy the only known restore source for an operation.
+
+**Operational mutation** includes, at minimum: inventory values, usage values, item names/identity, expiry values, quantities, CMS mappings/codes/prices, formulas that drive operational state, row insertion/deletion/reordering, production-column changes, production-tab structural changes, and synchronization writes between operational sheets.
+
+**Exception:** purely cosmetic or review-only maintenance that does not change operational values, formulas, row/tab structure, or business logic—such as clearing or applying an approved visual marker, resizing, or formatting-only cleanup—does not require a full-workbook checkpoint. Such actions still follow the visual-marking and read-back rules when applicable.
+
+This checkpoint rule is a hard safety invariant. Do not perform an operational mutation when a pre-mutation checkpoint cannot be created and verified.
+
 ## External compatibility boundary
 
 `Main Stock` and `Daily Usage` synchronize with an existing local Excel workbook and macro system. Preserve their established production range as an external compatibility contract:
@@ -89,4 +108,6 @@ Do not claim that:
 - an identity is certain when evidence is ambiguous,
 - a CMS code is permanently reliable,
 - a write succeeded before read-back verification,
+- a restore checkpoint exists when it was not actually created before the mutation,
+- an audit record exists when it was not written and read back,
 - a connector, repository, or skill grants access that the runtime does not have.
