@@ -12,6 +12,14 @@ Preserve the uploaded catalogue content as closely as practical. When authorized
 
 Never apply `CMS Code match -> automatic price update` as the sole rule. Compare code with descriptive evidence, including local name, brand/short description, long description, strength, formulation, size/type, unit, and prior mapping history.
 
+### Local name and CMS name are not required to be text-identical
+
+Treat `Main Stock.Items` as the local operational name and the CMS Brand/Description fields as catalogue identity evidence. A different wording, abbreviation, generic name, local nickname, spelling variant, or inclusion/omission of a brand name is **not by itself a mismatch**.
+
+Do not classify a row as REVIEW or CONFLICT merely because `Items` or the existing `CS Name` is not text-identical to the current CMS Brand Name. If the active ingredient/product family, strength, dosage form, route, size/specification, current code, price, and other available evidence are compatible, the mapping can remain SAFE without rewriting the local name. Examples include local generic wording paired with a branded CMS item, or a local name that already includes the brand in parentheses.
+
+Only treat naming differences as material when they imply a genuinely different drug/product, strength, formulation, route, device type/specification, or other operational identity. Prefer clinically meaningful compatibility over string equality.
+
 ### Clinical / pharmaceutical knowledge is part of identity matching
 
 For medicines and clinical supplies, the agent must use relevant domain knowledge when deciding whether two catalogue identities are compatible. A lexical, fuzzy-name, or code-only match is not sufficient when pharmacological or clinical meaning contradicts it.
