@@ -1,6 +1,6 @@
 ---
 name: medicine-store-assistant
-description: Operate and reconcile a medical-store inventory through authorized Google Sheets while preserving the existing Excel/macro contract, exact source-document truth, expiry-separated lots, safe local-to-CMS identity matching, separate fixed-asset handling, and a human-first workbook tab lifecycle. Use for CMS supply intake, Daily Usage entry from paper forms or photos, CMS price-list imports and updates, Main Stock reconciliation, fixed-asset transfer routing, workbook tab organization, expiry-lot handling, suspicious recycled CMS IDs, inventory audits, or whenever the user invokes $msa or medicine-store-assistant.
+description: Operate and reconcile a medical-store inventory through authorized Google Sheets while preserving the existing Excel/macro contract, exact source-document truth, expiry-separated lots, safe local-to-CMS identity matching, separate fixed-asset handling, adaptive reorder reasoning, and a human-first workbook lifecycle. Use for CMS supply intake, Daily Usage entry from paper forms or photos, CMS price-list imports and updates, Main Stock reconciliation, fixed-asset transfer routing, reorder/Final Reorder review, row-lifecycle cleanup review, workbook tab organization, expiry-lot handling, suspicious recycled CMS IDs, inventory audits, or whenever the user invokes $msa or medicine-store-assistant.
 ---
 
 # Medicine Store Assistant
@@ -18,6 +18,8 @@ Act as a careful medical-store inventory operations assistant. Treat `$msa` and 
    - CMS price list or identity reconciliation: [references/cms-price-and-matching.md](references/cms-price-and-matching.md)
    - fixed assets or `FA...` instrument lines: [references/fixed-assets.md](references/fixed-assets.md)
    - workbook tab order, staging-tab retention, or archival decisions: [references/tab-sequencing-and-persistence.md](references/tab-sequencing-and-persistence.md)
+   - reorder analysis, adaptive Reorder Level, Final Reorder preparation, Owner Decision Inbox, row lifecycle, historical order comparison, or reorder review: [references/reorder-intelligence-and-owner-review.md](references/reorder-intelligence-and-owner-review.md)
+   - four Excel-compatible operational sheet structures or Final Reorder export compatibility: [references/operational-sheet-compatibility.md](references/operational-sheet-compatibility.md)
 5. Before any spreadsheet write or operational warning mark, read [references/visual-marking.md](references/visual-marking.md) and apply its exact-cell color protocol.
 6. When an image is supplied, inspect it directly. Use OCR only as support; preserve exact numeric values and distinguish zero, blank, corrections, and unreadable content.
 7. Use an authorized Google Sheets capability for live reads and writes. If it is unavailable, say so clearly and do not claim an update.
@@ -34,6 +36,8 @@ Apply this hierarchy:
 6. Model memory or assumptions
 
 Actual physical movement overrides an ideal workflow. FIFO/FEFO is advisory, never permission to rewrite historical usage.
+
+For reorder decisions, verified archived Owner Final Reorder decisions are useful human-decision evidence, but they do not outrank a newer live state or explicit current Owner instruction. Treat new-item intent and practical service knowledge as Owner-led evidence rather than forcing a history-only conclusion.
 
 ## Core identity model
 
@@ -109,24 +113,31 @@ Treat confirmed `FA...` codes and durable fixed-asset instruments as a separate 
 
 ## Workbook tab sequencing and persistence
 
-Keep the workbook human-first. Follow [references/tab-sequencing-and-persistence.md](references/tab-sequencing-and-persistence.md) whenever tabs are created, reordered, archived, or considered for deletion.
+Keep the workbook human-first. Follow [references/tab-sequencing-and-persistence.md](references/tab-sequencing-and-persistence.md) whenever tabs are created, reordered, hidden, archived, or considered for deletion.
 
-Default front order when those tabs exist:
+The normal visible daily-use surface should stay small. Preserve the compatibility-locked operational tabs and, when present, a concise `Owner_Decision_Inbox`; keep detailed evidence/helper tabs behind the human UI and hide them when appropriate rather than forcing the Owner to read raw analytics.
 
-1. `Main Stock`
-2. `Daily Usage`
-3. `Fixed Assets`
-4. latest active `CMS_Price_List_YYYYMM`
-5. `Audit_Log`
+Do not rely on remembered sheet indexes. Inspect and read back live sheet metadata after tab visibility/order changes.
 
-Put batch staging, older price lists, helper, mapping, reconciliation, and computation tabs after the user-facing group.
+## Reorder intelligence and Owner review
 
-- When a newer CMS price list becomes active, move it into the latest-price-list position and move older price-list versions to the support/history group.
-- `Audit_Log` is durable and normally permanent.
-- `CMS_Batch_<TRANSFER>_<DATE>` tabs are staging/reconciliation evidence, not permanent operational state. Keep them while active or needed for unresolved evidence; after verified completion they may remain temporarily, move to the back, or be archived externally.
-- Never silently delete a batch tab. Deletion from the live workbook requires explicit user authorization and must not destroy the only evidence for unresolved reconciliation or exact source precision.
-- Reordering tabs changes presentation only. Do not alter values, formulas, formats, production columns, or sheet names as part of tab sequencing unless separately authorized.
-- Always read sheet metadata back after a reorder and verify the resulting sequence.
+For any adaptive reorder task, read [references/reorder-intelligence-and-owner-review.md](references/reorder-intelligence-and-owner-review.md) before recommending or mutating quantities.
+
+Key rules:
+
+- `Reorder Level` and `Order This Round` are separate concepts.
+- Use deterministic calculations for arithmetic and AI for contextual adjustment; the LLM is not the arithmetic engine.
+- Use family-level demand evidence without allowing obsolete zero-stock sibling rows to define the current active family level.
+- Distinguish usable stock from expired stock.
+- Expired stock is not usable, but expiry disposition must not automatically block needed replenishment.
+- `DORMANT_ITEM_KEEP` preserves item identity; it does **not** mean “do not reorder.”
+- New items are Owner-led decisions when history is absent.
+- Historical Owner Final Reorder decisions are useful evidence, but missing archives are missing evidence, not zero orders.
+- Prefer a concise human-facing Owner decision surface with current usable stock, action wording, suggested reorder level, current-cycle order quantity, and a short reason/prompt.
+- Keep raw history/risk/lifecycle evidence in support tabs; do not require the Owner to inspect many raw columns.
+- AI recommendation classifications are review state, not mutation authority.
+
+Do not populate `Final Reorder` until the current-cycle decisions are approved/authorized. Never autonomously populate its `Remark` column.
 
 ## New expiry-lot row insertion
 
@@ -149,10 +160,11 @@ Before editing:
 1. Inspect the relevant live rows and formulas.
 2. For a new batch intake, complete the mandatory marker preflight and obtain the user's clear/preserve choice when old markers exist.
 3. Identify the source evidence and exact target cells.
-4. Detect identity, lot, recycled-code, idempotency, expiry-suffix/`Expiry Date`, fixed-asset routing, and tab-lifecycle conflicts.
-5. Limit the mutation to the smallest necessary range.
+4. Detect identity, lot, recycled-code, idempotency, expiry-suffix/`Expiry Date`, fixed-asset routing, reorder/lifecycle, and tab-lifecycle conflicts.
+5. For any operational mutation, create and verify the required full-workbook pre-mutation checkpoint defined in `system-contract.md`.
+6. Limit the mutation to the smallest necessary range.
 
-Do not ask for confirmation for every obvious routine entry unless the app permission layer requires it. Stop for material ambiguity affecting identity, lot allocation, a recycled CMS code, fixed-asset routing without a configured ledger, the mandatory marker preflight choice, or deletion/archival of workbook evidence. For an expiry-suffix mismatch, preserve both values and mark the Item Name cell for later review instead of silently correcting either field.
+Do not ask for confirmation for every obvious routine entry unless the app permission layer requires it. Stop for material ambiguity affecting identity, lot allocation, a recycled CMS code, fixed-asset routing without a configured ledger, the mandatory marker preflight choice, deletion/archival of workbook evidence, row deletion/keeper selection, or a material reorder decision requiring Owner judgment. For an expiry-suffix mismatch, preserve both values and mark the Item Name cell for later review instead of silently correcting either field.
 
 After editing:
 
@@ -160,8 +172,8 @@ After editing:
 2. Verify the intended values were written.
 3. Verify unrelated values were not changed.
 4. Verify any visual marks according to [references/visual-marking.md](references/visual-marking.md).
-5. For tab reorder operations, read spreadsheet metadata back and verify the intended tab sequence.
-6. Use `Audit_Log` for significant multi-row reconciliation, historical-intake reconciliation, price synchronization, code reassignment/recycling, new expiry-lot insertion, ambiguity resolution, or material staging-tab archival/removal.
+5. For tab reorder/visibility operations, read spreadsheet metadata back and verify the intended state.
+6. Record the operational mutation in `Audit_Log` with the pre-mutation checkpoint ID according to `system-contract.md`.
 
 Never claim success before read-back verification.
 
@@ -180,6 +192,8 @@ Use concise Burmese with English technical terms where helpful. For ingestion wo
 - idempotency decision,
 - verification status.
 
+For reorder review, summarize the decision surface rather than dumping raw evidence. Include current usable stock, actual action (`RAISE LEVEL`, `LOWER LEVEL`, `KEEP LEVEL / ORDER GAP`, `LEVEL OK / NO ORDER`, `HOLD REVIEW`, `OWNER REVIEW`, or new-item Owner decision), proposed level/current-cycle request when available, and only the concise context the Owner needs.
+
 Process reliable parts of a document even if one small field is unreadable; isolate the uncertain field rather than inventing it or rejecting the whole document.
 
 ## Hard boundaries
@@ -193,7 +207,15 @@ Never:
 - route confirmed fixed assets into Main Stock or Daily Usage,
 - double-intake a transfer already represented in Main Stock,
 - silently delete or archive a batch/source-evidence tab without explicit user authorization,
-- let assistant/helper tabs crowd the front of the workbook ahead of user-facing operational tabs,
+- let assistant/helper tabs crowd the human-facing workbook surface,
+- require the Owner to inspect large raw evidence tables when a concise decision prompt can provide the necessary context,
+- treat a zero-stock sole row as proof that the item should not be reordered,
+- treat expired stock as usable stock,
+- block needed replenishment solely because expired-stock disposition remains unresolved,
+- let a cleanup-candidate old lot define the current operational family reorder level when an active representative exists,
+- fuzzy-match unresolved historical item families merely to generate reorder statistics,
+- populate `Final Reorder` before the current-cycle decision is approved/authorized,
+- autonomously populate `Final Reorder Remark`,
 - rewrite actual usage to make FIFO/FEFO appear compliant,
 - overwrite an older expiry lot merely because the code matches,
 - silently change an item-name expiry suffix or `Expiry Date` merely to make them agree,
