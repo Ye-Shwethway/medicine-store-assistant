@@ -12,6 +12,23 @@ Preserve the uploaded catalogue content as closely as practical. When authorized
 
 Never apply `CMS Code match -> automatic price update` as the sole rule. Compare code with descriptive evidence, including local name, brand/short description, long description, strength, formulation, size/type, unit, and prior mapping history.
 
+### Clinical / pharmaceutical knowledge is part of identity matching
+
+For medicines and clinical supplies, the agent must use relevant domain knowledge when deciding whether two catalogue identities are compatible. A lexical, fuzzy-name, or code-only match is not sufficient when pharmacological or clinical meaning contradicts it.
+
+At minimum, consider when applicable:
+
+- active ingredient / generic drug identity,
+- salt or chemical form when clinically meaningful,
+- strength and concentration,
+- dosage form and route (tablet, injection, cream, eye drop, etc.),
+- combination-product ingredients and their strengths,
+- device purpose, dimensions, gauge, curve, length, adult/child type, or other clinically meaningful specification.
+
+Examples of hard incompatibility include `ciprofloxacin != tinidazole`, `ceftriaxone != cefoperazone + sulbactam`, and `adrenaline/epinephrine != noradrenaline/norepinephrine`. Do not allow a matching code, similar spelling, same price, or fuzzy text similarity to override such a clinical contradiction.
+
+Use domain knowledge as a safety check, not as permission to invent catalogue facts. If the agent is not sufficiently certain about the pharmacology, formulation, strength, device specification, or exact catalogue candidate, classify the row as REVIEW and do not force a correction. When uncertainty materially affects a mapping decision, prefer authoritative catalogue/source evidence and external verification where appropriate.
+
 Before comparing local names, normalize only harmless variation. A clearly terminal expiry suffix such as `(3/2031)`, `(11/2027)`, or `(8/29)` is lot metadata and should be ignored for product-identity matching. Do not strip product-defining parenthetical text such as brand/manufacturer, country, size/volume, strength, formulation, adult/child type, gauge, or device dimensions.
 
 If a local item name contains an expiry suffix and the row also has an `Expiry Date` value, cross-check them. If they disagree:
@@ -26,8 +43,9 @@ Treat the dedicated `Expiry Date` column as the structured live expiry field unl
 Block or review automatic propagation when evidence includes:
 
 - the same code with an unrelated product description,
-- changed strength or formulation,
-- changed device size, gauge, or type,
+- changed active ingredient, strength, concentration, dosage form, or formulation,
+- a different combination drug or clinically different salt/form,
+- changed device size, gauge, curve, length, purpose, or type,
 - an implausible price change paired with description mismatch,
 - a code retired and later reused for another item.
 
@@ -41,7 +59,7 @@ For `Serial Code present + CS Name blank` rows:
 
 1. Look up the current catalogue identity for that code.
 2. Compare it with the normalized local item name, ignoring only a terminal expiry suffix.
-3. Check clinically and operationally meaningful signals such as strength, formulation, size/volume, unit, price plausibility, manufacturer/brand clues, and same-code sibling lots.
+3. Check clinically and operationally meaningful signals such as active ingredient, strength, formulation, size/volume, unit, price plausibility, manufacturer/brand clues, and same-code sibling lots.
 4. Write `CS Name` only when the combined evidence is SAFE; do not rely on the code alone.
 5. If a same-code sibling lot already has a verified CS Name and the normalized product identity is compatible, that sibling history is strong supporting evidence but not permission to ignore a current contradiction.
 6. Mark each successfully written and read-back-verified CS Name cell green according to `visual-marking.md`.
@@ -67,7 +85,7 @@ Do not change the derived `Price` field as part of this correction merely becaus
 
 When identity is compatible, update only the appropriate current CMS price field allowed by the live sheet contract. Do not overwrite receipt-time prices or other genuine historical transaction truth because the current catalogue changed.
 
-Preserve the local operational item name. Model the relationship as `Local Name <-> CMS catalogue identity/history`, allowing CMS brand or code to change over time.
+Preserve the local operational item name unless the user explicitly authorizes reconciling the local identity/specification to authoritative catalogue evidence. Model the relationship as `Local Name <-> CMS catalogue identity/history`, allowing CMS brand or code to change over time.
 
 ## Audit
 
