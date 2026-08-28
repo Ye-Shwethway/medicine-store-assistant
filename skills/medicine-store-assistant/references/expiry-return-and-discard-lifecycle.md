@@ -71,6 +71,25 @@ This is especially useful when:
 
 Do not force this mode on items whose service importance or supply reliability makes one-month cover unsafe.
 
+For the current review-helper implementation, when adequate family-level evidence exists, use this conservative deterministic proposal baseline:
+
+`One-Month Cover Baseline = CEILING(max(Historical Monthly Average, Recent 3-Month Average, Current-Month Usage), 1)`
+
+Then:
+
+`Return Candidate Qty = max(Current Live Qty - One-Month Cover Baseline, 0)`
+
+Interpret this as a **proposal floor for Owner review**, not a universal stocking formula. It intentionally uses the highest of broad history, recent history, and current-month realized usage to reduce under-retention risk.
+
+Important boundaries:
+
+- do not round this proposal to tablet/box/pack multiples unless the relevant pack increment is verified,
+- do not treat a partial-month spike as guaranteed future demand; it is conservative evidence only,
+- if current stock is already at or below the one-month cover baseline, propose `KEEP ALL` rather than a return quantity,
+- if family history is unavailable and current-month usage is zero, leave the quantity proposal blank and label it `INSUFFICIENT HISTORY / OWNER REVIEW`,
+- **never infer that an item is standby or low-use merely because history is missing**,
+- only use `RETURN ALL / REORDER FRESH` when the Owner confirms low-use/standby/service context or other verified evidence supports it.
+
 ### Mode C — Return all and reorder fresh
 
 For very-low-use or standby-only items, retaining even one month of calculated demand may not be meaningful.
@@ -95,6 +114,7 @@ Human-facing action wording may include:
 - `RETURN ALL / REORDER FRESH` — very-low-use or standby item where retaining the current lot is not worthwhile.
 - `KEEP FOR USE` — expected consumption before expiry supports keeping the lot.
 - `OWNER REVIEW` — criticality, rarity, service context, or supply uncertainty makes automatic advice unsafe.
+- `INSUFFICIENT HISTORY / OWNER REVIEW` — the helper cannot support an exact retain/return quantity without inventing demand.
 
 ## Expired-stock operational states
 
