@@ -77,8 +77,15 @@ The next-month rule applies only to the final-report submission date fields such
 
 ## New-month reset structural preflight
 
-Any future workflow that clears prior-month OPD/IPD entry values must first resolve protected structure separately for each source tab.
+Any workflow that clears prior-month OPD/IPD entry values must first resolve **all** protected `1..31` structural rows independently for each source tab.
 
-Minimum protected structure includes the live `1..31` day-header row on OPD and the independently resolved `1..31` day-header row on IPD.
+Current analyzed template expectation:
 
-Never build a single shared row-number assumption for both tabs.
+- OPD: 14 protected day-header rows
+- IPD: 14 protected day-header rows
+
+Never stop after the first match and never use one tab's row set for the other.
+
+The runtime must scan the full used report area, discover every ordered `1..31` row, exclude the full discovered sets from reset ranges, and verify them after clearing.
+
+If the discovered count or coordinates differ from the known template, treat that as a layout change and re-resolve before mutation.
