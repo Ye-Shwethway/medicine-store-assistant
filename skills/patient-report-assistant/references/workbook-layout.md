@@ -51,26 +51,52 @@ Any template redesign is outside the routine transcription workflow.
 
 ## Protected day-header rows
 
-The OPD and IPD tabs each contain a structural day-header row with calendar day numbers `1` through `31`.
+The OPD and IPD tabs contain multiple structural rows whose day columns are the ordered calendar sequence `1` through `31`.
 
-These day numbers are **template structure**, not monthly patient data.
+These rows are **template structure**, not monthly patient data, and every one of them must survive a new-month reset.
+
+### July 2026 template — verified protected rows
+
+In the currently analyzed template, the protected `1..31` rows are:
+
+**OPD — 14 rows**
+
+`5, 18, 21, 22, 25, 31, 46, 57, 64, 79, 84, 87, 101, 115`
+
+**IPD — 14 rows**
+
+`5, 18, 27, 28, 38, 45, 60, 71, 78, 93, 97, 100, 115, 128`
+
+The OPD and IPD lists are intentionally separate. Never assume matching row numbers between the two tabs.
 
 ### Mandatory protection rule
 
 Before any new-month clearing/reset operation:
 
-1. inspect OPD independently and locate the row whose day columns contain the ordered sequence `1, 2, 3, ... 31`;
-2. inspect IPD independently and locate its own `1, 2, 3, ... 31` day-header row;
-3. mark both resolved rows as protected structure for the current operation;
-4. exclude those rows from every value-clearing/reset range;
-5. read them back after the reset and verify all day numbers remain intact.
+1. inspect OPD across the full used report area and find **every** row whose day columns contain the ordered sequence `1, 2, 3, ... 31`;
+2. inspect IPD independently across its full used report area and find **every** such row;
+3. compare the live-discovered rows against the expected template structure when a known template is in use;
+4. mark the complete discovered set on each tab as protected structure;
+5. exclude all protected rows from every value-clearing/reset range;
+6. after reset, read back every protected row and verify that the full `1..31` sequence remains intact.
 
-Do not assume the OPD and IPD day-header rows share the same row number.
+Do not stop after finding the first `1..31` row.
 
-The analyzed July 2026 workbook currently places both headers on row 5, but this is an observed template fact only, not a permanent coordinate contract.
+### Structural mismatch rule
+
+The row lists above document the analyzed July 2026 template, but runtime safety depends on live discovery.
+
+If:
+
+- the number of discovered day-header rows changes,
+- an expected row no longer contains `1..31`,
+- an additional `1..31` row appears,
+- or OPD/IPD structure has shifted,
+
+do not perform a broad reset using stale coordinates. Re-resolve the live structure first and report the mismatch.
 
 ### Never clear structural day values
 
-A month-preparation/reset operation must never delete, blank, replace, renumber, or shift the `1..31` day values.
+A month-preparation/reset operation must never delete, blank, replace, renumber, or shift any `1..31` day-header values.
 
-If the sequence cannot be resolved confidently on either tab, stop the reset for that tab and report the structural ambiguity rather than clearing broad ranges.
+If the complete structural set cannot be resolved confidently for either tab, stop the reset for that tab rather than clearing broad ranges.
