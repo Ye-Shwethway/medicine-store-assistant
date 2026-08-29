@@ -74,3 +74,11 @@ Example for August 2026 data:
 - IPD month-name field -> `August`
 
 The next-month rule applies only to the final-report submission date fields such as `Monthly Report!K9` and the matching signature date.
+
+## New-month reset structural preflight
+
+Any future workflow that clears prior-month OPD/IPD entry values must first resolve protected structure separately for each source tab.
+
+Minimum protected structure includes the live `1..31` day-header row on OPD and the independently resolved `1..31` day-header row on IPD.
+
+Never build a single shared row-number assumption for both tabs.

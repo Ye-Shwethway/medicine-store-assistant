@@ -48,3 +48,29 @@ Routine data entry must not change:
 - or report labels.
 
 Any template redesign is outside the routine transcription workflow.
+
+## Protected day-header rows
+
+The OPD and IPD tabs each contain a structural day-header row with calendar day numbers `1` through `31`.
+
+These day numbers are **template structure**, not monthly patient data.
+
+### Mandatory protection rule
+
+Before any new-month clearing/reset operation:
+
+1. inspect OPD independently and locate the row whose day columns contain the ordered sequence `1, 2, 3, ... 31`;
+2. inspect IPD independently and locate its own `1, 2, 3, ... 31` day-header row;
+3. mark both resolved rows as protected structure for the current operation;
+4. exclude those rows from every value-clearing/reset range;
+5. read them back after the reset and verify all day numbers remain intact.
+
+Do not assume the OPD and IPD day-header rows share the same row number.
+
+The analyzed July 2026 workbook currently places both headers on row 5, but this is an observed template fact only, not a permanent coordinate contract.
+
+### Never clear structural day values
+
+A month-preparation/reset operation must never delete, blank, replace, renumber, or shift the `1..31` day values.
+
+If the sequence cannot be resolved confidently on either tab, stop the reset for that tab and report the structural ambiguity rather than clearing broad ranges.

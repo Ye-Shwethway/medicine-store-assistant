@@ -30,7 +30,8 @@ This skill is independent from Medicine Store Assistant and from the Medicine St
    - non-formula/manual report fields: [references/monthly-report-manual-fields.md](references/monthly-report-manual-fields.md)
 5. Never overwrite a formula, structural label, merged-layout cell, or manual-only report field merely because it appears blank or unusual.
 6. When the reporting month is confirmed, keep the OPD/IPD source-tab `Month/Year` and month-name fields synchronized to the dataset month/year; do not apply the next-month submission-date rule to them.
-7. After every authorized source-data write, read back the affected OPD/IPD cells and then verify the relevant Monthly Report outputs.
+7. Before any new-month OPD/IPD clearing, resolve the structural `1..31` day-header row independently on OPD and IPD, protect both rows from deletion/blanking, and never assume they use the same row number.
+8. After every authorized source-data write, read back the affected OPD/IPD cells and then verify the relevant Monthly Report outputs.
 
 ## Evidence order
 
