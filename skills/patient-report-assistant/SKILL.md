@@ -28,6 +28,8 @@ This skill is independent from Medicine Store Assistant and from the Medicine St
    - workbook structure and source/report relationships: [references/workbook-layout.md](references/workbook-layout.md)
    - post-entry final report verification: [references/monthly-report-validation.md](references/monthly-report-validation.md)
    - non-formula/manual report fields: [references/monthly-report-manual-fields.md](references/monthly-report-manual-fields.md)
+   - new-month preparation/reset: [references/new-month-prepare.md](references/new-month-prepare.md)
+   - audit logging and restore checkpoints: [references/audit-and-restore.md](references/audit-and-restore.md)
 5. Never overwrite a formula, structural label, merged-layout cell, or manual-only report field merely because it appears blank or unusual.
 6. When the reporting month is confirmed, keep the OPD/IPD source-tab `Month/Year` and month-name fields synchronized to the dataset month/year; do not apply the next-month submission-date rule to them.
 7. Before any new-month OPD/IPD clearing, scan the full used area of each tab and resolve **every** structural row containing the ordered `1..31` day sequence. Protect the complete OPD set and complete IPD set independently from deletion/blanking; never stop at the first match or assume the two tabs share row coordinates.
@@ -68,6 +70,19 @@ Do not automatically write:
 - or unclear source values.
 
 Manual-field writes follow `references/monthly-report-manual-fields.md` exactly. Only the report-period heading and the two report-date fields may currently be auto-derived; Owner-supplied and locked fields must never be inferred.
+
+## Audit and restore requirement
+
+Before any destructive or reset workflow, including New Month Prepare:
+
+1. ensure `PRA Audit Log` and `PRA Restore Checkpoints` are available;
+2. create a restore checkpoint covering only the cells that will be mutated;
+3. log the planned operation;
+4. perform the mutation;
+5. read back and verify;
+6. log the result.
+
+If checkpoint creation or audit logging fails, do not perform the destructive mutation.
 
 ## Completion rule
 
