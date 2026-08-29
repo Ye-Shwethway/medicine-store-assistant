@@ -1,0 +1,13 @@
+interface:
+  display_name: Patient Report Assistant
+  short_description: Enter and verify monthly patient reports
+  default_prompt: >-
+    Use patient-report-assistant (short invocation: $pra) to transcribe this
+    OPD/IPD patient-report source and verify the Monthly Report.
+policy:
+  products:
+    - chatgpt
+    - codex
+    - api
+    - atlas
+  allow_implicit_invocation: true
