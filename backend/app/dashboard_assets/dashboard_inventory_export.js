@@ -33,6 +33,8 @@
     const choice=select?.value||'main-stock';
     const preset=await resolvePreset(choice);
     const params=new URLSearchParams({preset});
+    const displayName=(select?.selectedOptions?.[0]?.textContent||'Main Stock').replace(/^Custom\s*·\s*/,'').trim();
+    if(displayName)params.set('export_name',displayName);
     const headers=[...panel.querySelectorAll('#inventoryViewTable thead th[data-field]')];
     const fields=headers.map(th=>th.dataset.field).filter(Boolean);
     if(fields.length)params.set('fields',fields.join(','));

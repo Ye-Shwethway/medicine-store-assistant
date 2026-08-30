@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+import re
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
@@ -190,6 +191,12 @@ def _resolve_request(
     return view, columns, rows
 
 
+def _safe_export_stem(value: str | None, fallback: str) -> str:
+    source = (value or fallback).strip().lower()
+    stem = re.sub(r'[^a-z0-9]+', '-', source).strip('-')
+    return stem[:80] or 'inventory'
+
+
 def _response_headers(filename: str) -> dict[str, str]:
     return {
         "Content-Disposition": f'attachment; filename="{filename}"',
@@ -206,6 +213,7 @@ def inventory_view_export_xlsx(
     preset: str = Query(default="main-stock"),
     fields: str | None = Query(default=None, description="Optional comma-separated registered field keys in export order."),
     column_labels: str | None = Query(default=None, max_length=MAX_COLUMN_LABELS_QUERY, description="Optional JSON object of presentation-only header labels keyed by selected registered field."),
+    export_name: str | None = Query(default=None, max_length=120, description="Optional presentation-only export filename label."),
     q: str | None = None,
     mapping_status: str | None = Query(default=None, max_length=64),
     source_classification: str | None = Query(default=None, max_length=64),
@@ -227,7 +235,7 @@ def inventory_view_export_xlsx(
     return Response(
         content=_serialize_xlsx(view, columns, rows),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers=_response_headers(f"msa-{view.view_id}.xlsx"),
+        headers=_response_headers(f"msa-{_safe_export_stem(export_name, view.name)}.xlsx"),
     )
 
 
@@ -236,6 +244,7 @@ def inventory_view_export_csv(
     preset: str = Query(default="main-stock"),
     fields: str | None = Query(default=None, description="Optional comma-separated registered field keys in export order."),
     column_labels: str | None = Query(default=None, max_length=MAX_COLUMN_LABELS_QUERY, description="Optional JSON object of presentation-only header labels keyed by selected registered field."),
+    export_name: str | None = Query(default=None, max_length=120, description="Optional presentation-only export filename label."),
     q: str | None = None,
     mapping_status: str | None = Query(default=None, max_length=64),
     source_classification: str | None = Query(default=None, max_length=64),
@@ -258,5 +267,5 @@ def inventory_view_export_csv(
     return Response(
         content=("\ufeff" + csv_text).encode("utf-8"),
         media_type="text/csv; charset=utf-8",
-        headers=_response_headers(f"msa-{view.view_id}.csv"),
+        headers=_response_headers(f"msa-{_safe_export_stem(export_name, view.name)}.csv"),
     )

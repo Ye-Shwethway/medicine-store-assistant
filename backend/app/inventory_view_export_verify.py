@@ -14,6 +14,7 @@ def _kwargs(**overrides):
         "preset": "cms-mapping-review",
         "fields": "local_item_name,cms_code",
         "column_labels": None,
+        "export_name": None,
         "q": "tablet",
         "mapping_status": "REVIEW_REQUIRED",
         "source_classification": None,
@@ -62,13 +63,15 @@ def main() -> None:
         assert len(worksheet.tables) == 1
 
         custom_labels = json.dumps({"local_item_name": "Medicine Name", "cms_code": "Catalogue Code"})
-        custom_xlsx = export.inventory_view_export_xlsx(**_kwargs(column_labels=custom_labels))
+        custom_xlsx = export.inventory_view_export_xlsx(**_kwargs(column_labels=custom_labels, export_name='TEST STOCK'))
+        assert custom_xlsx.headers['content-disposition'] == 'attachment; filename="msa-test-stock.xlsx"'
         custom_book = load_workbook(io.BytesIO(custom_xlsx.body), data_only=False)
         custom_sheet = custom_book["CMS Mapping Review"]
         assert custom_sheet["A1"].value == "Medicine Name"
         assert custom_sheet["B1"].value == "Catalogue Code"
 
-        csv_response = export.inventory_view_export_csv(**_kwargs(column_labels=custom_labels))
+        csv_response = export.inventory_view_export_csv(**_kwargs(column_labels=custom_labels, export_name="TEST STOCK"))
+        assert csv_response.headers["content-disposition"] == 'attachment; filename="msa-test-stock.csv"'
         text = csv_response.body.decode("utf-8")
         assert text.startswith("\ufeffMedicine Name,Catalogue Code\n")
         assert "'=SUM(A1:A2),'@CMS-1" in text
