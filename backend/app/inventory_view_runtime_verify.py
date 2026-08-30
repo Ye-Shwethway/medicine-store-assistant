@@ -55,6 +55,8 @@ def main() -> None:
     export_kwargs = dict(
         preset="main-stock",
         fields="local_item_name,expiry_date,current_qty,catalogue_price,cms_code",
+        column_labels=None,
+        export_name=None,
         q=None,
         mapping_status=None,
         source_classification=None,
