@@ -46,8 +46,8 @@ await page.addScriptTag({path:script});
 
 const button=page.getByRole('button',{name:'Export Excel'});
 assert.equal(await button.isVisible(),true);
-const order=await page.locator('.inventory-view-toolbar > *').evaluateAll(nodes=>nodes.map(node=>node.id));
-assert.ok(order.indexOf('inventoryExportExcel')<order.indexOf('inventoryViewRefresh'),'Export Excel should sit before Refresh');
+const stripOrder=await page.locator('.inventory-mobile-action-strip > *').evaluateAll(nodes=>nodes.map(node=>node.id));
+assert.ok(stripOrder.indexOf('inventoryExportExcel')<stripOrder.indexOf('inventoryViewRefresh'),'Export Excel should stay before Refresh inside the compact action strip');
 await button.click();
 await page.waitForFunction(()=>Boolean(window.__exportHref));
 let href=await page.evaluate(()=>window.__exportHref);
