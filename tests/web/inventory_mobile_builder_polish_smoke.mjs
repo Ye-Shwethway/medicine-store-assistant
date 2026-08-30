@@ -55,8 +55,38 @@ await dialog.locator('[data-builder-cancel]').click();
 
 await page.locator('#inventoryPresetSelect').selectOption('custom:sv-1');
 await page.getByText('Medicine Name',{exact:true}).waitFor();
-const actionBoxes=await page.locator('.inventory-saved-view-actions button').evaluateAll(nodes=>nodes.map(node=>{const r=node.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,height:r.height}}));
-assert.ok(actionBoxes.every(box=>box.left>=0&&box.right<=390.5&&box.height>=43.5),'saved-view mobile actions must fit viewport with touch targets');
+const tableActionsToggle=page.locator('#inventoryMobileTableActionsToggle');
+assert.equal(await tableActionsToggle.isVisible(),true,'mobile must expose one compact table-actions disclosure');
+assert.equal(await page.locator('.inventory-saved-view-actions').isVisible(),false,'saved-view CRUD actions must be collapsed by default on mobile');
+await tableActionsToggle.click();
+assert.equal(await page.locator('.inventory-saved-view-actions').isVisible(),true,'table-actions disclosure must reveal saved-view CRUD actions');
+const actionStripBox=await page.locator('.inventory-mobile-action-strip').boundingBox();
+assert.ok(actionStripBox && actionStripBox.height<=44.5,'routine mobile actions must stay in one compact strip');
+await tableActionsToggle.click();
+
+const cell=page.getByRole('cell',{name:'Alpha'});
+const cellBox=await cell.boundingBox();
+assert.ok(cellBox,'test cell must render');
+const cx=cellBox.x+Math.min(20,cellBox.width/2),cy=cellBox.y+Math.min(20,cellBox.height/2);
+await cell.dispatchEvent('pointerdown',{pointerType:'touch',pointerId:71,clientX:cx,clientY:cy,button:0,buttons:1});
+await cell.dispatchEvent('pointermove',{pointerType:'touch',pointerId:71,clientX:cx,clientY:cy+42,button:0,buttons:1});
+await cell.dispatchEvent('pointerup',{pointerType:'touch',pointerId:71,clientX:cx,clientY:cy+42,button:0,buttons:0});
+assert.equal(await page.locator('#inventorySelectionBar').isVisible(),false,'touch scroll gesture must not create a cell selection');
+await cell.dispatchEvent('pointerdown',{pointerType:'touch',pointerId:72,clientX:cx,clientY:cy,button:0,buttons:1});
+await cell.dispatchEvent('pointerup',{pointerType:'touch',pointerId:72,clientX:cx+2,clientY:cy+2,button:0,buttons:0});
+await page.getByText('1 cell selected',{exact:true}).waitFor();
+assert.equal(await page.locator('#inventorySelectionBar').isVisible(),true,'stationary touch tap must still select a cell');
+await page.locator('#inventoryClearSelection').click();
+
+await page.locator('#inventoryFocusToggle').click();
+assert.equal(await page.locator('.view[data-panel="inventory"]').evaluate(el=>el.classList.contains('inventory-focus-mode')),true,'focus mode must activate');
+assert.equal(await tableActionsToggle.isVisible(),false,'focus mode must hide table-management disclosure');
+const focusToolbarBox=await page.locator('.inventory-view-toolbar').boundingBox();
+const focusTableBox=await page.locator('.inventory-view-table-wrap').boundingBox();
+assert.ok(focusToolbarBox && focusToolbarBox.height<=52,'focus mode controls must stay compact');
+assert.ok(focusTableBox && focusTableBox.height>=680,'focus mode must give most of the phone viewport to the table');
+await page.locator('#inventoryFocusToggle').click();
+
 const requestPromise=page.waitForRequest(request=>request.url().includes('/dashboard/api/inventory-view/export.xlsx?'));
 await page.locator('#inventoryExportExcel').click();
 const exportRequest=await requestPromise;
@@ -66,4 +96,4 @@ assert.match(href,/export_name=TEST(?:\+|%20)STOCK/,'custom export must send cur
 assert.match(href,/column_labels=/,'custom export must retain displayed headers');
 
 await browser.close();
-console.log('inventory_mobile_builder_polish=pass viewport=390x844 bottom_sheet=pass stacked_fields=pass touch_targets=pass saved_actions=pass custom_export_name=pass');
+console.log('inventory_mobile_builder_polish=pass viewport=390x844 table_first=pass actions_collapsed=pass touch_scroll_no_select=pass tap_select=pass focus_table_space=pass custom_export_name=pass');
