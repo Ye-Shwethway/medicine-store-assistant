@@ -35,6 +35,10 @@ await page.addScriptTag({path:viewsScript});
 await page.addScriptTag({path:exportScript});
 await page.getByRole('cell',{name:'Alpha'}).waitFor();
 
+const tableActionsToggle=page.locator('#inventoryMobileTableActionsToggle');
+assert.equal(await tableActionsToggle.isVisible(),true,'mobile must expose one compact table-actions disclosure');
+assert.equal(await page.locator('.inventory-saved-view-actions').isVisible(),false,'saved-view CRUD actions must be collapsed by default on mobile');
+await tableActionsToggle.click();
 await page.locator('#inventoryNewTable').click();
 const dialog=page.locator('.inventory-table-builder');
 await dialog.waitFor();
@@ -52,12 +56,12 @@ for(const selector of ['[data-builder-close]','[data-builder-move="up"]','[data-
   assert.ok(box && box.height>=43.5,`${selector} must provide a 44px touch target`);
 }
 await dialog.locator('[data-builder-cancel]').click();
+await tableActionsToggle.click();
 
 await page.locator('#inventoryPresetSelect').selectOption('custom:sv-1');
 await page.getByText('Medicine Name',{exact:true}).waitFor();
-const tableActionsToggle=page.locator('#inventoryMobileTableActionsToggle');
-assert.equal(await tableActionsToggle.isVisible(),true,'mobile must expose one compact table-actions disclosure');
-assert.equal(await page.locator('.inventory-saved-view-actions').isVisible(),false,'saved-view CRUD actions must be collapsed by default on mobile');
+assert.equal(await tableActionsToggle.isVisible(),true,'mobile table-actions disclosure must remain available for custom views');
+assert.equal(await page.locator('.inventory-saved-view-actions').isVisible(),false,'saved-view CRUD actions must remain collapsed until requested');
 await tableActionsToggle.click();
 assert.equal(await page.locator('.inventory-saved-view-actions').isVisible(),true,'table-actions disclosure must reveal saved-view CRUD actions');
 const actionStripBox=await page.locator('.inventory-mobile-action-strip').boundingBox();
