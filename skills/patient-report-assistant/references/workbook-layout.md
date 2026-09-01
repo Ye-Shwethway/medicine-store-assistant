@@ -8,7 +8,7 @@ The monthly workbook has three roles:
 
 The source grids are the routine transcription targets.
 
-The Monthly Report is primarily a derived presentation/reporting surface.
+The Monthly Report is primarily a derived presentation/reporting surface, but the current approved template also contains a small manual/hybrid specialty-services layer for day-care separation.
 
 ## OPD/IPD pattern
 
@@ -33,6 +33,37 @@ The final report contains:
 - and some literal placeholders.
 
 A literal value is not automatically an error and is not automatically a field to populate.
+
+## Approved August 2026 specialty-services model
+
+The Owner-approved August 2026 final report adds a `Day Care Pt` row inside the Specialty services table between `In-patient` and `Total`.
+
+Current operational meaning:
+
+- the OPD daily source grid may include patients later classified as day-care patients;
+- those day-care patients must be separated from the final-report Specialty `OPD` row;
+- the specialty-specific day-care allocation is currently a manual/Owner-supplied report value;
+- the final Specialty `Total` row includes `OPD + In-patient + Day Care Pt`.
+
+Therefore, when a specialty has day-care patients:
+
+`Raw OPD source total = Report Specialty OPD + Report Specialty Day Care Pt`
+
+and:
+
+`Report Specialty Total = Report Specialty OPD + Report Specialty In-patient + Report Specialty Day Care Pt`
+
+The overall `Total No. Day Care Patients` must reconcile to the sum of the specialty `Day Care Pt` row.
+
+The overall OPD Old/New total should reconcile to the adjusted Specialty `OPD` total, not to the raw OPD source total when day-care patients are present.
+
+### Current implementation status
+
+In the Owner-approved August 2026 workbook, the specialty `Day Care Pt` values and the adjusted Specialty `OPD` values are currently manual literals. The `Total` row beneath them remains formula-driven.
+
+Do not automatically replace these approved manual literals with raw OPD formulas. Formula automation for day-care separation is a future template enhancement unless the Owner explicitly authorizes it.
+
+If the live template later restores formulas for these rows, inspect and follow the live formula contract rather than this historical coordinate pattern.
 
 ## Structural preservation
 
