@@ -11,11 +11,11 @@ Before any mutation:
 1. Confirm the target reporting month and year.
 2. Inspect the live workbook and resolve the current OPD, IPD, and Monthly Report tabs.
 3. Load `system-contract.md`, `runtime-configuration.md`, `workbook-layout.md`, and `monthly-report-manual-fields.md`.
-4. Ensure the Audit Log and Restore Checkpoint mechanism is available.
-5. Create a restore checkpoint before clearing any prior-month data.
-6. Record the planned operation in the audit trail.
+4. Ensure the single `PRA Audit Log` tab and the external restore-snapshot folder are available.
+5. Create a full pre-mutation copy of the current workbook in the dedicated Drive restore folder.
+6. Record the snapshot file reference and planned operation in `PRA Audit Log`.
 
-If a restore checkpoint cannot be created, do not perform the destructive clear.
+If the external snapshot or audit entry cannot be created, do not perform the destructive clear.
 
 ## OPD reset
 
@@ -119,6 +119,6 @@ After the operation:
 7. Confirm the five Owner-supplied Monthly Report fields are blank.
 8. Confirm locked/admin/template fields are unchanged.
 9. Confirm formulas remain formulas.
-10. Record completion and verification result in the Audit Log.
+10. Record completion and verification result in `PRA Audit Log`.
 
 A New Month Prepare run is not complete until all verification checks pass.
