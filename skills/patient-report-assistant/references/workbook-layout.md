@@ -86,17 +86,17 @@ The OPD and IPD tabs contain multiple structural rows whose day columns are the 
 
 These rows are **template structure**, not monthly patient data, and every one of them must survive a new-month reset.
 
-### July 2026 template — verified protected rows
+### Verified template — protected rows
 
-In the currently analyzed template, the protected `1..31` rows are:
+The latest live/snapshot verification established these complete structural sets:
 
 **OPD — 14 rows**
 
-`5, 18, 21, 22, 25, 31, 46, 57, 64, 79, 84, 87, 101, 115`
+`5, 18, 21, 22, 25, 31, 46, 57, 64, 78, 83, 86, 101, 114`
 
 **IPD — 14 rows**
 
-`5, 18, 27, 28, 38, 45, 60, 71, 78, 93, 97, 100, 115, 128`
+`5, 18, 27, 28, 38, 45, 60, 71, 78, 92, 97, 100, 115, 128`
 
 The OPD and IPD lists are intentionally separate. Never assume matching row numbers between the two tabs.
 
@@ -105,7 +105,7 @@ The OPD and IPD lists are intentionally separate. Never assume matching row numb
 Before any new-month clearing/reset operation:
 
 1. inspect OPD across the full used report area and find **every** row whose day columns contain the ordered sequence `1, 2, 3, ... 31`;
-2. inspect IPD independently across its full used report area and find **every** such row;
+2. inspect IPD independently across the full used report area and find **every** such row;
 3. compare the live-discovered rows against the expected template structure when a known template is in use;
 4. mark the complete discovered set on each tab as protected structure;
 5. exclude all protected rows from every value-clearing/reset range;
@@ -115,7 +115,7 @@ Do not stop after finding the first `1..31` row.
 
 ### Structural mismatch rule
 
-The row lists above document the analyzed July 2026 template, but runtime safety depends on live discovery.
+The row lists above document the verified template, but runtime safety depends on live discovery.
 
 If:
 
