@@ -28,9 +28,9 @@ Starting from row 6 through the live used reporting area:
 - do not stop after the first match;
 - do not assume OPD and IPD use the same protected rows.
 
-Current analyzed template expectation:
+Current verified template expectation:
 
-`5, 18, 21, 22, 25, 31, 46, 57, 64, 79, 84, 87, 101, 115`
+`5, 18, 21, 22, 25, 31, 46, 57, 64, 78, 83, 86, 101, 114`
 
 The runtime must still verify the live structure before mutation.
 
@@ -51,9 +51,9 @@ Starting from row 6 through the live used reporting area:
 - do not stop after the first match;
 - resolve IPD independently from OPD.
 
-Current analyzed template expectation:
+Current verified template expectation:
 
-`5, 18, 27, 28, 38, 45, 60, 71, 78, 93, 97, 100, 115, 128`
+`5, 18, 27, 28, 38, 45, 60, 71, 78, 92, 97, 100, 115, 128`
 
 The runtime must still verify the live structure before mutation.
 
@@ -74,6 +74,8 @@ Only perform the following targeted actions.
 - report-period heading -> confirmed dataset month/year;
 - top report date -> first day of the next calendar month;
 - bottom signature date -> exactly the same date as the top report date.
+
+Resolve the live coordinates before writing; do not rely on a stale remembered address. In the verified August 2026 preparation run, the top report date value resolved to `L9`.
 
 Example for August 2026:
 
