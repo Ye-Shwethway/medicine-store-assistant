@@ -83,6 +83,43 @@ Run this workflow when the Owner asks to close the current month, prepare the ne
 
 Do not infer that month close has happened merely because the calendar date changed. Use the user's explicit operational instruction or a clearly established workflow trigger.
 
+## Staged transition when the authoritative desktop Excel data is not yet available
+
+Sometimes the Owner cannot immediately access the computer-side Excel workbook or historical dataset that still needs to be pulled/synchronized before the production Google Sheet can be considered fully reconciled.
+
+In that situation, **do not perform an immediate production cutover on the live `Main Stock` / `Daily Usage` pair**.
+
+Use this staged workflow instead:
+
+1. Keep the current live production tabs unchanged as the last intact operational month state.
+2. Wait until the Owner has pulled/saved the required closed-month Excel dataset or equivalent authoritative external archive evidence.
+3. Reconcile and verify that external archive against the Google Sheet closed-month state.
+4. After archive verification, create **staging copies of both row-aligned operational tabs**, not only one side of the pair.
+5. Prepare the next month inside the staging pair.
+6. Perform cleanup/reset/formula repair only inside staging while production remains untouched.
+7. Let the Owner synchronize/reconcile the computer workbook as needed.
+8. Only after the Owner confirms the desktop side is synchronized and the staging state is verified should `$msa` perform the final production cutover/update of the canonical `Main Stock` / `Daily Usage` tabs.
+
+Recommended staging names may include the target month, for example:
+
+- `Main Stock STAGING 2026-09`
+- `Daily Usage STAGING 2026-09`
+
+Names may vary, but both staging tabs must remain paired and clearly noncanonical until cutover.
+
+### Staging hard boundaries
+
+While staging is active:
+
+- canonical `Main Stock` and `Daily Usage` remain unchanged,
+- `This Month Received` and other production-derived surfaces must not be silently repointed to staging unless explicitly authorized,
+- September/new-month receipts must not be applied to canonical production before cutover,
+- staging rows may be cleaned/reset/repaired only after the August/closed-month archive is durably verified,
+- a staging result is a proposal/prepared operational state, not live stock truth,
+- cutover requires a fresh checkpoint and its own readback/audit slice.
+
+If the Owner says the desktop workbook still needs to be synchronized first, treat that as a hard gate: **prepare staging, but do not replace production yet**.
+
 ## Full month-close workflow
 
 ### 1. Inspect live state
@@ -137,6 +174,8 @@ The archive is evidence. Do not rewrite the historical month to make FIFO/FEFO o
 
 If a durable historical archive structure already exists, append to it rather than inventing a second incompatible history system.
 
+When an authoritative computer-side Excel dataset is still pending, do not claim the month archive is complete until that dataset is pulled/saved and reconciled to the extent required by the Owner's established workflow.
+
 ### 4. Verify archive completeness
 
 Before cleanup, read the archived month back and confirm:
@@ -146,13 +185,14 @@ Before cleanup, read the archived month back and confirm:
 - monthly usage values match the closing operational sheet,
 - zero-stock rows with usage were captured,
 - important receipt/reorder/expiry context was not lost,
-- archive row count / coverage is plausible relative to the live month-close state.
+- archive row count / coverage is plausible relative to the live month-close state,
+- any required external/desktop Excel archive evidence has been reconciled when applicable.
 
 If verification fails, stop. Preserve the checkpoint and do not delete rows.
 
 ### 5. Recompute cleanup eligibility from the live workbook
 
-After archive verification, re-evaluate the cleanup queue from current live rows.
+After archive verification, re-evaluate the cleanup queue from current live rows or from the verified staging copy when using staged transition.
 
 A row can proceed to paired deletion only when all are true:
 
@@ -174,14 +214,16 @@ For every family being cleaned:
 
 ### 7. Delete paired rows bottom-to-top
 
-Build the final deletion list using the **current** Main Stock row numbers immediately before deletion.
+Build the final deletion list using the **current** row numbers immediately before deletion in the surface being prepared (staging or production).
 
 Sort descending by row number.
 
 For each approved row index, delete the matching row from both:
 
 - `Main Stock`,
-- `Daily Usage`.
+- `Daily Usage`,
+
+or from their clearly named staging copies when staged transition is active.
 
 Use a single controlled batch when practical. The descending order is mandatory to prevent row-shift corruption.
 
@@ -191,7 +233,7 @@ Do not delete rows from archived evidence/history tabs as part of operational cl
 
 After paired cleanup, prepare the next month while preserving the four compatibility-locked table interfaces.
 
-For `Daily Usage`:
+For `Daily Usage` or its staging copy:
 
 - preserve headers and column order,
 - preserve the item row alignment with Main Stock,
@@ -199,7 +241,7 @@ For `Daily Usage`:
 - establish the new month's opening/received/remaining behavior according to the live workbook formulas/contracts,
 - do not erase stable item identity or expiry context needed for the new month.
 
-For `Main Stock`:
+For `Main Stock` or its staging copy:
 
 - preserve item/lot identity and current stock state,
 - retain valid reorder-level configuration unless a separate authorized reorder mutation changes it,
@@ -212,11 +254,12 @@ Do not redesign the operational tables as part of month preparation.
 After structural deletion/reset:
 
 - verify sequential `No.` values where required,
-- verify `Main Stock` and `Daily Usage` item alignment,
-- verify `Main Stock` derived columns,
-- verify `Daily Usage` derived columns (`C`, `D`, `AJ`, `AK`, and other approved formula regions),
+- verify Main Stock and Daily Usage item alignment in the prepared pair,
+- verify Main Stock derived columns,
+- verify Daily Usage derived columns (`C`, `D`, `AJ`, `AK`, and other approved formula regions),
 - scan for `#REF!`, `#N/A`, `#VALUE!`, `#ERROR!`, or formula displacement,
-- verify downstream helper/review surfaces still bind to the intended data.
+- verify downstream helper/review surfaces still bind to the intended data,
+- when working in staging, ensure production-derived surfaces have not been accidentally redirected.
 
 Do not silently patch unrelated formulas outside the month-close impact area unless a clearly broken dependency requires repair and the repair is auditable.
 
@@ -226,14 +269,29 @@ Read back representative beginning, middle, and end rows plus every affected fam
 
 Confirm:
 
-- deleted rows are gone from both Main Stock and Daily Usage,
+- deleted rows are gone from both members of the prepared pair,
 - keeper rows remain,
 - Daily Usage is ready for the new month,
 - archived closed-month data remains intact,
 - current stock values were not accidentally changed by structural cleanup,
-- Final Reorder is not rewritten merely because a month was closed.
+- Final Reorder is not rewritten merely because a month was closed,
+- production tabs remain untouched when staging mode is still active.
 
-### 11. Audit the operation
+### 11. Production cutover when staging mode is used
+
+Do not cut over merely because staging preparation is complete.
+
+Wait until:
+
+- the closed-month archive is verified,
+- required desktop Excel synchronization/reconciliation is complete,
+- the Owner confirms production can advance,
+- staging pair integrity and formulas are verified,
+- September/new-month receipts have not already been inconsistently applied elsewhere.
+
+Then create a **new checkpoint specifically for production cutover**, update the canonical production pair in a controlled slice, verify downstream summaries, and audit the cutover separately.
+
+### 12. Audit the operation
 
 Write an `Audit_Log` entry containing:
 
@@ -242,9 +300,12 @@ Write an `Audit_Log` entry containing:
 - number of archived rows/items,
 - number of paired rows deleted,
 - important keeper exceptions,
+- whether preparation occurred in staging or production,
 - new-month preparation summary,
 - checkpoint ID,
 - verification result.
+
+For staged transitions, record staging preparation and final production cutover as separate audited slices.
 
 Read the audit row back before reporting success.
 
@@ -258,7 +319,7 @@ If any stage fails after the checkpoint:
 - do not continue deleting rows after an archive or alignment verification failure,
 - restore only when authorized or clearly required by the established recovery contract.
 
-Never claim month close succeeded until archive, paired-row integrity, new-month state, and audit readback have all been verified.
+Never claim month close succeeded until archive, paired-row integrity, new-month state, and audit readback have all been verified. In staged mode, never claim production is on the new month until cutover is complete.
 
 ## Relationship to Final Reorder
 
@@ -313,10 +374,16 @@ Never:
 - clear the new month's Daily Usage until the closed month archive is verified,
 - rewrite actual historical usage to make an idealized workflow appear true,
 - alter an already-submitted Final Reorder merely as part of month close,
-- skip checkpoint, readback, or audit for paired operational row deletion.
+- skip checkpoint, readback, or audit for paired operational row deletion,
+- replace canonical production tabs while required computer-side Excel archive/synchronization is still pending,
+- treat a staging tab as current live inventory truth before cutover.
 
 ## Canonical shorthand
 
-When the Owner says **`prepare new month`**, interpret the operational workflow as:
+When the Owner says **`prepare new month`** and no external synchronization gate exists, interpret the operational workflow as:
 
 **inspect → checkpoint → archive closed month → verify archive → recompute cleanup queue → paired Main Stock + Daily Usage deletion bottom-to-top → prepare new-month Daily Usage → verify formulas/alignment → audit → readback**.
+
+When the Owner says the computer-side Excel data still needs to be pulled/synchronized first, interpret it as:
+
+**freeze production → obtain/reconcile closed-month external archive → verify archive → create paired staging copies → prepare/clean next month in staging → verify staging → Owner completes/validates computer sync → fresh cutover checkpoint → update canonical production pair → verify downstream state → audit cutover → only then process new-month intake**.
