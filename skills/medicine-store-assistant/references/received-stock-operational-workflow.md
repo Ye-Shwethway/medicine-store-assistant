@@ -74,6 +74,7 @@ Action:
 - add the verified receipt quantity to that row's current-month `Received Stock` according to the live contract,
 - do not create a duplicate lot row,
 - preserve the row's existing identity/configuration unless separately corrected by stronger evidence,
+- preserve the existing `Reorder Level`; an additional receipt into an already-established lot does not redefine reorder policy,
 - verify the mirrored Daily Usage row receives/reflects the same received-stock state.
 
 ### 2. NEW_EXPIRY_LOT
@@ -85,6 +86,8 @@ Action:
 - insert a real Main Stock row adjacent to the same-family rows,
 - keep `Remaining Stock` at 0 for the newly received lot when the current workbook uses `Received Stock` for current-month receipts,
 - put the actual received quantity in `Received Stock`,
+- set the new row's default `Reorder Level` equal to the actual intake/received quantity when no stronger verified reorder configuration is already established for that new row,
+- treat that value as an intake default/initial configuration, not as an adaptive reorder conclusion; later reorder review may revise it,
 - populate only verified identity/configuration fields,
 - preserve expiry-separated lot naming according to the established suffix rule,
 - insert/align the corresponding Daily Usage row in the same structural position,
@@ -103,7 +106,8 @@ Action:
 - create/propose a new Main Stock item only when identity and user authority permit,
 - create/align its Daily Usage row,
 - initialize stable configuration conservatively,
-- do not invent a Reorder Level, pack size, usage expectation, CMS mapping, or request quantity without evidence,
+- set the default `Reorder Level` equal to the actual intake/received quantity unless stronger verified configuration evidence or an explicit Owner instruction says otherwise,
+- do not invent pack size, usage expectation, CMS mapping, or request quantity without evidence,
 - treat later usage and Owner experience as the basis for future reorder intelligence.
 
 ### 4. REVIEW / CONFLICT
@@ -171,16 +175,17 @@ Never append a new Main Stock lot while leaving Daily Usage structurally misalig
 
 ## Reorder boundary
 
-Receipt intake must not automatically redefine reorder policy.
+Receipt intake does not automatically rewrite reorder policy on an **existing established row**. However, a **newly created intake row** needs an initial operational level.
 
-Specifically:
+Default rule:
 
-- do not use the legacy shortcut `Reorder Level = received quantity - 1` as a general rule,
-- do not increase/decrease Reorder Level merely because a batch arrived,
-- do not treat the received quantity as proof of the ideal future target,
-- keep reorder reasoning separate and use `reorder-intelligence-and-owner-review.md` when a later reorder review is requested.
+- for `NEW_EXPIRY_LOT` and `NEW_ITEM` rows, if there is no stronger verified reorder configuration or explicit Owner instruction for that new row, initialize `Reorder Level = actual intake/received quantity`,
+- for `EXISTING_LOT` receipts, keep the existing `Reorder Level` unchanged,
+- do not use the legacy shortcut `Reorder Level = received quantity - 1`,
+- do not treat the intake-default level as proof of the ideal long-term target,
+- later adaptive reorder review may raise, lower, or otherwise replace the intake default using `reorder-intelligence-and-owner-review.md`.
 
-A receipt quantity may become useful historical evidence later, but it is not itself an adaptive reorder decision.
+The receipt amount is therefore a permitted **initialization default for new rows**, not an autonomous adaptive reorder decision for established rows.
 
 ## Price and mapping boundary
 
@@ -252,6 +257,7 @@ A receipt operation is complete only when all applicable checks pass:
 - correct item/lot identity used,
 - no duplicate receipt applied,
 - expiry-separated lots preserved,
+- new-row default Reorder Level initialized from actual intake quantity when no stronger configuration applies,
 - Main Stock and Daily Usage remain aligned,
 - current-month Daily Usage history remains intact,
 - `This Month Received` reflects the expected receipt under the live formula contract,
@@ -264,6 +270,6 @@ A receipt operation is complete only when all applicable checks pass:
 
 When the Owner says something equivalent to **`process received stock`**, use this default sequence:
 
-**inspect source -> inspect live workbook -> marker preflight if batch intake -> classify lines -> idempotency -> checkpoint -> apply safe existing/new-lot/new-item mutations -> verify Daily Usage alignment -> verify This Month Received -> audit -> readback -> summarize review exceptions**
+**inspect source -> inspect live workbook -> marker preflight if batch intake -> classify lines -> idempotency -> checkpoint -> apply safe existing/new-lot/new-item mutations -> initialize new-row Reorder Level from intake quantity when applicable -> verify Daily Usage alignment -> verify This Month Received -> audit -> readback -> summarize review exceptions**
 
 This workflow is the canonical skill-side receipt process unless the user explicitly requests a narrower operation.
