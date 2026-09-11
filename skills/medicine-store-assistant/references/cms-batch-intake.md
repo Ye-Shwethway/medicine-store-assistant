@@ -76,11 +76,30 @@ When a source confirms a new expiry lot for an existing local item:
 2. Insert a real row adjacent to that family; do not append the lot elsewhere or overwrite another expiry lot.
 3. If the family contains multiple expiry lots, add a terminal `(month/year)` suffix to participating sibling item names that lack one, using each row's own `Expiry Date`.
 4. For the new row, set `Remaining Stock` to **0** and put the source quantity in `Received Stock`.
-5. Preserve the verified local unit convention. For gloves, use `Pair` when that is the established Main Stock unit even if the source report uses a different presentation label.
-6. Populate verified source/identity/configuration fields only. Under the current Main Stock contract these may include `No.`, `Items`, `Expiry Date`, `Unit`, `Remaining Stock`, `Received Stock`, `Reorder Level`, `Reorder Surplus Factor`, `CMS Price`, optional `Remark`, `Serial Code`, and `CS Name`.
-7. Do **not** seed `Date Status`, `Stock Status Today`, `This Month Usage`, `Stock Remark`, `Estimated Request Qty`, `Shortage Date`, `Price`, `Reorder Row`, or `Expiry Filter Helper`; treat them as derived/calculated/helper fields unless the live contract proves otherwise. `Price` is specifically derived by the Excel workflow and may reflect expiry-related discount logic.
-8. Renumber the `No.` column sequentially from the insertion point through the used range. Do not treat this structural renumbering as user-facing operational data entry.
-9. Read back the new row, affected siblings, derived/helper blanks, and the renumbered tail before declaring success.
+5. Initialize `Reorder Level` to the actual intake/received quantity when no stronger verified reorder configuration or explicit Owner instruction already applies to that new row. This is an intake default, not a long-term adaptive reorder conclusion.
+6. Preserve the verified local unit convention. For gloves, use `Pair` when that is the established Main Stock unit even if the source report uses a different presentation label.
+7. Populate verified source/identity/configuration fields only. Under the current Main Stock contract these may include `No.`, `Items`, `Expiry Date`, `Unit`, `Remaining Stock`, `Received Stock`, `Reorder Level`, `Reorder Surplus Factor`, `CMS Price`, optional `Remark`, `Serial Code`, and `CS Name`.
+8. Do **not** seed `Date Status`, `Stock Status Today`, `This Month Usage`, `Stock Remark`, `Estimated Request Qty`, `Shortage Date`, `Price`, `Reorder Row`, or `Expiry Filter Helper`; treat them as derived/calculated/helper fields unless the live contract proves otherwise. `Price` is specifically derived by the Excel workflow and may reflect expiry-related discount logic.
+9. Renumber the `No.` column sequentially from the insertion point through the used range. Do not treat this structural renumbering as user-facing operational data entry.
+10. Read back the new row, affected siblings, derived/helper blanks, and the renumbered tail before declaring success.
+
+## New-item insertion
+
+When a source confirms a genuinely new local item with no safe existing family match:
+
+- create/align the new Main Stock and Daily Usage row only when identity and user authority permit,
+- set `Remaining Stock = 0` and record the actual source quantity in `Received Stock`,
+- initialize `Reorder Level = actual intake/received quantity` unless stronger verified configuration evidence or an explicit Owner instruction says otherwise,
+- treat this as an initial operational default that later reorder intelligence may revise,
+- do not invent pack size, usage expectation, CMS mapping, or request quantity without evidence.
+
+## Existing-lot receipts
+
+When the source matches an already-established lot:
+
+- add the verified current-month receipt quantity according to the live cumulative receipt contract,
+- do not create a duplicate row,
+- keep the existing `Reorder Level` unchanged unless a separate reorder decision explicitly changes it.
 
 ## Optional source preservation
 
@@ -90,4 +109,4 @@ When a preserved batch is compared with the original source, correct proven tran
 
 ## Verify and report
 
-Read back all affected rows. Confirm quantities, source precision, expiry values, identities, untouched derived/helper fields, unrelated neighboring cells, and visual marks. Report marker-preflight decision, matched lines, new lots/items, fixed assets routed/held, conflicts, unreadable fields, warnings, idempotency decisions, reconciliation-only corrections, and verification status.
+Read back all affected rows. Confirm quantities, source precision, expiry values, identities, new-row Reorder Level defaults, untouched derived/helper fields, unrelated neighboring cells, and visual marks. Report marker-preflight decision, matched lines, new lots/items, fixed assets routed/held, conflicts, unreadable fields, warnings, idempotency decisions, reconciliation-only corrections, and verification status.
