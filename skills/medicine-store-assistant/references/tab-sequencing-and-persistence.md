@@ -73,7 +73,7 @@ Examples include:
 - Owner-vs-AI comparison evidence,
 - temporary computation/reconciliation sheets.
 
-Hiding a support tab is not deletion. Preserve the data and sheet identity so the agent can continue using it.
+Hiding a support tab is not deletion. Preserve the data and sheet identity so the agent can continue using it when the tab still has unresolved or durable evidence value.
 
 If a hidden tab becomes necessary for a specific human inspection, it may be temporarily unhidden or the relevant evidence may be summarized in the human-facing decision surface. Do not require the Owner to browse raw support tabs for routine decisions.
 
@@ -150,6 +150,48 @@ If deletion is blocked by the runtime/platform, leaving the completed tab hidden
 
 Do not confuse a temporary review tab with durable `Item_Mapping`, reorder-history evidence, or `Audit_Log` history.
 
+## Operational staging-tab lifecycle
+
+Paired operational staging tabs such as:
+
+- `Main Stock STAGING YYYY-MM`
+- `Daily Usage STAGING YYYY-MM`
+
+are temporary cutover workspaces, not permanent live-workbook history.
+
+### While staging is active
+
+Keep the staging pair while production is intentionally frozen and reconciliation/cutover is still pending. The pair must remain structurally aligned and clearly noncanonical.
+
+Do not delete staging before:
+
+- the prepared staging state is fully verified,
+- required desktop/external synchronization gates are complete,
+- the Owner authorizes production cutover,
+- production cutover succeeds,
+- production formulas/alignment/downstream summaries are read back and verified,
+- the cutover is recorded in `Audit_Log`,
+- a valid pre-cutover checkpoint/restore source exists.
+
+### After verified production cutover
+
+Once the staging state has been promoted into canonical production and the cutover is fully verified/audited, the operational staging pair has served its purpose.
+
+Default policy is to **remove the completed staging pair from the live workbook** so the Owner does not accumulate obsolete duplicate operational tabs.
+
+Before deletion:
+
+1. create/verify a fresh checkpoint for the staging-cleanup mutation,
+2. confirm production is canonical and no live formula/helper still references the staging tabs,
+3. confirm no unresolved review/evidence depends on staging-only content,
+4. delete both paired staging tabs together,
+5. read spreadsheet metadata back and confirm they are gone while production tabs remain intact,
+6. record the staging cleanup in `Audit_Log` with checkpoint ID.
+
+If staging still contains unique unresolved evidence, archive or preserve that evidence first rather than deleting blindly.
+
+The default post-cutover state should therefore be **clean production without obsolete operational staging tabs**.
+
 ## CMS batch-sheet lifecycle
 
 `CMS_Batch_<TRANSFER>_<DATE>` tabs are **staging and reconciliation evidence**, not primary day-to-day operational tabs.
@@ -223,6 +265,6 @@ When reordering tabs:
 
 ## Default principle
 
-**Keep the visible workbook small: operational work + concise Owner decisions in front; raw evidence, audit, mappings, history, staging, and computations preserved behind the scenes.**
+**Keep the visible workbook small: operational work + concise Owner decisions in front; durable evidence preserved behind the scenes; completed operational staging removed after verified cutover.**
 
 This reference is intended to grow as new workbook tab types or retention needs are introduced.
