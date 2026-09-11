@@ -63,6 +63,16 @@ Preserve exact numbers. Distinguish blank, zero, corrected, and unreadable field
 
 The source is authoritative for the physical receipt facts, but source wording is not automatic authority for the established local `Items` name or local operational `Unit` convention.
 
+### Local inbound quantity sign rule
+
+MSA records the **local receiving store** state. It does not require CMS-side database access to interpret an inbound transfer.
+
+When the source document clearly represents stock being transferred **into the local hospital/store**, record the local received quantity as a positive magnitude. If the source/issuing report expresses the issuer's movement as a negative number, convert that inbound line to the corresponding positive local `Received Stock` quantity.
+
+Example: issuer report `-100` for a transfer received by the local store -> local `Received Stock +100`.
+
+Do not use absolute value on arbitrary fields or ambiguous movements. First establish from the source document that the line is an inbound receipt for the local store; after that, local receipt quantity is positive by definition.
+
 ## Local-family reconciliation gate
 
 Before classifying a line as `NEW_ITEM`, first prove that no safe existing operational family already represents it.
@@ -317,6 +327,7 @@ Examples of concise actions:
 A receipt operation is complete only when all applicable checks pass:
 
 - exact source quantity preserved,
+- inbound source sign interpreted as a positive local receipt only after confirming the line is incoming to the local store,
 - correct local operational item/family and lot identity used,
 - no duplicate receipt applied,
 - expiry-separated lots preserved,
@@ -337,6 +348,6 @@ A receipt operation is complete only when all applicable checks pass:
 
 When the Owner says something equivalent to **`process received stock`**, use this default sequence:
 
-**inspect source -> inspect live workbook -> marker preflight if batch intake -> local-family reconciliation -> classify lines -> idempotency -> checkpoint -> apply safe existing/new-lot/new-item mutations -> initialize new-row Reorder Level from intake quantity when applicable -> normalize local Unit + expiry suffix + identity completeness -> verify Daily Usage alignment -> verify This Month Received -> verify formulas/parity/totals -> audit -> readback -> summarize true review exceptions**
+**inspect source -> establish local inbound receipt quantities -> inspect live workbook -> marker preflight if batch intake -> local-family reconciliation -> classify lines -> idempotency -> checkpoint -> apply safe existing/new-lot/new-item mutations -> initialize new-row Reorder Level from intake quantity when applicable -> normalize local Unit + expiry suffix + identity completeness -> verify Daily Usage alignment -> verify This Month Received -> verify formulas/parity/totals -> audit -> readback -> summarize true review exceptions**
 
 This workflow is the canonical skill-side receipt process unless the user explicitly requests a narrower operation.
