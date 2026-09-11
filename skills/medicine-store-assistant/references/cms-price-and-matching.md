@@ -10,7 +10,7 @@ Preserve the uploaded catalogue content as closely as practical. When authorized
 
 ## Establish identity compatibility
 
-Never apply `CMS Code match -> automatic price update` as the sole rule. Compare code with descriptive evidence, including local name, brand/short description, long description, strength, formulation, size/type, unit, and prior mapping history.
+Never apply `CMS Code match -> automatic price update` as the sole rule. Compare code with descriptive evidence, including local name, brand/short description, long description, strength/form/size, unit, and prior mapping history.
 
 ### Local name and CMS name are not required to be text-identical
 
@@ -39,14 +39,17 @@ Use domain knowledge as a safety check, not as permission to invent catalogue fa
 
 Before comparing local names, normalize only harmless variation. A clearly terminal expiry suffix such as `(3/2031)`, `(11/2027)`, or `(8/29)` is lot metadata and should be ignored for product-identity matching. Do not strip product-defining parenthetical text such as brand/manufacturer, country, size/volume, strength, formulation, adult/child type, gauge, or device dimensions.
 
-If a local item name contains an expiry suffix and the row also has an `Expiry Date` value, cross-check them. If they disagree:
+### Canonical expiry-suffix rule
 
-- do not silently change either the item name or `Expiry Date`,
-- keep identity matching separate from this lot-metadata inconsistency,
-- mark the **Item Name cell** yellow for review according to `visual-marking.md`, unless stronger evidence makes the mismatch a confirmed conflict,
-- report the mismatch for later user reconciliation.
+`Main Stock.Expiry Date` is the live structured expiry field unless stronger source evidence proves that field itself is wrong.
 
-Treat the dedicated `Expiry Date` column as the structured live expiry field unless a stronger source document proves otherwise.
+- If `Expiry Date` is nonblank, `Main Stock.Items` must end with a terminal `(M/YYYY)` suffix representing that same expiry month/year.
+- If the suffix is missing, append it.
+- If a terminal expiry suffix exists but disagrees with the verified structured `Expiry Date`, replace the terminal suffix with the value derived from `Expiry Date`.
+- If stronger source evidence proves `Expiry Date` is wrong, correct the structured expiry first under the normal source-authority rules, then synchronize the item-name suffix to the corrected structured expiry.
+- If `Expiry Date` is blank, do not invent an expiry suffix.
+- Modify only the clearly terminal expiry marker. Never remove or rewrite product-defining parentheses such as `(China)`, `(BPI)`, `(15ml)`, `(Adult)`, brand/manufacturer clues, strength, size, gauge, or other specifications.
+- Expiry-suffix synchronization is lot-name normalization, not a product-identity change.
 
 Block or review automatic propagation when evidence includes:
 
@@ -65,12 +68,16 @@ During Main Stock reconciliation, scan beyond blank Serial Codes. Rows can alrea
 
 For `Serial Code present + CS Name blank` rows:
 
-1. Look up the current catalogue identity for that code.
-2. Compare it with the normalized local item name, ignoring only a terminal expiry suffix.
-3. Check clinically and operationally meaningful signals such as active ingredient, strength, formulation, size/volume, unit, price plausibility, manufacturer/brand clues, and same-code sibling lots.
-4. Write `CS Name` only when the combined evidence is SAFE; do not rely on the code alone.
-5. If a same-code sibling lot already has a verified CS Name and the normalized product identity is compatible, that sibling history is strong supporting evidence but not permission to ignore a current contradiction.
-6. Mark each successfully written and read-back-verified CS Name cell green according to `visual-marking.md`.
+1. Look first for a verified compatible same-family or same-code sibling lot in the live table.
+2. Look up the current catalogue identity for that code.
+3. Check previously confirmed `Item_Mapping` evidence and verified older local/baseline rows when current evidence is incomplete.
+4. Compare all candidates with the normalized local item name, ignoring only a terminal expiry suffix.
+5. Check clinically and operationally meaningful signals such as active ingredient, strength, formulation, size/volume, unit, price plausibility, manufacturer/brand clues, and sibling-lot history.
+6. Write `CS Name` only when the combined evidence is SAFE; do not rely on the code alone.
+7. If a same-code sibling lot already has a verified CS Name and the normalized product identity is compatible, that sibling history is strong supporting evidence but not permission to ignore a current contradiction.
+8. Mark each successfully written and read-back-verified CS Name cell green according to `visual-marking.md`.
+
+For missing `Serial Code` and/or `CS Name`, use this evidence order when available: **verified adjacent/same-family sibling -> current CMS catalogue/price list -> confirmed Item_Mapping -> verified older local/baseline data or authoritative source document**. Do not invent a mapping when those sources remain insufficient. A deliberate `Nil`, `UNMAPPED`, or `EXCLUDED` state is preferable to a guessed identity.
 
 If code-to-catalogue evidence conflicts with the local item, do not populate the dependent identity field. Mark the disputed field red and report the contradiction.
 
@@ -97,6 +104,6 @@ Preserve the local operational item name unless the user explicitly authorizes r
 
 ## Audit
 
-For each reconciled item, retain enough evidence to explain SAFE, REVIEW, CONFLICT, or NEW / UNMAPPED classification. Use `Audit_Log` for significant price synchronization, recycled-code findings, multi-row propagation, historical-source corrections, confirmed mapping changes, or broad CS Name recovery passes.
+For each reconciled item, retain enough evidence to explain SAFE, REVIEW, CONFLICT, or NEW / UNMAPPED classification. Use `Audit_Log` for significant price synchronization, recycled-code findings, multi-row propagation, historical-source corrections, confirmed mapping changes, broad CS Name recovery passes, or global expiry-suffix normalization.
 
-Read back affected rows and verify intended CMS prices, identities, untouched derived `Price`, formulas, visual marks, and unchanged neighboring cells before reporting success.
+Read back affected rows and verify intended CMS prices, identities, untouched derived `Price`, formulas, visual marks, expiry-suffix consistency, and unchanged neighboring cells before reporting success.
