@@ -5,7 +5,7 @@ Use direct cell formatting as lightweight operational metadata. Color must compl
 ## Palette
 
 - **Light green `#D9EAD3` — written and verified:** Apply to each operational data cell whose value the assistant intentionally writes as part of a successful operation.
-- **Light yellow `#FFF2CC` — review required:** Apply to the most relevant target cell when a likely match, unmapped item, unclear source field, expiry-suffix inconsistency, or other pending decision requires user review and the identity-sensitive value is not written.
+- **Light yellow `#FFF2CC` — review required:** Apply to the most relevant target cell when a likely match, unmapped item, unclear source field, uncertain structured expiry, or other pending decision requires user review and the identity-sensitive value is not written.
 - **Light red `#F4CCCC` — warning or conflict:** Apply to the disputed target cell when a confirmed mismatch, recycled CMS identity, invalid contradiction, or other blocked high-risk condition needs attention.
 
 When meanings compete on the same cell, use `red > yellow > green`. Never mark a disputed or unverified value green.
@@ -37,7 +37,7 @@ This preflight exists so the visual marks from one intake/reconciliation session
 9. Do not silently replace a meaningful existing fill or a conflicting conditional-format signal. Preserve it and report the conflict unless the underlying MSA warning is being explicitly resolved by verified evidence.
 10. When an MSA-created warning/conflict is definitively resolved and the same cell is intentionally corrected, the old warning color may be replaced by the appropriate verified state, including green for a direct corrected write.
 11. If a warning concerns one field, mark that field. If no single field represents the issue, mark the item-name cell rather than the whole row.
-12. **Expiry suffix mismatch:** when a terminal expiry marker in `Items` disagrees with the row's `Expiry Date`, leave both values unchanged and mark the **Item Name / Items cell** light yellow for later review. Use red only when stronger source evidence establishes that one of the values is definitively wrong or the mismatch creates a confirmed high-risk conflict. Do not mark the `Expiry Date` cell merely to force visual agreement.
+12. **Expiry suffix normalization:** a missing or stale terminal expiry suffix is not itself a review condition when `Expiry Date` is already verified. Normalize `Items` deterministically from the structured `Expiry Date` under the canonical suffix rule, then mark the directly written Item Name cell green when normal green-marking policy applies. Use yellow only when the structured expiry itself is uncertain or conflicting source evidence prevents safe normalization; use red only for a confirmed high-risk contradiction. If `Expiry Date` is blank, do not invent a suffix or mark a suffix problem merely because the name has none.
 
 ## New-lot row example
 
