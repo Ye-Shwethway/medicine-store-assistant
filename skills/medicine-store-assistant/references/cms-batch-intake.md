@@ -35,6 +35,16 @@ Preserve exact numbers and source precision. Separate blank, zero, overwritten, 
 
 Source wording is evidence, not automatic authority for the local operational `Items` name or local `Unit` vocabulary.
 
+### Inbound quantity sign semantics
+
+MSA operates the **local receiving inventory**, not the CMS issuer's database.
+
+When the source document context clearly represents stock **coming into the local hospital/store**, record the local receipt as a positive received quantity. If the source paper expresses the issuing side as a negative movement, use the positive magnitude for local `Received Stock`.
+
+Example: an inbound transfer line shown as `-100` on the issuing report is recorded locally as `+100 received`.
+
+Do not apply absolute value blindly to arbitrary numbers. First establish from the source document that the line is an inbound receipt for the local store; then record the received magnitude positively. No CMS-side database access or remote stock-state verification is required for this interpretation.
+
 ## Route fixed assets before Main Stock matching
 
 Before treating every transfer line as medicine/consumable stock, detect confirmed fixed assets.
