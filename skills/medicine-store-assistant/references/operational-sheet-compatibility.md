@@ -125,3 +125,34 @@ The rule is:
 ## Structural mutation rule
 
 Any change to the headers, order, meaning, or production range of these four surfaces requires explicit user authorization. Do not infer permission merely because MSA can calculate the same information another way.
+
+Row insertion/deletion needed to preserve operational item/lot rows is permitted only under the task-specific workflow and checkpoint/audit rules; it must not accidentally redesign the table contract.
+
+## Formula architecture integrity after structural changes
+
+A structural row insertion, deletion, cutover, or bulk rebuild can leave the visible values looking correct while formula coverage is silently truncated or displaced. Therefore every structural mutation affecting `Main Stock` or `Daily Usage` must verify formula architecture explicitly.
+
+At minimum, when the live workbook uses these patterns:
+
+- verify top/anchor `ARRAYFORMULA` cells still reference the intended production sheet and intended used-range bottom,
+- verify row formulas such as `Estimated Request Qty` / `Shortage Date` continue through the final used data row,
+- verify `Daily Usage` formula regions for item identity, opening stock, received stock, monthly usage, current remaining, and expiry still cover the full aligned row range,
+- inspect the last active row and the first row after the active range so formula fill/spill has neither stopped early nor leaked into unintended data,
+- scan affected operational formula ranges for `#REF!`, `#N/A`, `#VALUE!`, `#ERROR!`, circular/self-reference, or displaced references,
+- verify formulas point to canonical production sheets after cutover and do not retain stale staging-sheet references,
+- verify structural edits did not change received totals, row alignment, or other operational values except where intentionally mutated.
+
+Do not infer formula health merely because the first few rows look correct.
+
+### Temporary helper-formula safety
+
+When using unused helper columns for QA, reconciliation, or bulk reconstruction:
+
+- keep helpers outside the compatibility-locked operational range,
+- never build a helper that depends on a target range while simultaneously overwriting that same target in a way that creates self-reference or destroys the source evidence,
+- write/calculcate the helper first, wait for spreadsheet recalculation, and **read back the helper output before any copy/paste into operational cells**,
+- perform the final copy/write as a separate mutation call after the helper output is proven stable,
+- clear temporary helpers after successful verification,
+- if helper output is blank, `#REF!`, or otherwise unexpected, stop instead of copying it into production.
+
+A temporary QA/helper formula is not an operational authority; it is only a verification/reconstruction aid.
