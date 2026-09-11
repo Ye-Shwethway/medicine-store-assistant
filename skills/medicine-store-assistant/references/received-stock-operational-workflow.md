@@ -91,6 +91,19 @@ Preserve the established local operational family name when the receipt is merel
 
 Do not create a new local item merely because the source wording differs from the local operational wording.
 
+## Genuinely-new-item research and Owner approval gate
+
+If no safe local family survives the reconciliation gate, do **not** create a new row immediately.
+
+1. Exhaust the local naming evidence first: current Main Stock, same-family/sibling rows, expiry-normalized local names, confirmed `Item_Mapping`, and verified older local/baseline rows.
+2. If no trustworthy local generic/operational name is available, perform current public/online research to identify the generic medicine/device identity, strength, formulation, size/specification, and a concise local operational name. Prefer authoritative manufacturer, regulatory, or pharmacology references over marketplace wording when available.
+3. Keep source/CMS brand wording as CMS identity evidence (`CS Name`/catalogue fields); do not copy it into local `Items` merely because it is the only supplied name.
+4. Present the Owner with a concise proposal: `Source/CMS wording | proposed local generic Items name | strength/form/spec | proposed Unit | Serial Code/CS Name evidence | why no existing family matches`.
+5. **Hard stop:** wait for explicit Owner approval of the proposed local operational/generic identity before creating the `NEW_ITEM` Main Stock/Daily Usage row.
+6. If research remains ambiguous, keep the line `NEW / UNMAPPED` or `REVIEW`; do not invent a generic local name.
+
+Online research is identity/naming support only. It does not override the source document for actual received quantity, expiry, source code, source price, or other physical receipt facts.
+
 ## Receipt classification
 
 Before any inventory mutation, resolve each non-fixed-asset receipt line into one of these paths:
@@ -135,8 +148,10 @@ Action:
 
 - do not force a fuzzy existing-item match,
 - preserve exact source specification,
-- create/propose a new Main Stock item only when identity and user authority permit,
-- create/align its Daily Usage row,
+- complete the genuinely-new-item research and Owner approval gate above,
+- if no existing local generic/operational name exists, research and propose one rather than copying CMS/source brand wording into `Items`,
+- do not create/align the new Main Stock or Daily Usage row until the Owner explicitly approves the proposed local generic/operational identity,
+- after approval, create/align its Daily Usage row,
 - initialize stable configuration conservatively,
 - set the default `Reorder Level` equal to the actual intake/received quantity unless stronger verified configuration evidence or an explicit Owner instruction says otherwise,
 - use a verified local operational Unit rather than blindly copying source form/presentation wording,
@@ -287,20 +302,21 @@ For every actual receipt mutation:
 1. inspect source evidence and live target rows,
 2. complete marker preflight when this is a new CMS batch intake,
 3. run the local-family reconciliation gate,
-4. classify each line,
-5. complete idempotency checks,
-6. create and verify a fresh full-workbook pre-mutation checkpoint,
-7. mutate the smallest required Main Stock / Daily Usage structure or values,
-8. allow `This Month Received` to derive from Main Stock when that is the live contract,
-9. run identity-completeness, local-Unit, and expiry-suffix checks on affected rows,
-10. read back affected Main Stock rows,
-11. read back corresponding Daily Usage rows,
-12. read back relevant `This Month Received` rows,
-13. verify unrelated usage/history was not changed,
-14. verify row count, numbering, formulas, received totals, and production/staging parity when a staging mirror is intentionally maintained,
-15. write `Audit_Log` with the checkpoint ID,
-16. read back the audit entry,
-17. stop and preserve the checkpoint if verification fails.
+4. for any prospective `NEW_ITEM`, complete local naming search, online research when needed, and explicit Owner approval before row creation,
+5. classify each line,
+6. complete idempotency checks,
+7. create and verify a fresh full-workbook pre-mutation checkpoint,
+8. mutate the smallest required Main Stock / Daily Usage structure or values,
+9. allow `This Month Received` to derive from Main Stock when that is the live contract,
+10. run identity-completeness, local-Unit, and expiry-suffix checks on affected rows,
+11. read back affected Main Stock rows,
+12. read back corresponding Daily Usage rows,
+13. read back relevant `This Month Received` rows,
+14. verify unrelated usage/history was not changed,
+15. verify row count, numbering, formulas, received totals, and production/staging parity when a staging mirror is intentionally maintained,
+16. write `Audit_Log` with the checkpoint ID,
+17. read back the audit entry,
+18. stop and preserve the checkpoint if verification fails.
 
 Do not reuse an older checkpoint for a distinct receipt mutation slice.
 
@@ -322,6 +338,8 @@ Examples of concise actions:
 - `POSSIBLE DUPLICATE RECEIPT`
 - `FIXED ASSET ROUTE`
 
+For a genuinely new item, the Owner-facing proposal must include the proposed local generic/operational name and the evidence used to derive it before `CREATE NEW ITEM` can be approved.
+
 ## Verification success criteria
 
 A receipt operation is complete only when all applicable checks pass:
@@ -329,6 +347,7 @@ A receipt operation is complete only when all applicable checks pass:
 - exact source quantity preserved,
 - inbound source sign interpreted as a positive local receipt only after confirming the line is incoming to the local store,
 - correct local operational item/family and lot identity used,
+- any genuinely new item was researched when local naming evidence was absent and explicitly approved by the Owner before row creation,
 - no duplicate receipt applied,
 - expiry-separated lots preserved,
 - every nonblank structured expiry has a matching terminal expiry suffix,
@@ -348,6 +367,6 @@ A receipt operation is complete only when all applicable checks pass:
 
 When the Owner says something equivalent to **`process received stock`**, use this default sequence:
 
-**inspect source -> establish local inbound receipt quantities -> inspect live workbook -> marker preflight if batch intake -> local-family reconciliation -> classify lines -> idempotency -> checkpoint -> apply safe existing/new-lot/new-item mutations -> initialize new-row Reorder Level from intake quantity when applicable -> normalize local Unit + expiry suffix + identity completeness -> verify Daily Usage alignment -> verify This Month Received -> verify formulas/parity/totals -> audit -> readback -> summarize true review exceptions**
+**inspect source -> establish local inbound receipt quantities -> inspect live workbook -> marker preflight if batch intake -> local-family reconciliation -> research/propose/Owner-approve any genuinely new item identity -> classify lines -> idempotency -> checkpoint -> apply safe existing/new-lot/approved-new-item mutations -> initialize new-row Reorder Level from intake quantity when applicable -> normalize local Unit + expiry suffix + identity completeness -> verify Daily Usage alignment -> verify This Month Received -> verify formulas/parity/totals -> audit -> readback -> summarize true review exceptions**
 
 This workflow is the canonical skill-side receipt process unless the user explicitly requests a narrower operation.
