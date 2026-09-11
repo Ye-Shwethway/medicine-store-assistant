@@ -76,6 +76,19 @@ Before treating every transfer line as medicine/consumable stock, detect confirm
 9. If the transfer is already represented, switch to **reconciliation-only mode**. Do not mutate received quantities merely because the original paper has been supplied again. Use the source to identify missing dependent identity fields, stale mappings, unit gaps, expiry-lot inconsistencies, source-transcription errors, or other data-quality problems.
 10. Write only when the classification and requested operation permit it.
 
+### Genuinely-new-item naming and approval gate
+
+A line that survives the local-family reconciliation gate is **not yet authorized for automatic row creation**.
+
+1. First search the local dataset exhaustively for the preferred local operational/generic identity, including current Main Stock, same-family siblings, expiry-normalized names, confirmed `Item_Mapping`, and verified older local/baseline rows.
+2. If no trustworthy local generic/operational name exists, perform current public/online research to identify the generic medical/device identity, strength, formulation, size/specification, and an appropriate concise local operational name. Prefer authoritative manufacturer/regulatory/pharmacology references over marketplace wording when available.
+3. Keep CMS/source brand wording in `CS Name` or other CMS identity fields; do not promote a CMS brand/short description into `Items` merely because it is the only source wording available.
+4. Present the Owner with a concise proposal before any new-row write: `Source/CMS wording | proposed local generic Items name | strength/form/spec | Unit | Serial Code/CS Name evidence | why no existing local family matches`.
+5. **Hard stop:** do not create the `NEW_ITEM` row until the Owner explicitly approves the proposed local operational/generic name and new-item identity.
+6. If research remains ambiguous or conflicting, keep the line as `NEW / UNMAPPED` or `REVIEW`; do not invent a local generic name.
+
+Online research supplements identity/naming only. It does not outrank the actual source document for received quantity, expiry, source code, source price, or other physical receipt facts.
+
 ### Local unit convention gate
 
 `Main Stock.Unit` is a local operational pack/count unit, not a free-text copy of source dosage-form wording.
@@ -134,7 +147,9 @@ When a source confirms a new expiry lot for an existing local item:
 
 When a source confirms a genuinely new local item **after the local-family reconciliation gate finds no safe existing operational family**:
 
-- create/align the new Main Stock and Daily Usage row only when identity and user authority permit,
+- complete the genuinely-new-item naming and approval gate above before any row creation,
+- if no existing local generic/operational name is found, research and propose one rather than copying CMS/source brand wording into `Items`,
+- require explicit Owner approval of the proposed local generic/operational identity before creating/aligning the new Main Stock and Daily Usage row,
 - set `Remaining Stock = 0` and record the actual source quantity in `Received Stock`,
 - initialize `Reorder Level = actual intake/received quantity` unless stronger verified configuration evidence or an explicit Owner instruction says otherwise,
 - apply the canonical expiry-suffix rule,
