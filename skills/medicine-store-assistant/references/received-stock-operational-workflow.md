@@ -8,7 +8,7 @@ This workflow preserves the Excel-compatible operational surfaces while making r
 
 Treat the receipt workflow as:
 
-**source evidence -> identity/lot resolution -> checkpoint -> Main Stock mutation -> Daily Usage alignment -> derived This Month Received summary -> readback -> Audit_Log**
+**source evidence -> local-family/identity resolution -> lot resolution -> checkpoint -> Main Stock mutation -> Daily Usage alignment -> derived This Month Received summary -> readback -> Audit_Log**
 
 Do not treat `This Month Received` as an independent inventory authority when the live workbook shows it is derived from `Main Stock`.
 
@@ -52,7 +52,7 @@ Capture only supported fields, including as available:
 - local/CMS item identity,
 - CMS code,
 - quantity actually received,
-- unit,
+- source unit/presentation wording,
 - price,
 - expiry date,
 - transfer/batch number,
@@ -60,6 +60,26 @@ Capture only supported fields, including as available:
 - source-specific identifiers.
 
 Preserve exact numbers. Distinguish blank, zero, corrected, and unreadable fields. Never convert a requested quantity into received quantity without source evidence.
+
+The source is authoritative for the physical receipt facts, but source wording is not automatic authority for the established local `Items` name or local operational `Unit` convention.
+
+## Local-family reconciliation gate
+
+Before classifying a line as `NEW_ITEM`, first prove that no safe existing operational family already represents it.
+
+Use, as available:
+
+1. adjacent/same-family rows in the live table,
+2. expiry-suffix-normalized local naming,
+3. compatible strength/form/size/specification and local Unit,
+4. confirmed `Item_Mapping`,
+5. current CMS catalogue/price-list evidence,
+6. verified older local/baseline rows,
+7. authoritative source descriptions and clinically/operationally meaningful synonym relationships.
+
+Preserve the established local operational family name when the receipt is merely a different CMS brand/code/source description for the same local item. Keep CMS/source identity in `Serial Code`, `CS Name`, catalogue evidence, and audit history.
+
+Do not create a new local item merely because the source wording differs from the local operational wording.
 
 ## Receipt classification
 
@@ -73,8 +93,9 @@ Action:
 
 - add the verified receipt quantity to that row's current-month `Received Stock` according to the live contract,
 - do not create a duplicate lot row,
-- preserve the row's existing identity/configuration unless separately corrected by stronger evidence,
+- preserve the row's existing local identity/configuration unless separately corrected by stronger evidence,
 - preserve the existing `Reorder Level`; an additional receipt into an already-established lot does not redefine reorder policy,
+- preserve the established local Unit unless separate evidence proves it was wrong,
 - verify the mirrored Daily Usage row receives/reflects the same received-stock state.
 
 ### 2. NEW_EXPIRY_LOT
@@ -88,8 +109,9 @@ Action:
 - put the actual received quantity in `Received Stock`,
 - set the new row's default `Reorder Level` equal to the actual intake/received quantity when no stronger verified reorder configuration is already established for that new row,
 - treat that value as an intake default/initial configuration, not as an adaptive reorder conclusion; later reorder review may revise it,
+- preserve the established local operational name and Unit for the family,
+- apply the canonical expiry-suffix rule below,
 - populate only verified identity/configuration fields,
-- preserve expiry-separated lot naming according to the established suffix rule,
 - insert/align the corresponding Daily Usage row in the same structural position,
 - verify the new lot appears correctly in `This Month Received` through the live derived mechanism.
 
@@ -97,7 +119,7 @@ Follow `cms-batch-intake.md` for the detailed new-lot insertion contract.
 
 ### 3. NEW_ITEM
 
-The source represents a genuinely new local item with no safe current family match.
+The source represents a genuinely new local item **after the local-family reconciliation gate finds no safe existing family match**.
 
 Action:
 
@@ -107,12 +129,14 @@ Action:
 - create/align its Daily Usage row,
 - initialize stable configuration conservatively,
 - set the default `Reorder Level` equal to the actual intake/received quantity unless stronger verified configuration evidence or an explicit Owner instruction says otherwise,
+- use a verified local operational Unit rather than blindly copying source form/presentation wording,
+- apply the canonical expiry-suffix rule when expiry is known,
 - do not invent pack size, usage expectation, CMS mapping, or request quantity without evidence,
 - treat later usage and Owner experience as the basis for future reorder intelligence.
 
 ### 4. REVIEW / CONFLICT
 
-Identity, expiry, code, specification, quantity, or prior receipt evidence is materially ambiguous.
+Identity, expiry, code, specification, quantity, local-family mapping, unit, or prior receipt evidence is materially ambiguous.
 
 Action:
 
@@ -153,6 +177,33 @@ Default operational intent for multiple receipts in the same month is cumulative
 But do not apply this arithmetic blindly if the live row already includes the same transfer. Complete idempotency first.
 
 Do not rewrite `Remaining Stock` merely to make the balance look current. Under the current Daily Usage contract, `Remaining Stock` is the opening/base stock source and `Received Stock` is the current-month inflow; current balance is derived from opening + receipts - usage.
+
+## Local Unit convention
+
+`Main Stock.Unit` is a local operational pack/count unit, not source dosage-form free text.
+
+Before writing a Unit:
+
+1. use a verified same-family/sibling Unit when available,
+2. otherwise inspect verified older local/baseline rows,
+3. use source packaging evidence only to resolve the physical operational unit, not to copy a dosage-form label blindly.
+
+Common verified local units include `Pcs`, `Pair`, `Tube`, `Amp`, `Vial`, `Bot`, `Tab`, `Cap`, `Pkt`, `Roll`, `Set`, `Sachet`, and `Cup`.
+
+Do not blindly write source-style values such as `Cream`, `Injection`, `Infusion`, `Oral Suspension`, `Nasal Spray`, `Pieces`, or `OTHER` when the local family uses a different operational unit. Do not globally convert all injections to one unit; resolve `Amp`, `Vial`, `Bot`, or another unit from actual family/packaging evidence.
+
+## Canonical expiry-suffix rule
+
+Treat `Expiry Date` as the live structured expiry field unless stronger source evidence proves it is wrong.
+
+- Nonblank `Expiry Date` requires a terminal `(M/YYYY)` suffix in `Items` matching that structured expiry.
+- Missing suffix -> append it.
+- Stale/mismatching terminal expiry suffix -> replace it from the verified structured expiry.
+- If stronger source evidence proves the structured expiry is wrong, correct `Expiry Date` first, then synchronize the suffix.
+- Blank `Expiry Date` -> do not invent a suffix.
+- Modify only the terminal expiry marker; preserve all product-defining parentheses, strengths, sizes, brands, manufacturer/country clues, gauge, formulation, and other identity text.
+
+The suffix is lot metadata for identity matching, but it is mandatory naming metadata whenever the structured expiry is known.
 
 ## Main Stock / Daily Usage paired integrity
 
@@ -197,6 +248,14 @@ For a received line:
 - do not overwrite historical transaction prices with a current catalogue price,
 - do not rely on CMS code alone when identity evidence conflicts.
 
+After intake, perform an identity-completeness pass on touched rows and relevant siblings. `Serial Code present + CS Name blank` is incomplete when SAFE evidence can recover the dependent identity.
+
+For missing `Serial Code` and/or `CS Name`, use this evidence order when available:
+
+**verified adjacent/same-family sibling -> current CMS catalogue/price list -> confirmed Item_Mapping -> verified older local/baseline data or authoritative source document**.
+
+Do not guess. Deliberate `Nil`, `UNMAPPED`, or `EXCLUDED` states are acceptable when evidence remains insufficient.
+
 Use `cms-price-and-matching.md` for identity-sensitive mapping decisions.
 
 ## Expiry handling
@@ -205,9 +264,9 @@ Expiry is lot-defining receipt evidence.
 
 - same item + different expiry normally means a separate lot row,
 - never merge a new fresh receipt into an old expired lot merely because the name/code matches,
-- when a fresh zero-stock representative already exists for a family with expired stock, prefer using/updating the correct fresh lot identity rather than creating unnecessary duplication,
 - if source expiry conflicts with the existing lot's structured expiry, stop and resolve the lot identity rather than silently overwriting it,
-- receiving a fresh replacement does **not** automatically authorize discard, stock removal, or row deletion of an older expired lot.
+- receiving a fresh replacement does **not** automatically authorize discard, stock removal, or row deletion of an older expired lot,
+- after any verified expiry correction or row insertion, apply the canonical expiry-suffix rule globally to affected rows.
 
 For near-expiry return decisions, FOC retention, expired-stock operational use, rare/critical keep exceptions, CMS discard approval, and eventual discard lifecycle, follow `expiry-return-and-discard-lifecycle.md`.
 
@@ -217,18 +276,21 @@ For every actual receipt mutation:
 
 1. inspect source evidence and live target rows,
 2. complete marker preflight when this is a new CMS batch intake,
-3. classify each line,
-4. complete idempotency checks,
-5. create and verify a fresh full-workbook pre-mutation checkpoint,
-6. mutate the smallest required Main Stock / Daily Usage structure or values,
-7. allow `This Month Received` to derive from Main Stock when that is the live contract,
-8. read back affected Main Stock rows,
-9. read back corresponding Daily Usage rows,
-10. read back relevant `This Month Received` rows,
-11. verify unrelated usage/history was not changed,
-12. write `Audit_Log` with the checkpoint ID,
-13. read back the audit entry,
-14. stop and preserve the checkpoint if verification fails.
+3. run the local-family reconciliation gate,
+4. classify each line,
+5. complete idempotency checks,
+6. create and verify a fresh full-workbook pre-mutation checkpoint,
+7. mutate the smallest required Main Stock / Daily Usage structure or values,
+8. allow `This Month Received` to derive from Main Stock when that is the live contract,
+9. run identity-completeness, local-Unit, and expiry-suffix checks on affected rows,
+10. read back affected Main Stock rows,
+11. read back corresponding Daily Usage rows,
+12. read back relevant `This Month Received` rows,
+13. verify unrelated usage/history was not changed,
+14. verify row count, numbering, formulas, received totals, and production/staging parity when a staging mirror is intentionally maintained,
+15. write `Audit_Log` with the checkpoint ID,
+16. read back the audit entry,
+17. stop and preserve the checkpoint if verification fails.
 
 Do not reuse an older checkpoint for a distinct receipt mutation slice.
 
@@ -245,6 +307,7 @@ Examples of concise actions:
 - `ADD TO EXISTING LOT`
 - `CREATE NEW EXPIRY LOT`
 - `CREATE NEW ITEM`
+- `LOCAL FAMILY REVIEW`
 - `IDENTITY REVIEW`
 - `POSSIBLE DUPLICATE RECEIPT`
 - `FIXED ASSET ROUTE`
@@ -254,15 +317,19 @@ Examples of concise actions:
 A receipt operation is complete only when all applicable checks pass:
 
 - exact source quantity preserved,
-- correct item/lot identity used,
+- correct local operational item/family and lot identity used,
 - no duplicate receipt applied,
 - expiry-separated lots preserved,
+- every nonblank structured expiry has a matching terminal expiry suffix,
+- local operational Unit convention preserved,
 - new-row default Reorder Level initialized from actual intake quantity when no stronger configuration applies,
 - Main Stock and Daily Usage remain aligned,
 - current-month Daily Usage history remains intact,
 - `This Month Received` reflects the expected receipt under the live formula contract,
 - derived/helper fields were not manually seeded without authority,
 - mapping/price changes are evidence-supported,
+- recoverable Serial Code/CS Name blanks are resolved and true unresolved states are explicit,
+- structural formula/range/parity/totals checks pass,
 - checkpoint exists,
 - Audit_Log entry exists and is read back.
 
@@ -270,6 +337,6 @@ A receipt operation is complete only when all applicable checks pass:
 
 When the Owner says something equivalent to **`process received stock`**, use this default sequence:
 
-**inspect source -> inspect live workbook -> marker preflight if batch intake -> classify lines -> idempotency -> checkpoint -> apply safe existing/new-lot/new-item mutations -> initialize new-row Reorder Level from intake quantity when applicable -> verify Daily Usage alignment -> verify This Month Received -> audit -> readback -> summarize review exceptions**
+**inspect source -> inspect live workbook -> marker preflight if batch intake -> local-family reconciliation -> classify lines -> idempotency -> checkpoint -> apply safe existing/new-lot/new-item mutations -> initialize new-row Reorder Level from intake quantity when applicable -> normalize local Unit + expiry suffix + identity completeness -> verify Daily Usage alignment -> verify This Month Received -> verify formulas/parity/totals -> audit -> readback -> summarize true review exceptions**
 
 This workflow is the canonical skill-side receipt process unless the user explicitly requests a narrower operation.
